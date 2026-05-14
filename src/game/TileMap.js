@@ -45,7 +45,25 @@ export default class TileMap {
   }
 
   computeFov(originX, originY, radius) {
+    // Сначала сбрасываем visible, но НЕ explored
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        const tile = this.getTile(x, y)
+        if (tile) tile.visible = false
+      }
+    }
+
     this.fov.compute(originX | 0, originY | 0, radius)
+
+    // Помечаем explored для всех visible тайлов
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        const tile = this.getTile(x, y)
+        if (tile && tile.visible) {
+          tile.explored = true
+        }
+      }
+    }
   }
 
   isVisible(x, y) {

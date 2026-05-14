@@ -14,14 +14,19 @@
   "dtCap": 0.1,
   "fovRadius": 8,
   "colors": {
-    "bg": "#0a0a12",
+    "bg": "#000000",
+    "wallBg": "#222233",
     "wall": "#555555",
-    "floor": "#000000",
+    "floor": "#0a0a12",
     "player": "#00ff00",
     "npcStatic": "#44aaff",
     "npcWander": "#ff8844",
     "item": "#ffd700",
-    "grid": "rgba(255, 255, 255, 0.06)"
+    "grid": "rgba(255, 255, 255, 0.06)",
+    "as": "#333333",
+    "exploredFloor": "#0a0a0f",
+    "exploredWallBg": "#111122",
+    "exploredWall": "#444444"
   },
   "symbols": {
     "wall": "#",

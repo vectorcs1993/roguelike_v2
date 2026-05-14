@@ -49,36 +49,44 @@ export default class Renderer {
     const c1 = Math.min(map.cols, endCol)
     const r1 = Math.min(map.rows, endRow)
 
-    // Стены
+    // Тайлы (стены + пол)
     for (let row = r0; row < r1; row++) {
       const rowOffset = row * ts + offsetY
       for (let col = c0; col < c1; col++) {
         const tile = map.getTile(col, row)
-        if (tile && tile.isWall) {
-          ctx.fillStyle = this.config.colors.wall
-          ctx.fillText(this.config.symbols.wall, col * ts + offsetX + ts * 0.5, rowOffset + ts * 0.5)
+        if (!tile) continue
+
+        const x = col * ts + offsetX
+        const y = rowOffset
+        const cx = x + ts * 0.5
+        const cy = y + ts * 0.5
+
+        if (tile.visible) {
+          if (tile.isWall) {
+            // Фон стены
+            ctx.fillStyle = this.config.colors.wallBg
+            ctx.fillRect(x, y, ts, ts)
+            // Символ
+            ctx.fillStyle = this.config.colors.wall
+            ctx.fillText(this.config.symbols.wall, cx, cy)
+          } else {
+            ctx.fillStyle = this.config.colors.floor
+            ctx.fillRect(x, y, ts, ts)
+          }
+        } else if (tile.explored) {
+          if (tile.isWall) {
+            // Фон explored стены
+            ctx.fillStyle = this.config.colors.exploredWallBg
+            ctx.fillRect(x, y, ts, ts)
+            // Символ
+            ctx.fillStyle = this.config.colors.exploredWall
+            ctx.fillText(this.config.symbols.wall, cx, cy)
+          } else {
+            ctx.fillStyle = this.config.colors.exploredFloor
+            ctx.fillRect(x, y, ts, ts)
+          }
         }
-      }
-    }
-
-    // Стены — только видимые
-    for (let row = r0; row < r1; row++) {
-      const rowOffset = row * ts + offsetY
-      for (let col = c0; col < c1; col++) {
-        const tile = map.getTile(col, row)
-        if (!tile || !tile.visible) continue  // ← невидимое пропускаем
-
-        const cx = col * ts + offsetX + ts * 0.5
-        const cy = rowOffset + ts * 0.5
-
-        if (tile.isWall) {
-          ctx.fillStyle = this.config.colors.wall
-          ctx.fillText(this.config.symbols.wall, cx, cy)
-        } else {
-          // Пол — тёмный (видимый, но без текстуры для простоты)
-          ctx.fillStyle = this.config.colors.floor
-          ctx.fillRect(col * ts + offsetX, rowOffset, ts, ts)
-        }
+        // Не explored и не visible — не рисуем (чёрный фон)
       }
     }
 
@@ -87,26 +95,31 @@ export default class Renderer {
     ctx.lineWidth = 1
     for (let row = r0; row < r1; row++) {
       for (let col = c0; col < c1; col++) {
-        if (!map.isVisible(col, row)) continue
+        const tile = map.getTile(col, row)
+        if (!tile || (!tile.visible && !tile.explored)) continue
         const x = col * ts + offsetX
         const y = row * ts + offsetY
-        ctx.strokeRect(x, y, ts, ts)  // ← проще чем отдельные линии
+        ctx.strokeRect(x, y, ts, ts)
       }
     }
 
-    // NPC — только если тайл под ними виден
+    // NPC — только в прямой видимости
     for (const npc of npcs) {
       if (!map.isVisible(npc.x | 0, npc.y | 0)) continue
       ctx.fillStyle = npc.color
       ctx.fillText(npc.char, npc.vx * ts + offsetX + ts * 0.5, npc.vy * ts + offsetY + ts * 0.5)
     }
 
-    // Предметы — только видимые
+    // Предметы — видны на explored (даже если не в зоне видимости)
     for (const item of items) {
       if (item.collected) continue
-      if (!map.isVisible(item.x, item.y)) continue
+      const tile = map.getTile(item.x, item.y)
+      if (!tile || (!tile.visible && !tile.explored)) continue
       ctx.fillStyle = item.color
+      // Невидимые предметы — тусклее
+      if (!tile.visible) ctx.globalAlpha = 0.4
       ctx.fillText(item.char, item.x * ts + offsetX + ts * 0.5, item.y * ts + offsetY + ts * 0.5)
+      ctx.globalAlpha = 1
     }
 
     // Игрок всегда виден (в центре)
