@@ -34,6 +34,17 @@ const pillars = [
   [35, 10], [36, 10], [37, 10],
   [55, 32], [56, 32], [57, 32]
 ]
+
+// ============ ПРЕДМЕТЫ ============
+// [x, y, символ, цвет]
+const items = [
+  { x: 15, y: 10, char: '$', color: '#ffd700', collected: false },
+  { x: 40, y: 20, char: '$', color: '#ffd700', collected: false },
+  { x: 25, y: 30, char: '$', color: '#ffd700', collected: false },
+  { x: 50, y: 15, char: '$', color: '#ffd700', collected: false },
+  { x: 35, y: 5, char: '$', color: '#ffd700', collected: false },
+]
+
 pillars.forEach(([x, y]) => {
   if (y > 0 && y < ROWS - 1 && x > 0 && x < COLS - 1) {
     mapTiles[y][x] = 1
@@ -184,6 +195,14 @@ function update(deltaTime) {
     if (isWalkable(tileX, tileY)) {
       playerX = tileX + 0.5
       playerY = tileY + 0.5
+
+      for (const item of items) {
+        if (!item.collected && item.x === tileX && item.y === tileY) {
+          item.collected = true
+          break
+        }
+      }
+
     }
   }
 
@@ -241,6 +260,8 @@ function draw() {
     }
   }
 
+
+
   // --- СЕТКА (после тайлов, перед игроком) ---
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)'  // едва заметная белая
   ctx.lineWidth = 1
@@ -259,6 +280,7 @@ function draw() {
     ctx.stroke()
   }
 
+
   // Горизонтальные линии
   for (let row = r0; row <= r1; row++) {
     const y = row * ts + offsetY
@@ -266,6 +288,15 @@ function draw() {
     ctx.moveTo(gridStartX, y)
     ctx.lineTo(gridStartX + gridW, y)
     ctx.stroke()
+  }
+
+  // --- ПРЕДМЕТЫ ---
+  for (const item of items) {
+    if (item.collected) continue
+    const ix = item.x * ts + offsetX + ts * 0.5
+    const iy = item.y * ts + offsetY + ts * 0.5
+    ctx.fillStyle = item.color
+    ctx.fillText(item.char, ix, iy)
   }
 
   // Игрок всегда в центре экрана
