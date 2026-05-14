@@ -12,9 +12,9 @@ import { ref, onMounted, onUnmounted } from 'vue'
 const BASE_TILE_SIZE = 128
 const COLS = 60
 const ROWS = 40
-const MOVE_INTERVAL = 0.1
+const MOVE_INTERVAL = 0.2
 const CAMERA_SMOOTH = 10
-
+const NPC_MOVE_SPEED = 8
 // ============ КАРТА ============
 const mapTiles = Array.from({ length: ROWS }, (_, y) =>
   Array.from({ length: COLS }, (_, x) => {
@@ -47,10 +47,18 @@ const items = [
 
 // ============ NPC ============
 const npcs = [
-  // Статичный — стоит на месте
-  { x: 20, y: 12, char: 'M', color: '#4af', type: 'static' },
-  // Блуждающий — ходит в случайном направлении
-  { x: 45, y: 22, char: 'G', color: '#f84', type: 'wander', timer: 0, interval: 1.5 },
+  // Статичный
+  {
+    x: 20, y: 12, vx: 20, vy: 12,  // vx/vy — визуальная позиция (дробная)
+    char: 'M', color: '#4af', type: 'static',
+    moving: false, fromX: 20, fromY: 12, toX: 20, toY: 12, progress: 0
+  },
+  // Блуждающий
+  {
+    x: 45, y: 22, vx: 45, vy: 22,
+    char: 'G', color: '#f84', type: 'wander', timer: 0, interval: 1.5,
+    moving: false, fromX: 45, fromY: 22, toX: 45, toY: 22, progress: 0
+  },
 ]
 
 pillars.forEach(([x, y]) => {
@@ -195,11 +203,28 @@ function update(deltaTime) {
   moveTimer += dt
   // --- Обновление NPC ---
   for (const npc of npcs) {
-    if (npc.type === 'wander') {
+    // Анимация перемещения
+    if (npc.moving) {
+      npc.progress += NPC_MOVE_SPEED * dt
+      if (npc.progress >= 1) {
+        npc.vx = npc.toX
+        npc.vy = npc.toY
+        npc.moving = false
+        npc.progress = 0
+      } else {
+        const t = npc.progress < 0.5
+          ? 2 * npc.progress * npc.progress
+          : 1 - Math.pow(-2 * npc.progress + 2, 2) / 2
+        npc.vx = npc.fromX + (npc.toX - npc.fromX) * t
+        npc.vy = npc.fromY + (npc.toY - npc.fromY) * t
+      }
+    }
+
+    // Блуждающий NPC выбирает новое направление
+    if (npc.type === 'wander' && !npc.moving) {
       npc.timer += dt
       if (npc.timer >= npc.interval) {
         npc.timer = 0
-        // Случайное направление: 0-вверх, 1-вниз, 2-влево, 3-вправо
         const dir = Math.random() * 4 | 0
         let dx = 0, dy = 0
         if (dir === 0) dy = -1
@@ -207,17 +232,22 @@ function update(deltaTime) {
         else if (dir === 2) dx = -1
         else dx = 1
 
-        const newNpcX = npc.x + dx
-        const newNpcY = npc.y + dy
-        // Не заходить на игрока, другие NPC и стены
+        const newX = npc.x + dx
+        const newY = npc.y + dy
         const blocked =
-          !isWalkable(newNpcX, newNpcY) ||
-          (newNpcX === (playerX | 0) && newNpcY === (playerY | 0)) ||
-          npcs.some(other => other !== npc && other.x === newNpcX && other.y === newNpcY)
+          !isWalkable(newX, newY) ||
+          (newX === (playerX | 0) && newY === (playerY | 0)) ||
+          npcs.some(other => other !== npc && other.x === newX && other.y === newY)
 
         if (!blocked) {
-          npc.x = newNpcX
-          npc.y = newNpcY
+          npc.fromX = npc.vx
+          npc.fromY = npc.vy
+          npc.toX = newX
+          npc.toY = newY
+          npc.x = newX
+          npc.y = newY
+          npc.moving = true
+          npc.progress = 0
         }
       }
     }
@@ -331,8 +361,8 @@ function draw() {
 
   // --- NPC ---
   for (const npc of npcs) {
-    const nx = npc.x * ts + offsetX + ts * 0.5
-    const ny = npc.y * ts + offsetY + ts * 0.5
+    const nx = npc.vx * ts + offsetX + ts * 0.5
+    const ny = npc.vy * ts + offsetY + ts * 0.5
     ctx.fillStyle = npc.color
     ctx.fillText(npc.char, nx, ny)
   }
@@ -350,13 +380,7 @@ function draw() {
   const px = halfW
   const py = halfH
 
-  // Свечение
-  ctx.fillStyle = COLORS.player
-  ctx.globalAlpha = 0.15
-  ctx.fillText('@', px, py)
-  ctx.globalAlpha = 1
-
-  // Символ
+  // Символ (без свечения)
   ctx.fillStyle = COLORS.player
   ctx.fillText('@', px, py)
 }
