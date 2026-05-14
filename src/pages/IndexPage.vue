@@ -80,6 +80,7 @@ function gameLoop(time) {
 
   // Update
   player.update(dt, input, map, npcs)
+  map.computeFov(player.x, player.y, config.fovRadius)  // обновляем видимость
   for (const npc of npcs) npc.update(dt, map, player, npcs)
   camera.follow(player.x, player.y, dt)
 

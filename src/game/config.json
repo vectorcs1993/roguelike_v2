@@ -12,6 +12,7 @@
   "tileSizeMin": 12,
   "tileSizeMaxDivisor": 15,
   "dtCap": 0.1,
+  "fovRadius": 8,
   "colors": {
     "bg": "#0a0a12",
     "wall": "#555555",

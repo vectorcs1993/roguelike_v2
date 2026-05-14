@@ -61,42 +61,55 @@ export default class Renderer {
       }
     }
 
-    // Сетка
-    ctx.strokeStyle = this.config.colors.grid
-    ctx.lineWidth = 1
-    const gsx = c0 * ts + offsetX
-    const gsy = r0 * ts + offsetY
-    const gw = (c1 - c0) * ts
-    const gh = (r1 - r0) * ts
-    for (let col = c0; col <= c1; col++) {
-      const x = col * ts + offsetX
-      ctx.beginPath()
-      ctx.moveTo(x, gsy)
-      ctx.lineTo(x, gsy + gh)
-      ctx.stroke()
-    }
-    for (let row = r0; row <= r1; row++) {
-      const y = row * ts + offsetY
-      ctx.beginPath()
-      ctx.moveTo(gsx, y)
-      ctx.lineTo(gsx + gw, y)
-      ctx.stroke()
+    // Стены — только видимые
+    for (let row = r0; row < r1; row++) {
+      const rowOffset = row * ts + offsetY
+      for (let col = c0; col < c1; col++) {
+        const tile = map.getTile(col, row)
+        if (!tile || !tile.visible) continue  // ← невидимое пропускаем
+
+        const cx = col * ts + offsetX + ts * 0.5
+        const cy = rowOffset + ts * 0.5
+
+        if (tile.isWall) {
+          ctx.fillStyle = this.config.colors.wall
+          ctx.fillText(this.config.symbols.wall, cx, cy)
+        } else {
+          // Пол — тёмный (видимый, но без текстуры для простоты)
+          ctx.fillStyle = this.config.colors.floor
+          ctx.fillRect(col * ts + offsetX, rowOffset, ts, ts)
+        }
+      }
     }
 
-    // NPC
+    // Сетка — только на видимых тайлах
+    ctx.strokeStyle = this.config.colors.grid
+    ctx.lineWidth = 1
+    for (let row = r0; row < r1; row++) {
+      for (let col = c0; col < c1; col++) {
+        if (!map.isVisible(col, row)) continue
+        const x = col * ts + offsetX
+        const y = row * ts + offsetY
+        ctx.strokeRect(x, y, ts, ts)  // ← проще чем отдельные линии
+      }
+    }
+
+    // NPC — только если тайл под ними виден
     for (const npc of npcs) {
+      if (!map.isVisible(npc.x | 0, npc.y | 0)) continue
       ctx.fillStyle = npc.color
       ctx.fillText(npc.char, npc.vx * ts + offsetX + ts * 0.5, npc.vy * ts + offsetY + ts * 0.5)
     }
 
-    // Предметы
+    // Предметы — только видимые
     for (const item of items) {
       if (item.collected) continue
+      if (!map.isVisible(item.x, item.y)) continue
       ctx.fillStyle = item.color
       ctx.fillText(item.char, item.x * ts + offsetX + ts * 0.5, item.y * ts + offsetY + ts * 0.5)
     }
 
-    // Игрок (всегда в центре)
+    // Игрок всегда виден (в центре)
     ctx.fillStyle = player.color
     ctx.fillText(player.char, this.halfW, this.halfH)
   }
