@@ -1,7 +1,7 @@
 <template>
   <q-page class="game-page">
-    <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove"
-      @touchend.prevent="onTouchEnd"></canvas>
+    <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd"
+      @click.prevent="onClick"></canvas>
   </q-page>
 </template>
 
@@ -15,8 +15,9 @@ import Item from 'src/game/Item.js'
 import Camera from 'src/game/Camera.js'
 import InputManager from 'src/game/InputManager.js'
 import Renderer from 'src/game/Renderer.js'
+import Pathfinder from 'src/game/Pathfinder.js'
 
-// Колонны
+// ============ КОЛОННЫ ============
 const pillars = [
   [10, 8], [10, 9], [10, 10], [30, 15], [30, 16], [30, 17],
   [50, 25], [50, 26], [15, 30], [16, 30], [17, 30],
@@ -24,24 +25,28 @@ const pillars = [
   [35, 10], [36, 10], [37, 10], [55, 32], [56, 32], [57, 32]
 ]
 
-// Инициализация
+// ============ ИНИЦИАЛИЗАЦИЯ ============
 const map = new TileMap(config.cols, config.rows)
 map.fill()
 map.setWalls(pillars)
 
 const player = new Player(config.cols >> 1, config.rows >> 1, config)
-const camera = new Camera(player.x, player.y, config.cameraSmooth)
+const camera = new Camera(player.x, player.y, config.cameraSpeed)
 const input = new InputManager(config.swipeThreshold)
+const pathfinder = new Pathfinder(map)
+
 const items = [
   new Item(15, 10, config), new Item(40, 20, config),
   new Item(25, 30, config), new Item(50, 15, config),
   new Item(35, 5, config)
 ]
+
 const npcs = [
   new Npc(20, 12, config.symbols.npcStatic, config.colors.npcStatic, 'static', config),
   new Npc(45, 22, config.symbols.npcWander, config.colors.npcWander, 'wander', config)
 ]
-// Canvas
+
+// ============ CANVAS ============
 const canvasRef = ref(null)
 let ctx = null
 let canvas = null
@@ -53,15 +58,19 @@ let resizeTimeout = null
 function resizeCanvas() {
   canvas = canvasRef.value
   if (!canvas) return
+
   const dpr = Math.min(window.devicePixelRatio || 1, config.dprCap)
   const rect = canvas.getBoundingClientRect()
+
   canvas.width = rect.width * dpr
   canvas.height = rect.height * dpr
   canvas.style.width = rect.width + 'px'
   canvas.style.height = rect.height + 'px'
+
   ctx = canvas.getContext('2d')
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.scale(dpr, dpr)
+
   if (!renderer) {
     renderer = new Renderer(ctx, config)
   }
@@ -73,37 +82,59 @@ function onResize() {
   resizeTimeout = setTimeout(resizeCanvas, config.resizeDebounce)
 }
 
-// Игровой цикл
+// ============ ИГРОВОЙ ЦИКЛ ============
 function gameLoop(time) {
   const dt = lastTime ? Math.min((time - lastTime) * 0.001, config.dtCap) : 0.016
   lastTime = time
 
-  // Update
-  // player.update(dt, input, map, npcs)  // ← ЗАКОММЕНТИРОВАТЬ — персонаж не двигается
-  camera.update(dt, input)                  // ← камера управляется вводом
+  // --- Обработка клика ---
+  const click = input.consumeClick()
+  if (click) {
+    const worldX = (click.x - renderer.halfW) / renderer.tileSize + camera.x
+    const worldY = (click.y - renderer.halfH) / renderer.tileSize + camera.y
+    const tileX = worldX | 0
+    const tileY = worldY | 0
+
+    const blocked = npcs.map(n => ({ x: n.x | 0, y: n.y | 0 }))
+
+    const path = pathfinder.find(
+      player.x | 0, player.y | 0,
+      tileX, tileY,
+      blocked
+    )
+
+    if (path) {
+      player.setPath(path)
+    }
+  }
+
+  // --- Update ---
+  player.update(dt, input, map, npcs)
+  camera.update(dt, input)
   map.computeFov(player.x, player.y, config.fovRadius)
 
   for (const npc of npcs) npc.update(dt, map, player, npcs)
 
-  // Сбор предметов
   for (const item of items) {
     if (!item.collected && item.occupies(player.x | 0, player.y | 0)) {
       item.collect()
     }
   }
 
-  // Draw
+  // --- Draw ---
   renderer.draw(map, player, npcs, items, camera)
   animationId = requestAnimationFrame(gameLoop)
 }
 
-// События
+// ============ СОБЫТИЯ ============
 function onTouchStart(e) { input.handleTouchStart(e) }
 function onTouchMove(e) { input.handleTouchMove(e) }
 function onTouchEnd() { input.handleTouchEnd() }
+function onClick(e) { input.handleClick(e) }
 function onKeyDown(e) { input.handleKeyDown(e) }
 function onKeyUp(e) { input.handleKeyUp(e) }
 
+// ============ ЖИЗНЕННЫЙ ЦИКЛ ============
 onMounted(() => {
   resizeCanvas()
   window.addEventListener('resize', onResize)

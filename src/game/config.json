@@ -13,6 +13,9 @@
   "tileSizeMaxDivisor": 15,
   "dtCap": 0.1,
   "fovRadius": 8,
+  "pathSpeed": 6,
+  "pathColor": "rgba(255, 255, 0, 0.3)",
+  "cameraSpeed": 15,
   "colors": {
     "bg": "#000000",
     "wallBg": "#222233",

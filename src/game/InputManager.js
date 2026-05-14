@@ -7,6 +7,21 @@ export default class InputManager {
     this.touchActive = false
     this.touchDirX = 0
     this.touchDirY = 0
+    this.clickX = 0
+    this.clickY = 0
+    this.clicked = false
+  }
+
+  handleClick(e) {
+    this.clickX = e.offsetX
+    this.clickY = e.offsetY
+    this.clicked = true
+  }
+
+  consumeClick() {
+    if (!this.clicked) return null
+    this.clicked = false
+    return { x: this.clickX, y: this.clickY }
   }
 
   handleKeyDown(e) {
