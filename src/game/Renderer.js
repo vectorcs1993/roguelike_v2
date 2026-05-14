@@ -122,8 +122,17 @@ export default class Renderer {
       ctx.globalAlpha = 1
     }
 
-    // Игрок всегда виден (в центре)
-    ctx.fillStyle = player.color
-    ctx.fillText(player.char, this.halfW, this.halfH)
+    // Игрок — на своей позиции (может быть не в центре)
+    const playerScreenX = player.vx * ts + offsetX
+    const playerScreenY = player.vy * ts + offsetY
+
+    // Если игрок в пределах экрана — рисуем
+    if (
+      playerScreenX > -ts && playerScreenX < w + ts &&
+      playerScreenY > -ts && playerScreenY < h + ts
+    ) {
+      ctx.fillStyle = player.color
+      ctx.fillText(player.char, playerScreenX, playerScreenY)
+    }
   }
 }

@@ -79,10 +79,11 @@ function gameLoop(time) {
   lastTime = time
 
   // Update
-  player.update(dt, input, map, npcs)
-  map.computeFov(player.x, player.y, config.fovRadius)  // обновляем видимость
+  // player.update(dt, input, map, npcs)  // ← ЗАКОММЕНТИРОВАТЬ — персонаж не двигается
+  camera.update(dt, input)                  // ← камера управляется вводом
+  map.computeFov(player.x, player.y, config.fovRadius)
+
   for (const npc of npcs) npc.update(dt, map, player, npcs)
-  camera.follow(player.x, player.y, dt)
 
   // Сбор предметов
   for (const item of items) {
