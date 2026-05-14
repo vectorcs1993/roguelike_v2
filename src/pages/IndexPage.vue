@@ -45,6 +45,14 @@ const items = [
   { x: 35, y: 5, char: '$', color: '#ffd700', collected: false },
 ]
 
+// ============ NPC ============
+const npcs = [
+  // Статичный — стоит на месте
+  { x: 20, y: 12, char: 'M', color: '#4af', type: 'static' },
+  // Блуждающий — ходит в случайном направлении
+  { x: 45, y: 22, char: 'G', color: '#f84', type: 'wander', timer: 0, interval: 1.5 },
+]
+
 pillars.forEach(([x, y]) => {
   if (y > 0 && y < ROWS - 1 && x > 0 && x < COLS - 1) {
     mapTiles[y][x] = 1
@@ -185,14 +193,46 @@ function update(deltaTime) {
     moveY = touchDirY
   }
   moveTimer += dt
+  // --- Обновление NPC ---
+  for (const npc of npcs) {
+    if (npc.type === 'wander') {
+      npc.timer += dt
+      if (npc.timer >= npc.interval) {
+        npc.timer = 0
+        // Случайное направление: 0-вверх, 1-вниз, 2-влево, 3-вправо
+        const dir = Math.random() * 4 | 0
+        let dx = 0, dy = 0
+        if (dir === 0) dy = -1
+        else if (dir === 1) dy = 1
+        else if (dir === 2) dx = -1
+        else dx = 1
 
+        const newNpcX = npc.x + dx
+        const newNpcY = npc.y + dy
+        // Не заходить на игрока, другие NPC и стены
+        const blocked =
+          !isWalkable(newNpcX, newNpcY) ||
+          (newNpcX === (playerX | 0) && newNpcY === (playerY | 0)) ||
+          npcs.some(other => other !== npc && other.x === newNpcX && other.y === newNpcY)
+
+        if (!blocked) {
+          npc.x = newNpcX
+          npc.y = newNpcY
+        }
+      }
+    }
+  }
   if ((moveX !== 0 || moveY !== 0) && moveTimer >= MOVE_INTERVAL) {
     moveTimer = 0
     const newX = playerX + moveX
     const newY = playerY + moveY
-    const tileX = newX | 0 // побитовый floor (быстрее)
+    const tileX = newX | 0
     const tileY = newY | 0
-    if (isWalkable(tileX, tileY)) {
+
+    // Проверяем, не занята ли клетка NPC
+    const npcBlocking = npcs.some(n => n.x === tileX && n.y === tileY)
+
+    if (isWalkable(tileX, tileY) && !npcBlocking) {
       playerX = tileX + 0.5
       playerY = tileY + 0.5
 
@@ -202,7 +242,6 @@ function update(deltaTime) {
           break
         }
       }
-
     }
   }
 
@@ -288,6 +327,14 @@ function draw() {
     ctx.moveTo(gridStartX, y)
     ctx.lineTo(gridStartX + gridW, y)
     ctx.stroke()
+  }
+
+  // --- NPC ---
+  for (const npc of npcs) {
+    const nx = npc.x * ts + offsetX + ts * 0.5
+    const ny = npc.y * ts + offsetY + ts * 0.5
+    ctx.fillStyle = npc.color
+    ctx.fillText(npc.char, nx, ny)
   }
 
   // --- ПРЕДМЕТЫ ---
