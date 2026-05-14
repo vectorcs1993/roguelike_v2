@@ -109,6 +109,11 @@ export default class Renderer {
       ctx.fillStyle = npc.color
       ctx.fillText(npc.char, npc.vx * ts + offsetX + ts * 0.5, npc.vy * ts + offsetY + ts * 0.5)
     }
+    // Визуализация пути игрока
+    if (player.path && player.path.length > 0) {
+      this.drawPath(player.path, camera)
+    }
+
 
     // Предметы — видны на explored (даже если не в зоне видимости)
     for (const item of items) {
@@ -121,7 +126,14 @@ export default class Renderer {
       ctx.fillText(item.char, item.x * ts + offsetX + ts * 0.5, item.y * ts + offsetY + ts * 0.5)
       ctx.globalAlpha = 1
     }
-
+    if (this.hoverTileX !== null && !player.followingPath) {
+      const blocked = this._blockedCache || []
+      this.drawPathPreview(
+        player.x | 0, player.y | 0,
+        this.hoverTileX, this.hoverTileY,
+        this._pathfinder, blocked, camera
+      )
+    }
     // Игрок — на своей позиции (может быть не в центре)
     const playerScreenX = player.vx * ts + offsetX
     const playerScreenY = player.vy * ts + offsetY
@@ -134,5 +146,157 @@ export default class Renderer {
       ctx.fillStyle = player.color
       ctx.fillText(player.char, playerScreenX, playerScreenY)
     }
+
+    // Подсветка клетки под курсором
+    if (this.hoverTileX !== null) {
+      this.drawHoverTile(this.hoverTileX, this.hoverTileY, camera)
+      this.drawTooltip(this.hoverTileX, this.hoverTileY, map, player, npcs, items, camera)
+    }
+  }
+  // Подсветка клетки под курсором
+  drawHoverTile(tileX, tileY, camera) {
+    if (tileX === undefined || tileY === undefined) return
+    const ctx = this.ctx
+    const ts = this.tileSize
+    const offsetX = this.halfW - camera.x * ts
+    const offsetY = this.halfH - camera.y * ts
+    const x = tileX * ts + offsetX
+    const y = tileY * ts + offsetY
+
+    // Рамка
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x + 1, y + 1, ts - 2, ts - 2)
+
+    // Лёгкая заливка
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'
+    ctx.fillRect(x + 2, y + 2, ts - 4, ts - 4)
+  }
+
+  // Подсветка пути A*
+  drawPath(path, camera) {
+    if (!path || path.length < 2) return
+    const ctx = this.ctx
+    const ts = this.tileSize
+    const offsetX = this.halfW - camera.x * ts
+    const offsetY = this.halfH - camera.y * ts
+
+    ctx.fillStyle = 'rgba(255, 255, 0, 0.25)'
+    for (let i = 0; i < path.length; i++) {
+      const step = path[i]
+      const x = step.x * ts + offsetX
+      const y = step.y * ts + offsetY
+      ctx.fillRect(x + 2, y + 2, ts - 4, ts - 4)
+    }
+
+    // Линии между шагами
+    if (path.length >= 2) {
+      ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      const first = path[0]
+      ctx.moveTo(first.x * ts + offsetX + ts / 2, first.y * ts + offsetY + ts / 2)
+      for (let i = 1; i < path.length; i++) {
+        const step = path[i]
+        ctx.lineTo(step.x * ts + offsetX + ts / 2, step.y * ts + offsetY + ts / 2)
+      }
+      ctx.stroke()
+    }
+  }
+
+  // Тултип с информацией об объекте под курсором
+  drawTooltip(tileX, tileY, map, player, npcs, items) {
+    if (tileX === undefined || tileY === undefined) return
+    const ctx = this.ctx
+
+    // Сохраняем текущие настройки текста
+    const prevFont = ctx.font
+    const prevAlign = ctx.textAlign
+    const prevBaseline = ctx.textBaseline
+
+    let text;
+    const tile = map.getTile(tileX, tileY)
+
+    if (tile && tile.isWall) {
+      text = '🧱 Стена'
+    } else if (tile && tile.visible) {
+      text = `📍 Пол (${tileX}, ${tileY})`
+      for (const item of items) {
+        if (!item.collected && item.x === tileX && item.y === tileY) {
+          text = `💰 Золото (${tileX}, ${tileY})`
+          break
+        }
+      }
+      for (const npc of npcs) {
+        if ((npc.x | 0) === tileX && (npc.y | 0) === tileY) {
+          text = npc.type === 'static' ? `🧙 Торговец` : `⚔️ Стражник`
+          break
+        }
+      }
+      if ((player.x | 0) === tileX && (player.y | 0) === tileY) {
+        text = '🧝 Герой'
+      }
+    } else if (tile && tile.explored) {
+      text = '🌫️ Ранее увидено'
+    } else {
+      text = '🌑 Неизведано'
+    }
+
+    if (!text) {
+      // Восстанавливаем даже если не рисуем
+      ctx.font = prevFont
+      ctx.textAlign = prevAlign
+      ctx.textBaseline = prevBaseline
+      return
+    }
+
+    const fontSize = 12
+    ctx.font = `${fontSize}px monospace`
+    const textW = ctx.measureText(text).width + 16
+    const textH = fontSize + 10
+    const tx = this.mouseScreenX + 16
+    const ty = this.mouseScreenY - textH - 8
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'
+    ctx.fillRect(tx, ty, textW, textH)
+    ctx.strokeStyle = '#666'
+    ctx.lineWidth = 1
+    ctx.strokeRect(tx, ty, textW, textH)
+
+    ctx.fillStyle = '#fff'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, tx + 8, ty + textH / 2)
+
+    // Восстанавливаем настройки текста
+    ctx.font = prevFont
+    ctx.textAlign = prevAlign
+    ctx.textBaseline = prevBaseline
+  }
+  // Превью пути от игрока до курсора (без клика)
+  drawPathPreview(fromX, fromY, toX, toY, pathfinder, blockedCells, camera) {
+    if (toX === undefined || toY === undefined) return
+    const path = pathfinder.find(fromX, fromY, toX, toY, blockedCells)
+    if (!path || path.length < 2) return
+
+    const ctx = this.ctx
+    const ts = this.tileSize
+    const offsetX = this.halfW - camera.x * ts
+    const offsetY = this.halfH - camera.y * ts
+
+    // Клетки пути (полупрозрачные)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'
+    for (let i = 1; i < path.length - 1; i++) {
+      const step = path[i]
+      ctx.fillRect(step.x * ts + offsetX + 3, step.y * ts + offsetY + 3, ts - 6, ts - 6)
+    }
+
+    // Целевая клетка
+    const last = path[path.length - 1]
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'
+    ctx.lineWidth = 2
+    ctx.setLineDash([4, 4])
+    ctx.strokeRect(last.x * ts + offsetX + 2, last.y * ts + offsetY + 2, ts - 4, ts - 4)
+    ctx.setLineDash([])
   }
 }

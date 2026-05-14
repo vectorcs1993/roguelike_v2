@@ -10,6 +10,25 @@ export default class InputManager {
     this.clickX = 0
     this.clickY = 0
     this.clicked = false
+    this.mouseX = 0
+    this.mouseY = 0
+    this.mouseOnCanvas = false
+  }
+  handleMouseMove(e) {
+    this.mouseX = e.offsetX
+    this.mouseY = e.offsetY
+    this.mouseOnCanvas = true
+  }
+
+  handleMouseLeave() {
+    this.mouseOnCanvas = false
+  }
+
+  getMouseTile(camera, renderer) {
+    if (!this.mouseOnCanvas) return null
+    const worldX = (this.mouseX - renderer.halfW) / renderer.tileSize + camera.x
+    const worldY = (this.mouseY - renderer.halfH) / renderer.tileSize + camera.y
+    return { x: worldX | 0, y: worldY | 0, worldX, worldY }
   }
 
   handleClick(e) {

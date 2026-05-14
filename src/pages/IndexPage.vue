@@ -1,7 +1,7 @@
 <template>
   <q-page class="game-page">
     <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd"
-      @click.prevent="onClick"></canvas>
+      @click.prevent="onClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave"></canvas>
   </q-page>
 </template>
 
@@ -120,7 +120,20 @@ function gameLoop(time) {
       item.collect()
     }
   }
+  const hoverTile = input.getMouseTile(camera, renderer)
+  let hoverTileX = null, hoverTileY = null
+  if (hoverTile) {
+    hoverTileX = hoverTile.x
+    hoverTileY = hoverTile.y
+  }
 
+  // Передаём в renderer
+  renderer.hoverTileX = hoverTileX
+  renderer.hoverTileY = hoverTileY
+  renderer.mouseScreenX = input.mouseX
+  renderer.mouseScreenY = input.mouseY
+  renderer._pathfinder = pathfinder
+  renderer._blockedCache = npcs.map(n => ({ x: n.x | 0, y: n.y | 0 }))
   // --- Draw ---
   renderer.draw(map, player, npcs, items, camera)
   animationId = requestAnimationFrame(gameLoop)
@@ -133,6 +146,8 @@ function onTouchEnd() { input.handleTouchEnd() }
 function onClick(e) { input.handleClick(e) }
 function onKeyDown(e) { input.handleKeyDown(e) }
 function onKeyUp(e) { input.handleKeyUp(e) }
+function onMouseMove(e) { input.handleMouseMove(e) }
+function onMouseLeave() { input.handleMouseLeave() }
 
 // ============ ЖИЗНЕННЫЙ ЦИКЛ ============
 onMounted(() => {
