@@ -102,7 +102,7 @@ export default class Renderer {
       ctx.fillStyle = '#ffaa00'
       ctx.font = `${ts}px ${this.fontFamily}`
       for (const p of this._activeCharacter.path) {
-        ctx.fillText('*', p.x * ts + ox + ts / 2, p.y * ts + oy + ts / 2)
+        ctx.fillText('·', p.x * ts + ox + ts / 2, p.y * ts + oy + ts / 2)
       }
     }
 
