@@ -243,5 +243,4 @@ export default class InputManager {
   isRightButtonDown() {
     return this.rightButtonDown
   }
-
 }

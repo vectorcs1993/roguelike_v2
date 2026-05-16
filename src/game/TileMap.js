@@ -70,4 +70,5 @@ export default class TileMap {
     const tile = this.getTile(x, y)
     return tile ? tile.visible : false
   }
+
 }

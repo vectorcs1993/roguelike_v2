@@ -4,8 +4,14 @@
       @click.prevent="onClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu" @mousedown="onMouseDown"
       @mouseup="onMouseUp"></canvas>
 
-    <!-- Опционально: отображение названия локации -->
+    <!-- Название локации -->
     <div class="location-name" v-if="locationName">{{ locationName }}</div>
+
+    <!-- Информация об активном персонаже -->
+    <div class="active-character-info" v-if="activeCharacterInfo">
+      <span class="active-char">{{ activeCharacterInfo.char }}</span>
+      <span class="active-name">{{ activeCharacterInfo.name }}</span>
+    </div>
   </q-page>
 </template>
 
@@ -15,17 +21,20 @@ import config from 'src/game/config.json'
 import GameLoop from 'src/game/GameLoop.js'
 import Location from 'src/game/Location.js'
 
-// Выбор стартовой локации (можно сделать переключение по кнопке)
 const startLocation = Location.createForest(config)
-// const startLocation = Location.createDungeon(config)
-// const startLocation = Location.createDesert(config)
 
 const canvasRef = ref(null)
 let game = null
 let resizeTimeout = null
+let updateInterval = null
 
-// Реактивное название локации
 const locationName = computed(() => game?.currentLocation?.name || '')
+const activeCharacterInfo = computed(() => {
+  if (!game?.currentLocation) return null
+  const active = game.currentLocation.getActiveCharacter()
+  if (!active) return null
+  return { char: active.char, name: active.name }
+})
 
 function resizeCanvas() {
   const canvas = canvasRef.value
@@ -55,10 +64,29 @@ function onResize() {
   resizeTimeout = setTimeout(resizeCanvas, config.resizeDebounce)
 }
 
-// Пример переключения локации (можно повесить на кнопку)
+function updateUi() {
+  // Принудительно обновляем UI через рендер
+  if (game && game.renderer) {
+    // UI обновится в следующем кадре
+  }
+}
+
+// Переключение локации
 function switchToDungeon() {
   if (game) {
     game.changeLocation(Location.createDungeon(config))
+  }
+}
+
+function switchToDesert() {
+  if (game) {
+    game.changeLocation(Location.createDesert(config))
+  }
+}
+
+function switchToForest() {
+  if (game) {
+    game.changeLocation(Location.createForest(config))
   }
 }
 
@@ -67,7 +95,13 @@ function onTouchStart(e) { game?.onTouchStart(e) }
 function onTouchMove(e) { game?.onTouchMove(e) }
 function onTouchEnd() { game?.onTouchEnd() }
 function onClick(e) { game?.onClick(e) }
-function onKeyDown(e) { game?.onKeyDown(e) }
+function onKeyDown(e) {
+  game?.onKeyDown(e)
+  // Клавиши для переключения локаций (для теста)
+  if (e.code === 'Digit1') switchToForest()
+  if (e.code === 'Digit2') switchToDungeon()
+  if (e.code === 'Digit3') switchToDesert()
+}
 function onKeyUp(e) { game?.onKeyUp(e) }
 function onMouseMove(e) { game?.onMouseMove(e) }
 function onMouseLeave() { game?.onMouseLeave() }
@@ -85,17 +119,14 @@ onMounted(() => {
 
   game.start()
 
-  // Пример: переключение локации по нажатию клавиши L (для теста)
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'KeyL') {
-      switchToDungeon()
-    }
-  })
+  // Периодическое обновление UI для отображения активного персонажа
+  updateInterval = setInterval(updateUi, 100)
 })
 
 onUnmounted(() => {
   game?.stop()
   clearTimeout(resizeTimeout)
+  if (updateInterval) clearInterval(updateInterval)
   window.removeEventListener('resize', onResize)
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('keyup', onKeyUp)
@@ -135,5 +166,30 @@ onUnmounted(() => {
   font-size: 14px;
   pointer-events: none;
   z-index: 10;
+}
+
+.active-character-info {
+  position: absolute;
+  bottom: 100px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 16px;
+  pointer-events: none;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.active-char {
+  font-size: 24px;
+}
+
+.active-name {
+  font-size: 14px;
 }
 </style>

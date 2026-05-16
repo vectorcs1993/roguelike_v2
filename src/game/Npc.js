@@ -1,35 +1,85 @@
 import GameObject from './GameObject.js'
 
 export default class Npc extends GameObject {
-  constructor(x, y, char, color, type, config) {
+  constructor(x, y, char, color, type, config, id = null, name = null) {
+    // Сохраняем целые координаты
     super(x, y, char, color)
+    this.id = id || `npc_${Date.now()}_${Math.random()}`
+    this.name = name || (type === 'static' ? 'Торговец' : 'Стражник')
     this.type = type
-    this.timer = 0
-    this.wanderInterval = config.npcWanderInterval
-    this.moveSpeed = config.npcMoveSpeed
+    this.isActive = false
+    this.moveTimer = 0
+    this.moveInterval = config.moveInterval
+    this.pathSpeed = config.pathSpeed || 6
+    this.path = []
+    this.pathIndex = 0
+    this.followingPath = false
   }
 
-  update(dt, map, player, npcs) {
-    this.updateMovement(dt, this.moveSpeed)
+  setPath(path) {
+    if (!path || path.length <= 1) {
+      this.followingPath = false
+      this.path = []
+      return
+    }
+    // Убираем первую точку (текущую позицию)
+    if (path.length > 0 && path[0].x === (this.x | 0) && path[0].y === (this.y | 0)) {
+      path.shift()
+    }
+    this.path = path
+    this.pathIndex = 0
+    this.followingPath = true
+  }
 
-    if (this.type !== 'wander' || this.moving) return
+  moveAlongPath(dt, tileMap, blockers) {
+    if (!this.followingPath || this.moving) return
+    if (this.pathIndex >= this.path.length) {
+      this.followingPath = false
+      this.path = []
+      return
+    }
 
-    this.timer += dt
-    if (this.timer < this.wanderInterval) return
-    this.timer = 0
+    const next = this.path[this.pathIndex]
 
-    const dirs = [
-      { x: 0, y: -1 }, { x: 0, y: 1 },
-      { x: -1, y: 0 }, { x: 1, y: 0 }
-    ]
-    const dir = dirs[Math.random() * 4 | 0]
-    const newX = this.x + dir.x
-    const newY = this.y + dir.y
+    if (!tileMap.isWalkable || typeof tileMap.isWalkable !== 'function') {
+      console.error('tileMap.isWalkable is not a function', tileMap)
+      this.followingPath = false
+      return
+    }
 
-    if (!map.isWalkable(newX, newY)) return
-    if (player.occupies(newX, newY)) return
-    if (npcs.some(other => other !== this && other.occupies(newX, newY))) return
+    if (!tileMap.isWalkable(next.x, next.y)) {
+      this.followingPath = false
+      this.path = []
+      return
+    }
 
-    this.moveTo(newX, newY)
+    if (blockers && blockers.some(b => b !== this && b.occupies(next.x, next.y))) {
+      this.followingPath = false
+      this.path = []
+      return
+    }
+
+    this.moveTimer += dt
+    const interval = 1 / this.pathSpeed
+    if (this.moveTimer < interval) return
+    this.moveTimer = 0
+
+    // Перемещаем на целые координаты
+    this.moveTo(next.x, next.y)
+    this.pathIndex++
+  }
+
+  update(dt, tileMap, allCharacters) {
+    // Только активный NPC двигается
+    if (!this.isActive) return
+
+    this.updateMovement(dt, this.pathSpeed)
+    if (this.followingPath) {
+      this.moveAlongPath(dt, tileMap, allCharacters)
+    }
+  }
+
+  occupies(tileX, tileY) {
+    return (Math.floor(this.x)) === tileX && (Math.floor(this.y)) === tileY
   }
 }

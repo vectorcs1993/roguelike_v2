@@ -2,7 +2,7 @@ export default class GameObject {
   constructor(x, y, char, color) {
     this.x = x
     this.y = y
-    this.vx = x
+    this.vx = x  // визуальная позиция для плавности
     this.vy = y
     this.char = char
     this.color = color
@@ -15,7 +15,7 @@ export default class GameObject {
   }
 
   occupies(tileX, tileY) {
-    return (this.x | 0) === tileX && (this.y | 0) === tileY
+    return (Math.floor(this.x)) === tileX && (Math.floor(this.y)) === tileY
   }
 
   updateMovement(dt, speed) {
@@ -24,6 +24,8 @@ export default class GameObject {
     if (this.progress >= 1) {
       this.vx = this.toX
       this.vy = this.toY
+      this.x = this.toX
+      this.y = this.toY
       this.moving = false
       this.progress = 0
     } else {

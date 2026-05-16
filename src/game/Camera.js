@@ -6,14 +6,17 @@ export default class Camera {
   }
 
   update(dt, input) {
-    // Если панорамирование мышью активно - игнорируем клавиатуру
-    if (input.isRightButtonDown()) return
-
-    // Клавиатурное упраывцфввление
+    // Только ручное управление камерой
     const dir = input.getDirection()
-    if (!dir) return
+    if (dir) {
+      this.x += dir.x * this.speed * dt
+      this.y += dir.y * this.speed * dt
+    }
+  }
 
-    this.x += dir.x * this.speed * dt
-    this.y += dir.y * this.speed * dt
+  // Просто установка позиции (для переключения персонажа)
+  setPosition(x, y) {
+    this.x = x
+    this.y = y
   }
 }

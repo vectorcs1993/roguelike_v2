@@ -14,6 +14,7 @@
   "fovRadius": 8,
   "pathSpeed": 6,
   "cameraSpeed": 15,
+  "uiHeight": 80,
   "colors": {
     "bg": "#000000",
     "wallBg": "#222233",
@@ -26,7 +27,11 @@
     "grid": "rgba(255, 255, 255, 0.06)",
     "exploredFloor": "#0a0a0f",
     "exploredWallBg": "#111122",
-    "exploredWall": "#444444"
+    "exploredWall": "#444444",
+    "uiBg": "rgba(0, 0, 0, 0.8)",
+    "uiButton": "#333333",
+    "uiButtonActive": "#44aaff",
+    "uiText": "#ffffff"
   },
   "symbols": {
     "wall": "#",

@@ -1,32 +1,37 @@
 import GameObject from './GameObject.js'
 
 export default class Player extends GameObject {
-  constructor(x, y, config) {
-    const tileX = x | 0
-    const tileY = y | 0
-    super(tileX + 0.5, tileY + 0.5, config.symbols.player, config.colors.player)
+  constructor(x, y, config, id = 'player', name = 'Герой') {
+    // Сохраняем целые координаты, без +0.5
+    super(x, y, config.symbols.player, config.colors.player)
+    this.id = id
+    this.name = name
+    this.type = 'player'
     this.moveTimer = 0
     this.moveInterval = config.moveInterval
     this.pathSpeed = config.pathSpeed || 6
-    this.path = []          // очередь шагов [{x, y}, ...]
+    this.path = []
     this.pathIndex = 0
     this.followingPath = false
+    this.isActive = true
   }
 
-  // Установить путь из A*
   setPath(path) {
     if (!path || path.length <= 1) {
       this.followingPath = false
       this.path = []
       return
     }
+    // Убираем первую точку (текущую позицию)
+    if (path.length > 0 && path[0].x === (this.x | 0) && path[0].y === (this.y | 0)) {
+      path.shift()
+    }
     this.path = path
-    this.pathIndex = 1      // 0 = текущая позиция
+    this.pathIndex = 0
     this.followingPath = true
   }
 
-  // Движение по пути (клик мыши)
-  moveAlongPath(dt, map, npcs) {
+  moveAlongPath(dt, tileMap, blockers) {
     if (!this.followingPath || this.moving) return
     if (this.pathIndex >= this.path.length) {
       this.followingPath = false
@@ -35,12 +40,20 @@ export default class Player extends GameObject {
     }
 
     const next = this.path[this.pathIndex]
-    if (!map.isWalkable(next.x, next.y)) {
+
+    if (!tileMap.isWalkable || typeof tileMap.isWalkable !== 'function') {
+      console.error('tileMap.isWalkable is not a function', tileMap)
+      this.followingPath = false
+      return
+    }
+
+    if (!tileMap.isWalkable(next.x, next.y)) {
       this.followingPath = false
       this.path = []
       return
     }
-    if (npcs.some(n => n.occupies(next.x, next.y))) {
+
+    if (blockers && blockers.some(b => b !== this && b.occupies(next.x, next.y))) {
       this.followingPath = false
       this.path = []
       return
@@ -51,20 +64,20 @@ export default class Player extends GameObject {
     if (this.moveTimer < interval) return
     this.moveTimer = 0
 
-    this.moveTo(next.x + 0.5, next.y + 0.5)
+    // Перемещаем на целые координаты
+    this.moveTo(next.x, next.y)
     this.pathIndex++
   }
 
-  update(dt, input, map, npcs) {
+  update(dt, input, tileMap, allCharacters) {
+    if (!this.isActive) return
     this.updateMovement(dt, this.pathSpeed)
     if (this.followingPath) {
-      this.moveAlongPath(dt, map, npcs)
+      this.moveAlongPath(dt, tileMap, allCharacters)
     }
   }
 
   occupies(tileX, tileY) {
-    return (this.x | 0) === tileX && (this.y | 0) === tileY
+    return (Math.floor(this.x)) === tileX && (Math.floor(this.y)) === tileY
   }
-
-
 }

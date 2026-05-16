@@ -15,7 +15,9 @@ export default class Renderer {
     this.hoverTileY = null
     this._pathfinder = null
     this._blockedCache = []
-    this._location = null  // Ссылка на текущую локацию
+    this._location = null
+    this._activeCharacter = null
+    this._allCharacters = []
   }
 
   resize(canvasW, canvasH) {
@@ -25,22 +27,22 @@ export default class Renderer {
     this.halfH = canvasH / 2
     this.tileSize = Math.max(
       this.config.tileSizeMin,
-      Math.min(this.config.tileSize, Math.floor(Math.min(canvasW, canvasH) / this.config.tileSizeMaxDivisor))
+      Math.min(this.config.tileSize, Math.floor(Math.min(canvasW, canvasH - this.config.uiHeight) / this.config.tileSizeMaxDivisor))
     )
     this.ctx.font = `bold ${this.tileSize}px "Courier New", monospace`
     this.ctx.textAlign = 'center'
     this.ctx.textBaseline = 'middle'
   }
 
-  draw(map, player, npcs, items, camera, input) {
+  draw(map, characters, items, camera, input, uiButtons, uiHeight) {
     const ctx = this.ctx
     const w = this.canvasW
-    const h = this.canvasH
+    const h = this.canvasH - uiHeight
     const ts = this.tileSize
 
     // Очистка
     ctx.fillStyle = this.config.colors.bg
-    ctx.fillRect(0, 0, w, h)
+    ctx.fillRect(0, 0, w, h + uiHeight)
 
     // Смещение камеры
     const offsetX = this.halfW - camera.x * ts
@@ -58,7 +60,7 @@ export default class Renderer {
     const c1 = Math.min(map.cols, endCol)
     const r1 = Math.min(map.rows, endRow)
 
-    // Тайлы (стены + пол)
+    // Тайлы
     for (let row = r0; row < r1; row++) {
       const rowOffset = row * ts + offsetY
       for (let col = c0; col < c1; col++) {
@@ -94,7 +96,7 @@ export default class Renderer {
       }
     }
 
-    // Сетка — только на видимых или исследованных тайлах
+    // Сетка
     ctx.strokeStyle = this.config.colors.grid
     ctx.lineWidth = 1
     for (let row = r0; row < r1; row++) {
@@ -107,19 +109,7 @@ export default class Renderer {
       }
     }
 
-    // NPC — только в прямой видимости
-    for (const npc of npcs) {
-      if (!map.isVisible(npc.x | 0, npc.y | 0)) continue
-      ctx.fillStyle = npc.color
-      ctx.fillText(npc.char, npc.vx * ts + offsetX + ts * 0.5, npc.vy * ts + offsetY + ts * 0.5)
-    }
-
-    // Визуализация пути игрока
-    if (player.path && player.path.length > 0) {
-      this.drawPath(player.path, camera)
-    }
-
-    // Предметы — видны на explored (даже если не в зоне видимости)
+    // Предметы
     for (const item of items) {
       if (item.collected) continue
       const tile = map.getTile(item.x, item.y)
@@ -130,54 +120,116 @@ export default class Renderer {
       ctx.globalAlpha = 1
     }
 
-    // Превью пути под курсором
-    if (!input.isCameraMovingNow() && this.hoverTileX !== null && !player.followingPath) {
+    // Персонажи (NPC и игрок)
+    for (const char of characters) {
+      const tile = map.getTile(char.x | 0, char.y | 0)
+      if (!tile || (!tile.visible && !tile.explored)) continue
+
+      ctx.fillStyle = char.color
+      if (!tile.visible) ctx.globalAlpha = 0.4
+
+      // Подсветка активного персонажа
+      if (char.isActive && tile.visible) {
+        ctx.shadowBlur = 10
+        ctx.shadowColor = char.color
+      }
+
+      ctx.fillText(char.char, char.vx * ts + offsetX + ts * 0.5, char.vy * ts + offsetY + ts * 0.5)
+
+      ctx.shadowBlur = 0
+      ctx.globalAlpha = 1
+    }
+
+    // Визуализация пути активного персонажа
+    if (this._activeCharacter && this._activeCharacter.path && this._activeCharacter.path.length > 0) {
+      this.drawPath(this._activeCharacter.path, camera)
+    }
+
+    // Превью пути
+    if (!input.isCameraMovingNow() && this.hoverTileX !== null && this._activeCharacter && !this._activeCharacter.followingPath) {
       const blocked = this._blockedCache || []
       this.drawPathPreview(
-        player.x | 0, player.y | 0,
+        this._activeCharacter.x | 0, this._activeCharacter.y | 0,
         this.hoverTileX, this.hoverTileY,
         this._pathfinder, blocked, camera
       )
     }
 
-    // Игрок
-    const playerScreenX = player.vx * ts + offsetX
-    const playerScreenY = player.vy * ts + offsetY
-
-    if (
-      playerScreenX > -ts && playerScreenX < w + ts &&
-      playerScreenY > -ts && playerScreenY < h + ts
-    ) {
-      ctx.fillStyle = player.color
-      ctx.fillText(player.char, playerScreenX, playerScreenY)
-    }
-
     // Подсветка клетки под курсором и тултип
     if (!input.isCameraMovingNow() && this.hoverTileX !== null && this.hoverTileY !== null) {
       this.drawHoverTile(this.hoverTileX, this.hoverTileY, camera)
-      this.drawTooltip(this.hoverTileX, this.hoverTileY, map, player, npcs, items, camera)
+      if (this._location) {
+        const info = this._location.getTileInfo(this.hoverTileX, this.hoverTileY, this._activeCharacter)
+        if (info) {
+          this.drawTooltipText(info.name, this.mouseScreenX, this.mouseScreenY)
+        }
+      }
     }
+
+    // Отрисовка UI панели
+    this.drawUiPanel(uiButtons, uiHeight)
   }
 
-  // Подсветка клетки под курсором
-  drawHoverTile(tileX, tileY, camera) {
-    if (tileX === undefined || tileY === undefined) return
+  drawUiPanel(buttons, uiHeight) {
     const ctx = this.ctx
-    const ts = this.tileSize
-    const offsetX = this.halfW - camera.x * ts
-    const offsetY = this.halfH - camera.y * ts
-    const x = tileX * ts + offsetX
-    const y = tileY * ts + offsetY
+    const w = this.canvasW
+    const h = this.canvasH
+    const uiY = h - uiHeight
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+    // Фон UI панели
+    ctx.fillStyle = this.config.colors.uiBg
+    ctx.fillRect(0, uiY, w, uiHeight)
+
+    // Разделительная линия
+    ctx.strokeStyle = this.config.colors.uiButton
     ctx.lineWidth = 2
-    ctx.strokeRect(x + 1, y + 1, ts - 2, ts - 2)
+    ctx.beginPath()
+    ctx.moveTo(0, uiY)
+    ctx.lineTo(w, uiY)
+    ctx.stroke()
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'
-    ctx.fillRect(x + 2, y + 2, ts - 4, ts - 4)
+    // Кнопки
+    const buttonWidth = 120
+    const buttonHeight = 50
+    const startX = (w - (buttons.length * (buttonWidth + 10))) / 2
+    const buttonY = uiY + (uiHeight - buttonHeight) / 2
+
+    for (let i = 0; i < buttons.length; i++) {
+      const btn = buttons[i]
+      const btnX = startX + i * (buttonWidth + 10)
+
+      // Фон кнопки
+      ctx.fillStyle = btn.isActive ? this.config.colors.uiButtonActive : this.config.colors.uiButton
+      ctx.fillRect(btnX, buttonY, buttonWidth, buttonHeight)
+
+      // Рамка
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 1
+      ctx.strokeRect(btnX, buttonY, buttonWidth, buttonHeight)
+
+      // Символ персонажа
+      ctx.font = `24px "Courier New", monospace`
+      ctx.fillStyle = btn.isActive ? '#ffffff' : '#cccccc'
+      ctx.fillText(btn.char, btnX + 30, buttonY + buttonHeight / 2)
+
+      // Имя персонажа
+      ctx.font = `12px monospace`
+      ctx.textAlign = 'left'
+      ctx.fillStyle = btn.isActive ? '#ffffff' : '#aaaaaa'
+      ctx.fillText(btn.name, btnX + 50, buttonY + buttonHeight / 2 - 5)
+
+      // Статус
+      ctx.font = `10px monospace`
+      ctx.fillStyle = btn.isActive ? '#88ff88' : '#888888'
+      ctx.fillText(btn.isActive ? '● Управление' : '○ Ожидание', btnX + 50, buttonY + buttonHeight / 2 + 10)
+
+      ctx.textAlign = 'center'
+    }
+
+    // Восстанавливаем шрифт
+    ctx.font = `bold ${this.tileSize}px "Courier New", monospace`
   }
 
-  // Подсветка пути A*
   drawPath(path, camera) {
     if (!path || path.length < 2) return
     const ctx = this.ctx
@@ -207,7 +259,6 @@ export default class Renderer {
     }
   }
 
-  // Превью пути от игрока до курсора (без клика)
   drawPathPreview(fromX, fromY, toX, toY, pathfinder, blockedCells, camera) {
     if (toX === undefined || toY === undefined) return
     if (!pathfinder) return
@@ -234,77 +285,41 @@ export default class Renderer {
     ctx.setLineDash([])
   }
 
-  // Тултип с информацией об объекте под курсором
-  drawTooltip(tileX, tileY, map, player, npcs, items) {
+  drawHoverTile(tileX, tileY, camera) {
     if (tileX === undefined || tileY === undefined) return
-
     const ctx = this.ctx
+    const ts = this.tileSize
+    const offsetX = this.halfW - camera.x * ts
+    const offsetY = this.halfH - camera.y * ts
+    const x = tileX * ts + offsetX
+    const y = tileY * ts + offsetY
 
-    // Сохраняем настройки
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x + 1, y + 1, ts - 2, ts - 2)
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'
+    ctx.fillRect(x + 2, y + 2, ts - 4, ts - 4)
+  }
+
+  drawTooltipText(text, mouseX, mouseY) {
+    const ctx = this.ctx
     const prevFont = ctx.font
     const prevAlign = ctx.textAlign
     const prevBaseline = ctx.textBaseline
 
-    // Получаем название объекта
-    let text = ''
-    const tile = map.getTile(tileX, tileY)
-
-    if (tile && tile.isWall) {
-      text = 'Стена'
-    } else if (tile && tile.visible) {
-      // Предметы
-      for (const item of items) {
-        if (!item.collected && item.x === tileX && item.y === tileY) {
-          text = 'Золото'
-          break
-        }
-      }
-      // NPC
-      if (!text) {
-        for (const npc of npcs) {
-          if ((npc.x | 0) === tileX && (npc.y | 0) === tileY) {
-            text = npc.type === 'static' ? 'Торговец' : 'Стражник'
-            break
-          }
-        }
-      }
-      // Игрок
-      if (!text && (player.x | 0) === tileX && (player.y | 0) === tileY) {
-        text = 'Герой'
-      }
-      // Пол
-      if (!text) {
-        text = 'Пол'
-      }
-    } else if (tile && tile.explored) {
-      text = 'Исследовано'
-    } else {
-      text = 'Неизведано'
-    }
-
-    if (!text) {
-      ctx.font = prevFont
-      ctx.textAlign = prevAlign
-      ctx.textBaseline = prevBaseline
-      return
-    }
-
-    // Простая настройка
     const fontSize = 12
     ctx.font = `${fontSize}px monospace`
 
     const textW = ctx.measureText(text).width + 12
     const textH = fontSize + 8
 
-    // Просто рядом с мышкой, без сложных проверок
-    let tx = this.mouseScreenX + 15
-    let ty = this.mouseScreenY - textH - 5
+    let tx = mouseX + 15
+    let ty = mouseY - textH - 5
 
-    // Минимальные проверки чтобы не вылезал за экран
-    if (tx + textW > this.canvasW) tx = this.mouseScreenX - textW - 5
-    if (ty < 0) ty = this.mouseScreenY + 10
+    if (tx + textW > this.canvasW) tx = mouseX - textW - 5
+    if (ty < 0) ty = mouseY + 10
 
-    // Рисуем
     ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
     ctx.fillRect(tx, ty, textW, textH)
 
@@ -313,7 +328,6 @@ export default class Renderer {
     ctx.textBaseline = 'middle'
     ctx.fillText(text, tx + 6, ty + textH / 2)
 
-    // Восстанавливаем
     ctx.font = prevFont
     ctx.textAlign = prevAlign
     ctx.textBaseline = prevBaseline

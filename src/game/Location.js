@@ -9,23 +9,24 @@ export default class Location {
     this.config = config
     this.name = 'default'
 
-    // Инициализация карты
     this.map = new TileMap(config.cols, config.rows)
     this.map.fill()
     this.map.setWalls(pillars)
 
-    // Pathfinder для этой локации
     this.pathfinder = new Pathfinder(this.map)
 
-    // Создание NPC
+    // Создание NPC - теперь они НЕ двигаются автоматически
     this.npcs = []
-    for (const npcConfig of npcConfigs) {
+    for (let i = 0; i < npcConfigs.length; i++) {
+      const npcConfig = npcConfigs[i]
       this.npcs.push(new Npc(
         npcConfig.x, npcConfig.y,
         npcConfig.char || config.symbols.npcStatic,
         npcConfig.color || config.colors.npcStatic,
         npcConfig.type || 'static',
-        config
+        config,
+        npcConfig.id || `npc_${i}`,
+        npcConfig.name
       ))
     }
 
@@ -37,31 +38,68 @@ export default class Location {
         config
       ))
     }
+
+    // Персонаж игрока (будет добавлен позже)
+    this.player = null
   }
 
-  // Получение заблокированных NPC клеток
-  getBlockedCells() {
-    return this.npcs.map(n => ({ x: n.x | 0, y: n.y | 0 }))
+  setPlayer(player) {
+    this.player = player
+  }
+  getBlockedCells(activeCharacter = null) {
+    const allChars = this.getAllCharacters()
+    return allChars
+      .filter(c => c !== activeCharacter)
+      .filter(c => c && typeof c.occupies === 'function') // Добавляем проверку
+      .map(c => ({ x: c.x | 0, y: c.y | 0 }))
   }
 
-  // Обновление всех NPC
-  updateNpcs(dt, player, allNpcs = null) {
-    const npcList = allNpcs || this.npcs
-    for (const npc of npcList) {
-      npc.update(dt, this.map, player, npcList)
+  getAllCharacters() {
+    const chars = [...this.npcs]
+    if (this.player) chars.push(this.player)
+    return chars.filter(c => c) // Фильтруем null/undefined
+  }
+
+  getActiveCharacter() {
+    if (this.player && this.player.isActive) return this.player
+    return this.npcs.find(n => n.isActive) || null
+  }
+
+  switchToCharacter(characterId) {
+    // Деактивируем всех
+    if (this.player) this.player.isActive = false
+    this.npcs.forEach(n => n.isActive = false)
+
+    // Активируем выбранного
+    if (this.player && this.player.id === characterId) {
+      this.player.isActive = true
+      return this.player
+    }
+
+    const npc = this.npcs.find(n => n.id === characterId)
+    if (npc) {
+      npc.isActive = true
+      return npc
+    }
+
+    return null
+  }
+
+  updateNpcs(dt, allCharacters) {
+    // Обновляем всех NPC, но двигаться будет только активный
+    for (const npc of this.npcs) {
+      npc.update(dt, this.map, allCharacters)
     }
   }
 
-  // Обновление FOV от позиции игрока
-  updateFov(playerX, playerY, radius) {
-    this.map.computeFov(playerX, playerY, radius)
+  updateFov(centerX, centerY, radius) {
+    this.map.computeFov(centerX, centerY, radius)
   }
 
-  // Проверка сбора предметов
-  checkItemPickup(playerX, playerY) {
+  checkItemPickup(characterX, characterY) {
     const collected = []
     for (const item of this.items) {
-      if (!item.collected && item.occupies(playerX | 0, playerY | 0)) {
+      if (!item.collected && item.occupies(characterX | 0, characterY | 0)) {
         item.collect()
         collected.push(item)
       }
@@ -69,21 +107,19 @@ export default class Location {
     return collected
   }
 
-  // Поиск пути в этой локации
-  findPath(fromX, fromY, toX, toY, extraBlocked = []) {
-    const allBlocked = [...this.getBlockedCells(), ...extraBlocked]
-    return this.pathfinder.find(fromX, fromY, toX, toY, allBlocked)
+  findPath(fromX, fromY, toX, toY, activeCharacter = null) {
+    const blocked = this.getBlockedCells(activeCharacter)
+    return this.pathfinder.find(fromX, fromY, toX, toY, blocked)
   }
 
-  // Проверка валидности позиции
-  isWalkable(x, y, ignoreNpcs = false) {
+  isWalkable(x, y, activeCharacter = null) {
     if (!this.map.isWalkable(x, y)) return false
-    if (ignoreNpcs) return true
-    return !this.npcs.some(npc => npc.occupies(x, y))
+
+    const allChars = this.getAllCharacters()
+    return !allChars.some(char => char !== activeCharacter && char.occupies(x, y))
   }
 
-  // Получение информации о клетке для тултипа
-  getTileInfo(tileX, tileY, player) {
+  getTileInfo(tileX, tileY) {
     const tile = this.map.getTile(tileX, tileY)
 
     if (tile && tile.isWall) {
@@ -91,24 +127,20 @@ export default class Location {
     }
 
     if (tile && tile.visible) {
-      // Проверяем предметы
       for (const item of this.items) {
         if (!item.collected && item.x === tileX && item.y === tileY) {
           return { type: 'item', name: '💰 Золото', pos: { tileX, tileY } }
         }
       }
 
-      // Проверяем NPC
       for (const npc of this.npcs) {
         if ((npc.x | 0) === tileX && (npc.y | 0) === tileY) {
-          const npcNames = { static: '🧙 Торговец', wander: '⚔️ Стражник' }
-          return { type: 'npc', name: npcNames[npc.type] || 'NPC', pos: { tileX, tileY } }
+          return { type: 'npc', name: npc.name, pos: { tileX, tileY } }
         }
       }
 
-      // Проверяем игрока
-      if ((player.x | 0) === tileX && (player.y | 0) === tileY) {
-        return { type: 'player', name: '🧝 Герой', pos: { tileX, tileY } }
+      if (this.player && (this.player.x | 0) === tileX && (this.player.y | 0) === tileY) {
+        return { type: 'player', name: this.player.name, pos: { tileX, tileY } }
       }
 
       return { type: 'floor', name: `📍 Пол (${tileX}, ${tileY})`, pos: { tileX, tileY } }
@@ -121,20 +153,13 @@ export default class Location {
     return { type: 'unknown', name: '🌑 Неизведано', pos: { tileX, tileY } }
   }
 
-  // Очистка локации (для перезагрузки)
   reset() {
     this.map.fill()
-    // Сброс NPC
-    // for (const npc of this.npcs) {
-    //   // Можно сохранить начальные позиции в конструкторе
-    // }
-    // Сброс предметов
     for (const item of this.items) {
       item.collected = false
     }
   }
 
-  // Статический метод для создания пресетов локаций
   static createForest(config) {
     const pillars = [
       [10, 8], [10, 9], [10, 10], [30, 15], [30, 16], [30, 17],
@@ -144,8 +169,9 @@ export default class Location {
     ]
 
     const npcs = [
-      { x: 20, y: 12, type: 'static', char: config.symbols.npcStatic, color: config.colors.npcStatic },
-      { x: 45, y: 22, type: 'wander', char: config.symbols.npcWander, color: config.colors.npcWander }
+      { x: 20, y: 12, type: 'static', char: config.symbols.npcStatic, color: config.colors.npcStatic, id: 'merchant', name: '🧙 Торговец' },
+      { x: 45, y: 22, type: 'wander', char: config.symbols.npcWander, color: config.colors.npcWander, id: 'guard', name: '⚔️ Стражник' },
+      { x: 35, y: 35, type: 'static', char: '🔮', color: '#ff66cc', id: 'mage', name: '🔮 Маг' }
     ]
 
     const items = [
@@ -167,9 +193,9 @@ export default class Location {
     ]
 
     const npcs = [
-      { x: 25, y: 18, type: 'static', char: '👻', color: '#aa66ff' },
-      { x: 35, y: 28, type: 'wander', char: '🧟', color: '#66ff66' },
-      { x: 15, y: 8, type: 'static', char: '🧙', color: '#ffaa44' }
+      { x: 25, y: 18, type: 'static', char: '👻', color: '#aa66ff', id: 'ghost', name: '👻 Призрак' },
+      { x: 35, y: 28, type: 'wander', char: '🧟', color: '#66ff66', id: 'zombie', name: '🧟 Зомби' },
+      { x: 15, y: 8, type: 'static', char: '🧙', color: '#ffaa44', id: 'wizard', name: '🧙 Волшебник' }
     ]
 
     const items = [
@@ -190,8 +216,9 @@ export default class Location {
     ]
 
     const npcs = [
-      { x: 30, y: 20, type: 'wander', char: '🐫', color: '#ccaa66' },
-      { x: 52, y: 25, type: 'static', char: '🏺', color: '#ff8844' }
+      { x: 30, y: 20, type: 'wander', char: '🐫', color: '#ccaa66', id: 'camel', name: '🐫 Караванщик' },
+      { x: 52, y: 25, type: 'static', char: '🏺', color: '#ff8844', id: 'trader', name: '🏺 Торговец' },
+      { x: 12, y: 12, type: 'static', char: '🐪', color: '#cc8844', id: 'nomad', name: '🐪 Кочевник' }
     ]
 
     const items = [
