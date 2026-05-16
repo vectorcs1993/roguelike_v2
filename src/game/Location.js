@@ -222,7 +222,7 @@ export default class Location {
     }
   }
 
-  static createForest(config) {
+  static createDefault(config) {
     const pillars = [
       [10, 8], [10, 9], [10, 10], [30, 15], [30, 16], [30, 17],
       [50, 25], [50, 26], [15, 30], [16, 30], [17, 30],

@@ -21,7 +21,7 @@ import config from 'src/game/config.json'
 import GameLoop from 'src/game/GameLoop.js'
 import Location from 'src/game/Location.js'
 
-const startLocation = Location.createForest(config)
+const startLocation = Location.createDefault(config)
 
 const canvasRef = ref(null)
 let game = null
@@ -71,25 +71,6 @@ function updateUi() {
   }
 }
 
-// Переключение локации
-function switchToDungeon() {
-  if (game) {
-    game.changeLocation(Location.createDungeon(config))
-  }
-}
-
-function switchToDesert() {
-  if (game) {
-    game.changeLocation(Location.createDesert(config))
-  }
-}
-
-function switchToForest() {
-  if (game) {
-    game.changeLocation(Location.createForest(config))
-  }
-}
-
 // Проброс событий
 function onTouchStart(e) { game?.onTouchStart(e) }
 function onTouchMove(e) { game?.onTouchMove(e) }
@@ -97,10 +78,7 @@ function onTouchEnd() { game?.onTouchEnd() }
 function onClick(e) { game?.onClick(e) }
 function onKeyDown(e) {
   game?.onKeyDown(e)
-  // Клавиши для переключения локаций (для теста)
-  if (e.code === 'Digit1') switchToForest()
-  if (e.code === 'Digit2') switchToDungeon()
-  if (e.code === 'Digit3') switchToDesert()
+  // УДАЛЕНЫ клавиши для переключения локаций
 }
 function onKeyUp(e) { game?.onKeyUp(e) }
 function onMouseMove(e) { game?.onMouseMove(e) }

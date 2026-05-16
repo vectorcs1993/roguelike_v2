@@ -11,7 +11,7 @@ export default class GameLoop {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
-    this.currentLocation = initialLocation || Location.createForest(config)
+    this.currentLocation = initialLocation || Location.createDefault(config)
 
     // Активируем первого персонажа (игрока) - ИСПРАВЛЕНО
     const characters = this.currentLocation.getAllCharacters()
@@ -43,20 +43,7 @@ export default class GameLoop {
     this.pathCache = new PathCache(200)
   }
 
-  changeLocation(newLocation) {
-    this.currentLocation = newLocation
-    this.pathCache.clear() // Очищаем кэш при смене локации
-
-    // Активируем первого персонажа - ИСПРАВЛЕНО
-    const characters = this.currentLocation.getAllCharacters()
-    if (characters.length > 0) {
-      const playerChar = characters.find(c => c.canSwitchTo === true) || characters[0]
-      if (playerChar && playerChar.canSwitchTo) {
-        playerChar.isActive = true
-        console.log(`Активирован персонаж: ${playerChar.name}`)
-      }
-    }
-  }
+  // УДАЛЕН МЕТОД changeLocation
 
   switchCharacter(characterId) {
     const newActive = this.currentLocation.switchToCharacter(characterId)
