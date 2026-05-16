@@ -97,17 +97,7 @@ export default class Renderer {
     }
 
     // Сетка
-    ctx.strokeStyle = this.config.colors.grid
-    ctx.lineWidth = 1
-    for (let row = r0; row < r1; row++) {
-      for (let col = c0; col < c1; col++) {
-        const tile = map.getTile(col, row)
-        if (!tile || (!tile.visible && !tile.explored)) continue
-        const x = col * ts + offsetX
-        const y = row * ts + offsetY
-        ctx.strokeRect(x, y, ts, ts)
-      }
-    }
+    this.drawGrid(map, camera);
 
     // Предметы
     for (const item of items) {
@@ -172,6 +162,45 @@ export default class Renderer {
     this.drawUiPanel(uiButtons, uiHeight)
   }
 
+  drawGrid(map, camera) {
+    const ctx = this.ctx
+    const ts = this.tileSize
+    const offsetX = this.halfW - camera.x * ts
+    const offsetY = this.halfH - camera.y * ts
+
+    // Вычисляем границы видимости
+    const leftBound = Math.floor(camera.x - this.halfW / ts) - 1
+    const rightBound = Math.ceil(camera.x + this.halfW / ts) + 1
+    const topBound = Math.floor(camera.y - this.halfH / ts) - 1
+    const bottomBound = Math.ceil(camera.y + this.halfH / ts) + 1
+
+    // Клипаем по границам карты
+    const minX = Math.max(0, leftBound)
+    const maxX = Math.min(map.cols - 1, rightBound)
+    const minY = Math.max(0, topBound)
+    const maxY = Math.min(map.rows - 1, bottomBound)
+
+    // Рисуем вертикальные линии
+    ctx.beginPath()
+    ctx.strokeStyle = this.config.colors.grid
+    ctx.lineWidth = 1
+
+    // Вертикальные линии
+    for (let x = minX; x <= maxX; x++) {
+      const screenX = x * ts + offsetX
+      ctx.moveTo(screenX, minY * ts + offsetY)
+      ctx.lineTo(screenX, maxY * ts + offsetY)
+    }
+
+    // Горизонтальные линии
+    for (let y = minY; y <= maxY; y++) {
+      const screenY = y * ts + offsetY
+      ctx.moveTo(minX * ts + offsetX, screenY)
+      ctx.lineTo(maxX * ts + offsetX, screenY)
+    }
+
+    ctx.stroke()
+  }
   drawPath(path, camera) {
     if (!path || path.length < 2) return
     const ctx = this.ctx
