@@ -3,62 +3,33 @@
     <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd"
       @click.prevent="onClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu" @mousedown="onMouseDown"
       @mouseup="onMouseUp"></canvas>
+
+    <!-- Опционально: отображение названия локации -->
+    <div class="location-name" v-if="locationName">{{ locationName }}</div>
   </q-page>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import config from 'src/game/config.json'
-import TileMap from 'src/game/TileMap.js'
-import Player from 'src/game/Player.js'
-import Npc from 'src/game/Npc.js'
-import Item from 'src/game/Item.js'
-import Camera from 'src/game/Camera.js'
-import InputManager from 'src/game/InputManager.js'
-import Renderer from 'src/game/Renderer.js'
-import Pathfinder from 'src/game/Pathfinder.js'
+import GameLoop from 'src/game/GameLoop.js'
+import Location from 'src/game/Location.js'
 
-// ============ КОЛОННЫ ============
-const pillars = [
-  [10, 8], [10, 9], [10, 10], [30, 15], [30, 16], [30, 17],
-  [50, 25], [50, 26], [15, 30], [16, 30], [17, 30],
-  [45, 7], [45, 8], [45, 9], [25, 20], [26, 20], [27, 20],
-  [35, 10], [36, 10], [37, 10], [55, 32], [56, 32], [57, 32]
-]
+// Выбор стартовой локации (можно сделать переключение по кнопке)
+const startLocation = Location.createForest(config)
+// const startLocation = Location.createDungeon(config)
+// const startLocation = Location.createDesert(config)
 
-// ============ ИНИЦИАЛИЗАЦИЯ ============
-const map = new TileMap(config.cols, config.rows)
-map.fill()
-map.setWalls(pillars)
-
-const player = new Player(config.cols >> 1, config.rows >> 1, config)
-const camera = new Camera(player.x, player.y, config.cameraSpeed)
-const input = new InputManager(config.swipeThreshold)
-const pathfinder = new Pathfinder(map)
-
-const items = [
-  new Item(15, 10, config), new Item(40, 20, config),
-  new Item(25, 30, config), new Item(50, 15, config),
-  new Item(35, 5, config)
-]
-
-const npcs = [
-  new Npc(20, 12, config.symbols.npcStatic, config.colors.npcStatic, 'static', config),
-  new Npc(45, 22, config.symbols.npcWander, config.colors.npcWander, 'wander', config)
-]
-
-// ============ CANVAS ============
 const canvasRef = ref(null)
-let ctx = null
-let canvas = null
-let renderer = null
-let animationId = null
-let lastTime = 0
+let game = null
 let resizeTimeout = null
 
+// Реактивное название локации
+const locationName = computed(() => game?.currentLocation?.name || '')
+
 function resizeCanvas() {
-  canvas = canvasRef.value
-  if (!canvas) return
+  const canvas = canvasRef.value
+  if (!canvas || !game) return
 
   const dpr = Math.min(window.devicePixelRatio || 1, config.dprCap)
   const rect = canvas.getBoundingClientRect()
@@ -68,14 +39,15 @@ function resizeCanvas() {
   canvas.style.width = rect.width + 'px'
   canvas.style.height = rect.height + 'px'
 
-  ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d')
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.scale(dpr, dpr)
 
-  if (!renderer) {
-    renderer = new Renderer(ctx, config)
+  if (!game.renderer) {
+    game.initRenderer(rect.width, rect.height, dpr)
+  } else {
+    game.resize(rect.width, rect.height, dpr)
   }
-  renderer.resize(rect.width, rect.height, dpr)
 }
 
 function onResize() {
@@ -83,115 +55,46 @@ function onResize() {
   resizeTimeout = setTimeout(resizeCanvas, config.resizeDebounce)
 }
 
-// ============ ИГРОВОЙ ЦИКЛ ============
-function gameLoop(time) {
-  const dt = lastTime ? Math.min((time - lastTime) * 0.001, config.dtCap) : 0.016
-  lastTime = time
-
-  // --- Обработка клика (только если не панорамируем) ---
-  if (!input.isCameraMovingNow()) {
-    const click = input.consumeClick()
-    if (click) {
-      const worldX = (click.x - renderer.halfW) / renderer.tileSize + camera.x
-      const worldY = (click.y - renderer.halfH) / renderer.tileSize + camera.y
-      const tileX = worldX | 0
-      const tileY = worldY | 0
-
-      const blocked = npcs.map(n => ({ x: n.x | 0, y: n.y | 0 }))
-
-      const path = pathfinder.find(
-        player.x | 0, player.y | 0,
-        tileX, tileY,
-        blocked
-      )
-
-      if (path) {
-        player.setPath(path)
-      }
-    }
-  }
-
-  // --- Update ---
-  player.update(dt, input, map, npcs)
-  camera.update(dt, input, renderer)
-  map.computeFov(player.x, player.y, config.fovRadius)
-
-  for (const npc of npcs) npc.update(dt, map, player, npcs)
-
-  for (const item of items) {
-    if (!item.collected && item.occupies(player.x | 0, player.y | 0)) {
-      item.collect()
-    }
-  }
-
-  const hoverTile = input.getMouseTile(camera, renderer)
-  let hoverTileX = null, hoverTileY = null
-  if (hoverTile) {
-    hoverTileX = hoverTile.x
-    hoverTileY = hoverTile.y
-  }
-
-  // Передаём в renderer
-  renderer.hoverTileX = hoverTileX
-  renderer.hoverTileY = hoverTileY
-  renderer.mouseScreenX = input.mouseX
-  renderer.mouseScreenY = input.mouseY
-  renderer._pathfinder = pathfinder
-  renderer._blockedCache = npcs.map(n => ({ x: n.x | 0, y: n.y | 0 }))
-
-  // --- Draw ---
-  renderer.draw(map, player, npcs, items, camera, input)
-  animationId = requestAnimationFrame(gameLoop)
-}
-
-// ============ СОБЫТИЯ ============
-function onTouchStart(e) { input.handleTouchStart(e) }
-function onTouchMove(e) { input.handleTouchMove(e) }
-function onTouchEnd() { input.handleTouchEnd() }
-function onClick(e) {
-  if (!input.isCameraMovingNow()) {
-    input.handleClick(e)
-  }
-}
-function onKeyDown(e) { input.handleKeyDown(e) }
-function onKeyUp(e) { input.handleKeyUp(e) }
-function onMouseMove(e) {
-  input.handleMouseMove(e)
-  if (input.isRightButtonDown()) {
-    input.updatePan(e, camera, renderer)
-  }
-}
-function onMouseLeave() {
-  input.handleMouseLeave()
-}
-function onContextMenu(e) {
-  e.preventDefault()
-  return false
-}
-function onMouseDown(e) {
-  if (e.button === 2) {
-    input.startPan(e, camera)
+// Пример переключения локации (можно повесить на кнопку)
+function switchToDungeon() {
+  if (game) {
+    game.changeLocation(Location.createDungeon(config))
   }
 }
 
-function onMouseUp(e) {
-  if (e.button === 2) {
-    input.endPan(e)
-  }
-}
+// Проброс событий
+function onTouchStart(e) { game?.onTouchStart(e) }
+function onTouchMove(e) { game?.onTouchMove(e) }
+function onTouchEnd() { game?.onTouchEnd() }
+function onClick(e) { game?.onClick(e) }
+function onKeyDown(e) { game?.onKeyDown(e) }
+function onKeyUp(e) { game?.onKeyUp(e) }
+function onMouseMove(e) { game?.onMouseMove(e) }
+function onMouseLeave() { game?.onMouseLeave() }
+function onContextMenu(e) { game?.onContextMenu(e) }
+function onMouseDown(e) { game?.onMouseDown(e) }
+function onMouseUp(e) { game?.onMouseUp(e) }
 
-// ============ ЖИЗНЕННЫЙ ЦИКЛ ============
 onMounted(() => {
+  game = new GameLoop(canvasRef.value, config, startLocation)
   resizeCanvas()
+
   window.addEventListener('resize', onResize)
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
-  lastTime = performance.now()
-  gameLoop(lastTime)
+
+  game.start()
+
+  // Пример: переключение локации по нажатию клавиши L (для теста)
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyL') {
+      switchToDungeon()
+    }
+  })
 })
 
 onUnmounted(() => {
-  cancelAnimationFrame(animationId)
+  game?.stop()
   clearTimeout(resizeTimeout)
   window.removeEventListener('resize', onResize)
   window.removeEventListener('keydown', onKeyDown)
@@ -206,6 +109,7 @@ onUnmounted(() => {
   overflow: hidden;
   touch-action: none;
   user-select: none;
+  position: relative;
 }
 
 .game-canvas {
@@ -217,5 +121,19 @@ onUnmounted(() => {
 
 .game-canvas:active {
   cursor: default;
+}
+
+.location-name {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffd700;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 10;
 }
 </style>

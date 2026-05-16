@@ -17,3 +17,7 @@
   image-rendering: auto;
   touch-action: none;
 }
+
+.game-canvas:active {
+  cursor: default;
+}
