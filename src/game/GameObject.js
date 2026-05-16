@@ -2,7 +2,7 @@ export default class GameObject {
   constructor(x, y, char, color) {
     this.x = x
     this.y = y
-    this.vx = x  // визуальная позиция для плавности
+    this.vx = x
     this.vy = y
     this.char = char
     this.color = color
@@ -15,7 +15,25 @@ export default class GameObject {
   }
 
   occupies(tileX, tileY) {
-    return (Math.floor(this.x)) === tileX && (Math.floor(this.y)) === tileY
+    return Math.floor(this.x) === tileX && Math.floor(this.y) === tileY
+  }
+
+  draw(ctx, x, y, ts, isVisible, isActive = false, fontFamily) {
+    if (!isVisible) return
+
+    ctx.globalAlpha = isVisible ? 1 : 0.5
+    ctx.fillStyle = this.color
+    ctx.font = `${ts}px ${fontFamily}`
+
+    if (isActive) {
+      ctx.shadowBlur = 8
+      ctx.shadowColor = this.color
+    }
+
+    ctx.fillText(this.char, x + ts / 2, y + ts / 2)
+
+    ctx.shadowBlur = 0
+    ctx.globalAlpha = 1
   }
 
   updateMovement(dt, speed) {
@@ -29,9 +47,7 @@ export default class GameObject {
       this.moving = false
       this.progress = 0
     } else {
-      const t = this.progress < 0.5
-        ? 2 * this.progress * this.progress
-        : 1 - Math.pow(-2 * this.progress + 2, 2) / 2
+      const t = this.progress
       this.vx = this.fromX + (this.toX - this.fromX) * t
       this.vy = this.fromY + (this.toY - this.fromY) * t
     }

@@ -1,4 +1,5 @@
-import Tile from './Tile.js'
+import Floor from './Floor.js'
+import Wall from './Wall.js'
 import Fov from './Fov.js'
 
 export default class TileMap {
@@ -13,7 +14,7 @@ export default class TileMap {
     this.grid = Array.from({ length: this.rows }, (_, y) =>
       Array.from({ length: this.cols }, (_, x) => {
         const isBorder = y === 0 || y === this.rows - 1 || x === 0 || x === this.cols - 1
-        return new Tile(isBorder ? 1 : 0)
+        return isBorder ? new Wall() : new Floor()
       })
     )
   }
@@ -21,7 +22,7 @@ export default class TileMap {
   setWalls(pillars) {
     for (const [x, y] of pillars) {
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
-        this.grid[y][x] = new Tile(1)
+        this.grid[y][x] = new Wall()
       }
     }
   }
@@ -35,17 +36,8 @@ export default class TileMap {
     const tile = this.getTile(x, y)
     return tile ? tile.isWalkable : false
   }
-  resetVisibility() {
-    for (let y = 0; y < this.rows; y++) {
-      for (let x = 0; x < this.cols; x++) {
-        const tile = this.getTile(x, y)
-        if (tile) tile.visible = false
-      }
-    }
-  }
 
   computeFov(originX, originY, radius) {
-    // Сначала сбрасываем visible, но НЕ explored
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         const tile = this.getTile(x, y)
@@ -55,7 +47,6 @@ export default class TileMap {
 
     this.fov.compute(originX | 0, originY | 0, radius)
 
-    // Помечаем explored для всех visible тайлов
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         const tile = this.getTile(x, y)
@@ -65,10 +56,4 @@ export default class TileMap {
       }
     }
   }
-
-  isVisible(x, y) {
-    const tile = this.getTile(x, y)
-    return tile ? tile.visible : false
-  }
-
 }

@@ -256,11 +256,13 @@ export default class GameLoop {
 
   initRenderer(canvasWidth, canvasHeight, dpr) {
     this.renderer = new Renderer(this.ctx, this.config)
+    this.renderer.dpr = dpr // Передаем DPR
     this.renderer.resize(canvasWidth, canvasHeight, dpr)
   }
 
   resize(canvasWidth, canvasHeight, dpr) {
     if (this.renderer) {
+      this.renderer.dpr = dpr
       this.renderer.resize(canvasWidth, canvasHeight, dpr)
     }
   }

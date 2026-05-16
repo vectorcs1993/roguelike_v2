@@ -5,7 +5,7 @@ export default class Fov {
 
   compute(originX, originY, radius) {
     const map = this.map
-    map.resetVisibility()
+    // Убираем map.resetVisibility() - теперь visible сбрасывается в TileMap.computeFov
 
     // Исходная клетка всегда видна
     const originTile = map.getTile(originX, originY)
@@ -18,7 +18,6 @@ export default class Fov {
   }
 
   _getTransform(octant) {
-    // Преобразует координаты в зависимости от октанта
     switch (octant) {
       case 0: return (x, y) => ({ x: x, y: -y })
       case 1: return (x, y) => ({ x: y, y: -x })
@@ -48,12 +47,10 @@ export default class Fov {
         if (startSlope < rightSlope) continue
         if (endSlope > leftSlope) break
 
-        // Преобразуем в мировые координаты
         const world = transform(dx, dy)
         const worldX = originX + world.x
         const worldY = originY + world.y
 
-        // Радиус (круг, не квадрат)
         if (dx * dx + dy * dy < radius * radius) {
           const tile = map.getTile(worldX, worldY)
           if (tile) tile.visible = true

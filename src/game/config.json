@@ -13,27 +13,5 @@
   "dtCap": 0.1,
   "pathSpeed": 6,
   "cameraSpeed": 15,
-  "colors": {
-    "bg": "#000000",
-    "wallBg": "#222233",
-    "wall": "#555555",
-    "floor": "#0a0a12",
-    "player": "#00ff00",
-    "item": "#ffd700",
-    "grid": "rgba(255, 255, 255, 0.06)",
-    "exploredFloor": "#0a0a0f",
-    "exploredWallBg": "#111122",
-    "exploredWall": "#444444",
-    "uiBg": "rgba(0, 0, 0, 0.8)",
-    "uiButton": "#333333",
-    "uiButtonActive": "#44aaff",
-    "uiText": "#ffffff",
-    "enemy": "#ff4444"
-  },
-  "symbols": {
-    "wall": "#",
-    "floor": ".",
-    "player": "@",
-    "item": "$"
-  }
+  "fontFamily": "Lucida Console, monospace"
 }

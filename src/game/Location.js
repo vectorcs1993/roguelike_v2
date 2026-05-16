@@ -59,7 +59,7 @@ export default class Location {
 
     this.items = []
     for (const itemConfig of itemConfigs) {
-      this.items.push(new Item(itemConfig.x, itemConfig.y, config))
+      this.items.push(new Item(itemConfig.x, itemConfig.y))
     }
   }
 
@@ -237,8 +237,8 @@ export default class Location {
         name: 'Отряд',
         color: '#44aaff',
         characters: [
-          { x: 30, y: 20, char: '🔫', color: '#44ff44', id: 'op1', name: 'Ликвидатор 1', fovRadius: 10 },
-          { x: 28, y: 22, char: '🔫', color: '#44ff44', id: 'op2', name: 'Ликвидатор 2', fovRadius: 10 }
+          { x: 30, y: 20, char: '🔫', color: '#44ffaa', id: 'op1', name: 'Ликвидатор 1', fovRadius: 10 },
+          { x: 28, y: 22, char: '🔫', color: '#44ffaa', id: 'op2', name: 'Ликвидатор 2', fovRadius: 10 }
         ]
       },
       {
