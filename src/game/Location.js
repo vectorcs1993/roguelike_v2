@@ -162,9 +162,31 @@ export default class Location {
     return blocked
   }
 
-  isCharacterVisible(character) {
-    if (!character.team) return false
-    return character.team.isCharacterVisible(character, this.map)
+  // Проверка, являются ли персонажи союзниками
+  areAllies(character1, character2) {
+    // Если это один и тот же персонаж
+    if (character1.id === character2.id) return true
+
+    // Проверяем по teamId
+    return character1.teamId === character2.teamId
+  }
+
+  // Проверка видимости персонажа для активного
+  isCharacterVisibleForActive(character) {
+    const activeChar = this.getActiveCharacter()
+    if (!activeChar) return false
+
+    // Если это союзник активного персонажа
+    if (this.areAllies(activeChar, character)) {
+      return true  // Всегда виден
+    }
+
+    // Для врагов - проверяем туман войны
+    const tileX = Math.floor(character.x)
+    const tileY = Math.floor(character.y)
+    const tile = this.map.getTile(tileX, tileY)
+
+    return tile ? tile.visible : false
   }
 
   getTileInfo(tileX, tileY) {

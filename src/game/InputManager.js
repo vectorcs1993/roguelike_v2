@@ -161,6 +161,10 @@ export default class InputManager {
   }
 
   getDirection() {
+    if (this.isRightButtonDown()) {
+      return null
+    }
+
     let x = 0, y = 0
     if (this.keys['ArrowUp'] || this.keys['KeyW']) y = -1
     if (this.keys['ArrowDown'] || this.keys['KeyS']) y = 1

@@ -116,25 +116,32 @@ export default class Renderer {
       const tileY = Math.floor(char.y)
       const tile = map.getTile(tileX, tileY)
 
-      // Проверяем видимость через систему команд
-      const isVisible = this._location?.isCharacterVisible(char) ?? (tile && tile.visible)
+      // ✅ Проверяем видимость через систему команд
+      const isVisible = this._location?.isCharacterVisibleForActive(char) ?? (tile && tile.visible)
 
       if (!isVisible) continue
 
       ctx.fillStyle = char.color
-      if (char.team?.visibleInFog && !tile.visible) {
-        ctx.globalAlpha = 0.4
+
+      // Полупрозрачность для союзников в тумане
+      const isAlly = this._location?.areAllies(this._activeCharacter, char) ?? false
+      if (isAlly && !tile?.visible) {
+        ctx.globalAlpha = 0.5
       } else {
         ctx.globalAlpha = 1
       }
 
       // Подсветка активного персонажа
-      if (char.isActive && tile && tile.visible) {
+      if (char.isActive && tile?.visible) {
         ctx.shadowBlur = 10
         ctx.shadowColor = char.color
       }
 
-      ctx.fillText(char.char, char.vx * ts + offsetX + ts * 0.5, char.vy * ts + offsetY + ts * 0.5)
+      ctx.fillText(
+        char.char,
+        char.vx * ts + offsetX + ts * 0.5,
+        char.vy * ts + offsetY + ts * 0.5
+      )
 
       ctx.shadowBlur = 0
       ctx.globalAlpha = 1
@@ -242,7 +249,19 @@ export default class Renderer {
     if (toX === undefined || toY === undefined) return
     if (!pathfinder) return
 
-    const path = pathfinder.find(fromX, fromY, toX, toY, blockedCells)
+    // Пытаемся получить путь из кэша
+    let path = null
+    if (this._pathCache) {
+      path = this._pathCache.get(fromX, fromY, toX, toY, blockedCells)
+    }
+
+    // Если нет в кэше — вычисляем и сохраняем
+    if (!path) {
+      path = pathfinder.find(fromX, fromY, toX, toY, blockedCells)
+      if (this._pathCache && path) {
+        this._pathCache.set(fromX, fromY, toX, toY, blockedCells, path)
+      }
+    }
     if (!path || path.length < 2) return
 
     const ctx = this.ctx

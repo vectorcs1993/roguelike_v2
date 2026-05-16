@@ -1,5 +1,5 @@
 // src/game/GameLoop.js
-
+import PathCache from './PathCache.js'
 import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
@@ -35,10 +35,14 @@ export default class GameLoop {
     this.hoverTileX = null
     this.hoverTileY = null
     this.uiButtons = []
+
+    // Добавляем кэш
+    this.pathCache = new PathCache(200)
   }
 
   changeLocation(newLocation) {
     this.currentLocation = newLocation
+    this.pathCache.clear() // Очищаем кэш при смене локации
 
     // Активируем первого персонажа - ИСПРАВЛЕНО
     const characters = this.currentLocation.getAllCharacters()
@@ -52,18 +56,38 @@ export default class GameLoop {
   }
 
   switchCharacter(characterId) {
-    const character = this.currentLocation.getAllCharacters().find(c => c.id === characterId)
-
-    // Проверяем canSwitchTo вместо team?.id
-    if (character && !character.canSwitchTo) {
-      console.log(`Нельзя переключиться на: ${character.name}`)
-      return
-    }
-
     const newActive = this.currentLocation.switchToCharacter(characterId)
     if (newActive) {
       this.camera.setPosition(newActive.x, newActive.y)
-      console.log(`Переключено на: ${newActive.name}`)
+
+      // 🚀 ПРЕДЗАГРУЗКА: заполняем кэш для новой позиции
+      setTimeout(() => {
+        const active = this.currentLocation.getActiveCharacter()
+        if (active && this.pathCache) {
+          const blocked = this.currentLocation.getBlockedCells(active)
+          const fromX = active.x | 0
+          const fromY = active.y | 0
+
+          // Предзагружаем пути в радиусе 10 клеток
+          let preloaded = 0
+          for (let dy = -8; dy <= 8; dy++) {
+            for (let dx = -8; dx <= 8; dx++) {
+              if (dx === 0 && dy === 0) continue
+              const toX = fromX + dx
+              const toY = fromY + dy
+
+              if (!this.pathCache.get(fromX, fromY, toX, toY, blocked)) {
+                const path = this.currentLocation.pathfinder.find(fromX, fromY, toX, toY, blocked)
+                if (path) {
+                  this.pathCache.set(fromX, fromY, toX, toY, blocked, path)
+                  preloaded++
+                }
+              }
+            }
+          }
+          console.log(`🚀 Preloaded ${preloaded} paths for ${active.name}`)
+        }
+      }, 50)
     }
   }
 
@@ -211,7 +235,7 @@ export default class GameLoop {
     this.renderer._location = this.currentLocation
     this.renderer._activeCharacter = this.currentLocation.getActiveCharacter()
     this.renderer._allCharacters = this.currentLocation.getAllCharacters()
-
+    this.renderer._pathCache = this.pathCache
     this.prepareUiButtons()
 
     this.renderer.draw(
@@ -287,8 +311,37 @@ export default class GameLoop {
       this.input.handleClick(e)
     }
   }
+  // GameLoop.js — добавьте в метод onKeyDown
+
   onKeyDown(e) {
     this.input.handleKeyDown(e)
+
+    // 🐛 Дебаг клавиши для кэша путей
+    if (e.code === 'F3') {
+      if (this.pathCache) {
+        this.pathCache.printStats()
+      }
+    }
+
+    if (e.code === 'F4') {
+      if (this.pathCache) {
+        this.pathCache.setDebug(!this.pathCache.debugEnabled)
+      }
+    }
+
+    if (e.code === 'F5') {
+      if (this.pathCache) {
+        console.log('🔄 Manual cache clear...')
+        this.pathCache.clear()
+      }
+    }
+
+    if (e.code === 'F6') {
+      if (this.pathCache) {
+        const stats = this.pathCache.getStats()
+        console.log('📊 Current stats:', stats)
+      }
+    }
   }
   onKeyUp(e) { this.input.handleKeyUp(e) }
   onMouseMove(e) {
