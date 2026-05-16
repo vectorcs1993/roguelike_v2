@@ -1,7 +1,8 @@
 <template>
   <q-page class="game-page">
     <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd"
-      @click.prevent="onClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave"></canvas>
+      @click.prevent="onClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu" @mousedown="onMouseDown"
+      @mouseup="onMouseUp"></canvas>
   </q-page>
 </template>
 
@@ -87,30 +88,32 @@ function gameLoop(time) {
   const dt = lastTime ? Math.min((time - lastTime) * 0.001, config.dtCap) : 0.016
   lastTime = time
 
-  // --- Обработка клика ---
-  const click = input.consumeClick()
-  if (click) {
-    const worldX = (click.x - renderer.halfW) / renderer.tileSize + camera.x
-    const worldY = (click.y - renderer.halfH) / renderer.tileSize + camera.y
-    const tileX = worldX | 0
-    const tileY = worldY | 0
+  // --- Обработка клика (только если не панорамируем) ---
+  if (!input.isCameraMovingNow()) {
+    const click = input.consumeClick()
+    if (click) {
+      const worldX = (click.x - renderer.halfW) / renderer.tileSize + camera.x
+      const worldY = (click.y - renderer.halfH) / renderer.tileSize + camera.y
+      const tileX = worldX | 0
+      const tileY = worldY | 0
 
-    const blocked = npcs.map(n => ({ x: n.x | 0, y: n.y | 0 }))
+      const blocked = npcs.map(n => ({ x: n.x | 0, y: n.y | 0 }))
 
-    const path = pathfinder.find(
-      player.x | 0, player.y | 0,
-      tileX, tileY,
-      blocked
-    )
+      const path = pathfinder.find(
+        player.x | 0, player.y | 0,
+        tileX, tileY,
+        blocked
+      )
 
-    if (path) {
-      player.setPath(path)
+      if (path) {
+        player.setPath(path)
+      }
     }
   }
 
   // --- Update ---
   player.update(dt, input, map, npcs)
-  camera.update(dt, input)
+  camera.update(dt, input, renderer)
   map.computeFov(player.x, player.y, config.fovRadius)
 
   for (const npc of npcs) npc.update(dt, map, player, npcs)
@@ -120,6 +123,7 @@ function gameLoop(time) {
       item.collect()
     }
   }
+
   const hoverTile = input.getMouseTile(camera, renderer)
   let hoverTileX = null, hoverTileY = null
   if (hoverTile) {
@@ -134,8 +138,9 @@ function gameLoop(time) {
   renderer.mouseScreenY = input.mouseY
   renderer._pathfinder = pathfinder
   renderer._blockedCache = npcs.map(n => ({ x: n.x | 0, y: n.y | 0 }))
+
   // --- Draw ---
-  renderer.draw(map, player, npcs, items, camera)
+  renderer.draw(map, player, npcs, items, camera, input)
   animationId = requestAnimationFrame(gameLoop)
 }
 
@@ -143,11 +148,37 @@ function gameLoop(time) {
 function onTouchStart(e) { input.handleTouchStart(e) }
 function onTouchMove(e) { input.handleTouchMove(e) }
 function onTouchEnd() { input.handleTouchEnd() }
-function onClick(e) { input.handleClick(e) }
+function onClick(e) {
+  if (!input.isCameraMovingNow()) {
+    input.handleClick(e)
+  }
+}
 function onKeyDown(e) { input.handleKeyDown(e) }
 function onKeyUp(e) { input.handleKeyUp(e) }
-function onMouseMove(e) { input.handleMouseMove(e) }
-function onMouseLeave() { input.handleMouseLeave() }
+function onMouseMove(e) {
+  input.handleMouseMove(e)
+  if (input.isRightButtonDown()) {
+    input.updatePan(e, camera, renderer)
+  }
+}
+function onMouseLeave() {
+  input.handleMouseLeave()
+}
+function onContextMenu(e) {
+  e.preventDefault()
+  return false
+}
+function onMouseDown(e) {
+  if (e.button === 2) {
+    input.startPan(e, camera)
+  }
+}
+
+function onMouseUp(e) {
+  if (e.button === 2) {
+    input.endPan(e)
+  }
+}
 
 // ============ ЖИЗНЕННЫЙ ЦИКЛ ============
 onMounted(() => {
@@ -167,3 +198,24 @@ onUnmounted(() => {
   window.removeEventListener('keyup', onKeyUp)
 })
 </script>
+
+<style scoped>
+.game-page {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.game-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: default;
+}
+
+.game-canvas:active {
+  cursor: default;
+}
+</style>

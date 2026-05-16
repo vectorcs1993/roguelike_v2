@@ -23,7 +23,7 @@ export default class Renderer {
     this.ctx.textBaseline = 'middle'
   }
 
-  draw(map, player, npcs, items, camera) {
+  draw(map, player, npcs, items, camera, input) {
     const ctx = this.ctx
     const w = this.canvasW
     const h = this.canvasH
@@ -126,7 +126,7 @@ export default class Renderer {
       ctx.fillText(item.char, item.x * ts + offsetX + ts * 0.5, item.y * ts + offsetY + ts * 0.5)
       ctx.globalAlpha = 1
     }
-    if (this.hoverTileX !== null && !player.followingPath) {
+    if (!input.isCameraMovingNow() && this.hoverTileX !== null && !player.followingPath) {
       const blocked = this._blockedCache || []
       this.drawPathPreview(
         player.x | 0, player.y | 0,
@@ -148,7 +148,7 @@ export default class Renderer {
     }
 
     // Подсветка клетки под курсором
-    if (this.hoverTileX !== null) {
+    if (!input.isCameraMovingNow() && this.hoverTileX !== null) {
       this.drawHoverTile(this.hoverTileX, this.hoverTileY, camera)
       this.drawTooltip(this.hoverTileX, this.hoverTileY, map, player, npcs, items, camera)
     }

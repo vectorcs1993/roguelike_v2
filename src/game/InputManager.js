@@ -13,7 +13,21 @@ export default class InputManager {
     this.mouseX = 0
     this.mouseY = 0
     this.mouseOnCanvas = false
+
+    // Панорамирование правой кнопкой
+    this.rightButtonDown = false
+    this.panStartX = 0
+    this.panStartY = 0
+    this.panStartCameraX = 0
+    this.panStartCameraY = 0
+
+    // Флаг движения камеры (мышь ИЛИ клавиатура)
+    this.isCameraMoving = false
+
+    // Таймер для сброса флага клавиатуры
+    this.keyboardMoveTimeout = null
   }
+
   handleMouseMove(e) {
     this.mouseX = e.offsetX
     this.mouseY = e.offsetY
@@ -22,6 +36,10 @@ export default class InputManager {
 
   handleMouseLeave() {
     this.mouseOnCanvas = false
+    if (this.rightButtonDown) {
+      this.rightButtonDown = false
+      this.isCameraMoving = false
+    }
   }
 
   getMouseTile(camera, renderer) {
@@ -32,9 +50,16 @@ export default class InputManager {
   }
 
   handleClick(e) {
-    this.clickX = e.offsetX
-    this.clickY = e.offsetY
-    this.clicked = true
+    // Только ЛКМ
+    if (e.button === 0) {
+      this.clickX = e.offsetX
+      this.clickY = e.offsetY
+      this.clicked = true
+    }
+    // ПКМ - предотвращаем контекстное меню
+    if (e.button === 2) {
+      e.preventDefault()
+    }
   }
 
   consumeClick() {
@@ -45,6 +70,20 @@ export default class InputManager {
 
   handleKeyDown(e) {
     this.keys[e.code] = true
+
+    // Проверяем, является ли клавиша клавишей движения камеры
+    const cameraKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyS', 'KeyA', 'KeyD']
+    if (cameraKeys.includes(e.code)) {
+      // Включаем флаг движения камеры
+      this.isCameraMoving = true
+
+      // Сбрасываем предыдущий таймер
+      if (this.keyboardMoveTimeout) {
+        clearTimeout(this.keyboardMoveTimeout)
+      }
+    }
+
+    // Предотвращаем скролл страницы от стрелок
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
       e.preventDefault()
     }
@@ -52,6 +91,39 @@ export default class InputManager {
 
   handleKeyUp(e) {
     this.keys[e.code] = false
+
+    // Проверяем, является ли клавиша клавишей движения камеры
+    const cameraKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyS', 'KeyA', 'KeyD']
+    if (cameraKeys.includes(e.code)) {
+      // Проверяем, остались ли ещё зажатые клавиши движения
+      let anyPressed = false
+      for (const key of cameraKeys) {
+        if (this.keys[key]) {
+          anyPressed = true
+          break
+        }
+      }
+
+      // Если нет зажатых клавиш, сбрасываем флаг через небольшую задержку
+      if (!anyPressed) {
+        if (this.keyboardMoveTimeout) {
+          clearTimeout(this.keyboardMoveTimeout)
+        }
+        this.keyboardMoveTimeout = setTimeout(() => {
+          // Проверяем ещё раз, чтобы убедиться, что за это время не нажали новую клавишу
+          let stillPressed = false
+          for (const key of cameraKeys) {
+            if (this.keys[key]) {
+              stillPressed = true
+              break
+            }
+          }
+          if (!stillPressed && !this.rightButtonDown) {
+            this.isCameraMoving = false
+          }
+        }, 100) // Небольшая задержка, чтобы не сбрасывать флаг между быстрыми нажатиями
+      }
+    }
   }
 
   handleTouchStart(e) {
@@ -102,5 +174,73 @@ export default class InputManager {
 
     if (x === 0 && y === 0) return null
     return { x, y }
+  }
+
+  // Начало панорамирования мышью
+  startPan(e, camera) {
+    if (e.button === 2) {
+      e.preventDefault()
+      this.rightButtonDown = true
+      this.panStartX = e.offsetX
+      this.panStartY = e.offsetY
+      this.panStartCameraX = camera.x
+      this.panStartCameraY = camera.y
+      this.isCameraMoving = true
+
+      // Сбрасываем таймер клавиатуры
+      if (this.keyboardMoveTimeout) {
+        clearTimeout(this.keyboardMoveTimeout)
+      }
+    }
+  }
+
+  // Обновление панорамирования
+  updatePan(e, camera, renderer) {
+    if (!this.rightButtonDown) return false
+
+    const deltaX = e.offsetX - this.panStartX
+    const deltaY = e.offsetY - this.panStartY
+
+    const tileDeltaX = -deltaX / renderer.tileSize
+    const tileDeltaY = -deltaY / renderer.tileSize
+
+    camera.x = this.panStartCameraX + tileDeltaX
+    camera.y = this.panStartCameraY + tileDeltaY
+
+    return true
+  }
+
+  // Конец панорамирования
+  endPan(e) {
+    if (e.button === 2) {
+      e.preventDefault()
+      this.rightButtonDown = false
+
+      // Не сбрасываем isCameraMoving сразу, возможно, есть движение с клавиатуры
+      if (!this.isAnyKeyboardKeyPressed()) {
+        this.isCameraMoving = false
+      }
+    }
+  }
+
+  // Проверка, зажата ли какая-либо клавиша движения
+  isAnyKeyboardKeyPressed() {
+    const cameraKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyS', 'KeyA', 'KeyD']
+    for (const key of cameraKeys) {
+      if (this.keys[key]) {
+        return true
+      }
+    }
+    return false
+  }
+
+  // Проверка, двигается ли камера (мышь ИЛИ клавиатура)
+  isCameraMovingNow() {
+    return this.isCameraMoving
+  }
+
+  // Проверка, зажата ли правая кнопка
+  isRightButtonDown() {
+    return this.rightButtonDown
   }
 }
