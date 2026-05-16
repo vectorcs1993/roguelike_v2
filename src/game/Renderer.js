@@ -242,40 +242,38 @@ export default class Renderer {
   }
 
   drawPathPreview(fromX, fromY, toX, toY, pathfinder, blockedCells, camera) {
-    if (toX === undefined || toY === undefined) return
-    if (!pathfinder) return
+    if (!pathfinder || !this._activeCharacter?.followingPath === false) return
 
-    // Пытаемся получить путь из кэша
-    let path = null
-    if (this._pathCache) {
-      path = this._pathCache.get(fromX, fromY, toX, toY, blockedCells)
-    }
+    const path = this._pathCache?.get(fromX, fromY, toX, toY, blockedCells)
+      ?? pathfinder.find(fromX, fromY, toX, toY, blockedCells)
 
-    // Если нет в кэше — вычисляем и сохраняем
-    if (!path) {
-      path = pathfinder.find(fromX, fromY, toX, toY, blockedCells)
-      if (this._pathCache && path) {
-        this._pathCache.set(fromX, fromY, toX, toY, blockedCells, path)
-      }
-    }
-    if (!path || path.length < 2) return
+    if (!path?.length) return
 
-    const ctx = this.ctx
     const ts = this.tileSize
-    const offsetX = this.halfW - camera.x * ts
-    const offsetY = this.halfH - camera.y * ts
+    const ox = this.halfW - camera.x * ts
+    const oy = this.halfH - camera.y * ts
+    const ctx = this.ctx
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'
-    for (let i = 1; i < path.length - 1; i++) {
-      const step = path[i]
-      ctx.fillRect(step.x * ts + offsetX + 3, step.y * ts + offsetY + 3, ts - 6, ts - 6)
-    }
-
-    const last = path[path.length - 1]
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'
+    // Рисуем линию пути
+    ctx.beginPath()
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'
     ctx.lineWidth = 2
     ctx.setLineDash([4, 4])
-    ctx.strokeRect(last.x * ts + offsetX + 2, last.y * ts + offsetY + 2, ts - 4, ts - 4)
+
+    const first = path[0]
+    ctx.moveTo(first.x * ts + ox + ts / 2, first.y * ts + oy + ts / 2)
+    for (let i = 1; i < path.length; i++) {
+      const p = path[i]
+      ctx.lineTo(p.x * ts + ox + ts / 2, p.y * ts + oy + ts / 2)
+    }
+    ctx.stroke()
+
+    // Обводим цель
+    const last = path[path.length - 1]
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+    ctx.lineWidth = 2
+    ctx.strokeRect(last.x * ts + ox + 2, last.y * ts + oy + 2, ts - 4, ts - 4)
+
     ctx.setLineDash([])
   }
 
