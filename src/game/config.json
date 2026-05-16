@@ -11,7 +11,6 @@
   "tileSizeMin": 12,
   "tileSizeMaxDivisor": 15,
   "dtCap": 0.1,
-  "fovRadius": 8,
   "pathSpeed": 6,
   "cameraSpeed": 15,
   "uiHeight": 80,

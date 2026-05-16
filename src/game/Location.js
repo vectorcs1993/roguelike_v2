@@ -13,7 +13,7 @@ export default class Location {
     this.config = config
     this.name = 'default'
 
-    this.map = new TileMap(config.cols, config.rows)
+    this.map = new TileMap(config.cols, config.rows) // Убираем радиус из TileMap
     this.map.fill()
     this.map.setWalls(pillars)
 
@@ -46,6 +46,8 @@ export default class Location {
       for (const charConfig of teamConfig.characters) {
         // Используем цвет персонажа из конфига, если нет - цвет команды
         const charColor = charConfig.color || teamConfig.color || team.color || '#ffffff'
+        // Радиус обзора из конфига персонажа или значение по умолчанию 8
+        const fovRadius = charConfig.fovRadius || 8
 
         const character = new Character(
           charConfig.x, charConfig.y,
@@ -54,7 +56,8 @@ export default class Location {
           config,
           charConfig.id,
           charConfig.name,
-          team
+          team,
+          fovRadius // Передаем радиус
         )
         team.addCharacter(character)
         this.characters.push(character)
@@ -161,8 +164,9 @@ export default class Location {
     }
     return blocked
   }
+
   // Однократное открытие карты для всех союзников при старте
-  revealInitialMap(radius) {
+  revealInitialMap() {
     const activeChar = this.getActiveCharacter()
     if (!activeChar) return
 
@@ -171,10 +175,11 @@ export default class Location {
       char => char.teamId === activeChar.teamId
     )
 
-    // Для каждого союзника открываем клетки в радиусе
+    // Для каждого союзника открываем клетки в радиусе его обзора
     for (const ally of allies) {
       const centerX = Math.floor(ally.x)
       const centerY = Math.floor(ally.y)
+      const radius = ally.fovRadius // Используем радиус персонажа
 
       // Открываем клетки в радиусе (круг, не квадрат)
       for (let dy = -radius; dy <= radius; dy++) {
@@ -194,6 +199,7 @@ export default class Location {
       }
     }
   }
+
   // Проверка, являются ли персонажи союзниками
   areAllies(character1, character2) {
     // Если это один и тот же персонаж
@@ -272,34 +278,34 @@ export default class Location {
         type: 'player',
         id: 'heroes',
         name: 'Герои',
-        color: '#44aaff', // ← цвет команды
+        color: '#44aaff',
         characters: [
-          { x: 30, y: 20, char: config.symbols.player, color: '#00ff00', id: 'hero', name: '🧝 Герой' },
-          { x: 20, y: 12, char: '🧙', color: '#aa66ff', id: 'merchant', name: '🧙 Торговец' },
-          { x: 45, y: 22, char: '⚔️', color: '#ff8844', id: 'guard', name: '⚔️ Стражник' },
-          { x: 35, y: 35, char: '🔮', color: '#ff66cc', id: 'mage', name: '🔮 Маг' },
-          { x: 55, y: 8, char: '🏹', color: '#66ff66', id: 'archer', name: '🏹 Лучник' }
+          { x: 30, y: 20, char: config.symbols.player, color: '#00ff00', id: 'hero', name: '🧝 Герой', fovRadius: 10 }, // Дальний обзор
+          { x: 20, y: 12, char: '🧙', color: '#aa66ff', id: 'merchant', name: '🧙 Торговец', fovRadius: 8 },
+          { x: 45, y: 22, char: '⚔️', color: '#ff8844', id: 'guard', name: '⚔️ Стражник', fovRadius: 7 },
+          { x: 35, y: 35, char: '🔮', color: '#ff66cc', id: 'mage', name: '🔮 Маг', fovRadius: 12 }, // Маг видит дальше
+          { x: 55, y: 8, char: '🏹', color: '#66ff66', id: 'archer', name: '🏹 Лучник', fovRadius: 9 }
         ]
       },
       {
         type: 'enemy',
         id: 'monsters',
         name: 'Монстры',
-        color: '#ff4444', // ← цвет команды
+        color: '#ff4444',
         characters: [
-          { x: 12, y: 25, char: '👹', color: '#ff4444', id: 'enemy1', name: '👹 Орк' },
-          { x: 48, y: 30, char: '🐺', color: '#cc6666', id: 'enemy2', name: '🐺 Волк' },
-          { x: 25, y: 5, char: '🧌', color: '#aa4444', id: 'enemy3', name: '🧌 Тролль' }
+          { x: 12, y: 25, char: '👹', color: '#ff4444', id: 'enemy1', name: '👹 Орк', fovRadius: 5 }, // Враги видят хуже
+          { x: 48, y: 30, char: '🐺', color: '#cc6666', id: 'enemy2', name: '🐺 Волк', fovRadius: 7 },
+          { x: 25, y: 5, char: '🧌', color: '#aa4444', id: 'enemy3', name: '🧌 Тролль', fovRadius: 4 }
         ]
       },
       {
         type: 'neutral',
         id: 'animals',
         name: 'Животные',
-        color: '#ffaa44', // ← цвет команды
+        color: '#ffaa44',
         characters: [
-          { x: 40, y: 15, char: '🦊', color: '#ff8844', id: 'fox', name: '🦊 Лиса' },
-          { x: 18, y: 32, char: '🐇', color: '#cccc88', id: 'rabbit', name: '🐇 Кролик' }
+          { x: 40, y: 15, char: '🦊', color: '#ff8844', id: 'fox', name: '🦊 Лиса', fovRadius: 6 },
+          { x: 18, y: 32, char: '🐇', color: '#cccc88', id: 'rabbit', name: '🐇 Кролик', fovRadius: 5 }
         ]
       }
     ]

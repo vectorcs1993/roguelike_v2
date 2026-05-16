@@ -3,7 +3,7 @@
 import GameObject from './GameObject.js'
 
 export default class Character extends GameObject {
-  constructor(x, y, char, color, config, id = null, name = null, team = null) { // team теперь объект
+  constructor(x, y, char, color, config, id = null, name = null, team = null, fovRadius = 8) { // Добавляем fovRadius
     super(x, y, char, color)
     this.id = id || `char_${Date.now()}_${Math.random()}`
     this.name = name || 'Персонаж'
@@ -15,12 +15,23 @@ export default class Character extends GameObject {
     this.path = []
     this.pathIndex = 0
     this.followingPath = false
+    this.fovRadius = fovRadius // Радиус обзора персонажа
   }
 
   // Геттеры для удобства
   get teamId() { return this.team?.id || 'none' }
   get isPlayerControlled() { return this.team?.isPlayerControlled || false }
   get canSwitchTo() { return this.team?.canSwitchTo || false }
+
+  // Метод для изменения радиуса обзора
+  setFovRadius(radius) {
+    this.fovRadius = radius
+  }
+
+  // Метод для получения радиуса обзора
+  getFovRadius() {
+    return this.fovRadius
+  }
 
   setPath(path) {
     if (!path || path.length <= 1) {

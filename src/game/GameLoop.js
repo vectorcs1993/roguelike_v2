@@ -25,7 +25,7 @@ export default class GameLoop {
     }
 
     // ПРИ СТАРТЕ: открываем карту для всех союзников
-    this.currentLocation.revealInitialMap(config.fovRadius)
+    this.currentLocation.revealInitialMap()
 
     // Камера
     this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, config.cameraSpeed)
@@ -212,8 +212,12 @@ export default class GameLoop {
       // Обновляем активного персонажа
       activeChar.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
 
-      // Обновляем FOV от активного персонажа
-      this.currentLocation.updateFov(activeChar.x, activeChar.y, this.config.fovRadius)
+      // Обновляем FOV от активного персонажа с его радиусом обзора
+      this.currentLocation.updateFov(
+        activeChar.x,
+        activeChar.y,
+        activeChar.fovRadius // Используем радиус персонажа
+      )
 
       // Сбор предметов
       const collected = this.currentLocation.checkItemPickup(activeChar.x | 0, activeChar.y | 0)
