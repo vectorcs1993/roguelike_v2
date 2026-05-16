@@ -1,5 +1,4 @@
 // src/game/GameLoop.js
-import Player from './Player.js'
 import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
@@ -13,17 +12,14 @@ export default class GameLoop {
 
     this.currentLocation = initialLocation || Location.createForest(config)
 
-    const startX = this.config.cols >> 1
-    const startY = this.config.rows >> 1
+    // Активируем первого персонажа (игрока)
+    const characters = this.currentLocation.getAllCharacters()
+    if (characters.length > 0) {
+      const playerChar = characters.find(c => c.type === 'player') || characters[0]
+      playerChar.isActive = true
+    }
 
-    // Создаём игрока
-    this.player = new Player(startX, startY, config, 'player', '🧝 Герой')
-    this.player.isActive = true
-
-    // Устанавливаем игрока в локацию
-    this.currentLocation.setPlayer(this.player)
-
-    // Камера - изначально в центре карты
+    // Камера
     this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, config.cameraSpeed)
 
     this.input = new InputManager(config.swipeThreshold)
@@ -38,54 +34,38 @@ export default class GameLoop {
 
   changeLocation(newLocation) {
     this.currentLocation = newLocation
-    this.currentLocation.setPlayer(this.player)
 
-    const startX = this.config.cols >> 1
-    const startY = this.config.rows >> 1
-    this.player.x = startX
-    this.player.y = startY
-    this.player.vx = startX
-    this.player.vy = startY
-    this.player.path = []
-    this.player.followingPath = false
-    this.player.isActive = true
-
-    this.currentLocation.npcs.forEach(n => n.isActive = false)
-
-    // Камера остается там же, где была
+    // Активируем первого персонажа
+    const characters = this.currentLocation.getAllCharacters()
+    if (characters.length > 0) {
+      const playerChar = characters.find(c => c.type === 'player') || characters[0]
+      playerChar.isActive = true
+    }
   }
 
   switchCharacter(characterId) {
     const newActive = this.currentLocation.switchToCharacter(characterId)
     if (newActive) {
-      console.log(`Переключено на: ${newActive.name}`)
       this.camera.setPosition(newActive.x, newActive.y)
       console.log(`Переключено на: ${newActive.name}`)
     }
   }
-  centerOnCharacter(characterId) {
-    if (this.player.id === characterId) {
-      this.camera.setPosition(this.player.x, this.player.y)
-      return true
-    }
 
-    const npc = this.currentLocation.npcs.find(n => n.id === characterId)
-    if (npc) {
-      this.camera.setPosition(npc.x, npc.y)
-      return true
+  centerOnCharacter(characterId) {
+    const character = this.currentLocation.getAllCharacters().find(c => c.id === characterId)
+    if (character) {
+      this.camera.setPosition(character.x, character.y)
     }
-    return false
   }
+
   getBlockedCells() {
     const activeChar = this.currentLocation.getActiveCharacter()
     return this.currentLocation.getBlockedCells(activeChar)
   }
 
   handleClick(screenX, screenY) {
-    // Проверяем клик по UI кнопкам
     if (this.checkUiClick(screenX, screenY)) return true
 
-    // Если камера двигается (панорамирование или клавиши) - не обрабатываем клик для движения персонажа
     if (this.input.isCameraMovingNow()) return false
 
     const worldX = (screenX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x
@@ -131,11 +111,9 @@ export default class GameLoop {
       if (x >= btnX && x <= btnX + buttonWidth &&
         y >= btnY && y <= btnY + buttonHeight) {
 
-        // Если кликнули на активного персонажа - просто центрируем камеру
         if (btn.isActive) {
           this.centerOnCharacter(btn.id)
         } else {
-          // Иначе переключаем управление и центрируем
           this.switchCharacter(btn.id)
         }
         return true
@@ -174,18 +152,13 @@ export default class GameLoop {
       this.updateHoverTile(this.input.mouseX, this.input.mouseY)
     }
 
-    const allCharacters = this.currentLocation.getAllCharacters()
     const activeChar = this.currentLocation.getActiveCharacter()
 
     if (activeChar) {
-      // Обновляем только активного персонажа
-      if (activeChar.type === 'player') {
-        activeChar.update(dt, this.input, this.currentLocation.map, allCharacters)
-      } else {
-        activeChar.update(dt, this.currentLocation.map, allCharacters)
-      }
+      // Обновляем активного персонажа
+      activeChar.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
 
-      // Обновляем FOV от активного персонажа (только его видимость)
+      // Обновляем FOV от активного персонажа
       this.currentLocation.updateFov(activeChar.x, activeChar.y, this.config.fovRadius)
 
       // Сбор предметов
@@ -195,7 +168,7 @@ export default class GameLoop {
       }
     }
 
-    // Обновляем камеру (только ручное управление)
+    // Обновляем камеру
     this.camera.update(dt, this.input)
   }
 
@@ -228,21 +201,13 @@ export default class GameLoop {
   prepareUiButtons() {
     this.uiButtons = []
 
-    this.uiButtons.push({
-      id: this.player.id,
-      name: this.player.name,
-      char: this.player.char,
-      isActive: this.player.isActive,
-      type: 'player'
-    })
-
-    for (const npc of this.currentLocation.npcs) {
+    for (const character of this.currentLocation.getAllCharacters()) {
       this.uiButtons.push({
-        id: npc.id,
-        name: npc.name,
-        char: npc.char,
-        isActive: npc.isActive,
-        type: 'npc'
+        id: character.id,
+        name: character.name,
+        char: character.char,
+        isActive: character.isActive,
+        type: character.type
       })
     }
   }

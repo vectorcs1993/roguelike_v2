@@ -1,12 +1,11 @@
 import GameObject from './GameObject.js'
 
-export default class Npc extends GameObject {
+export default class Character extends GameObject {
   constructor(x, y, char, color, type, config, id = null, name = null) {
-    // Сохраняем целые координаты
     super(x, y, char, color)
-    this.id = id || `npc_${Date.now()}_${Math.random()}`
-    this.name = name || (type === 'static' ? 'Торговец' : 'Стражник')
-    this.type = type
+    this.id = id || `char_${Date.now()}_${Math.random()}`
+    this.name = name || (type === 'player' ? 'Герой' : (type === 'static' ? 'Торговец' : 'Стражник'))
+    this.type = type // 'player', 'static', 'wander'
     this.isActive = false
     this.moveTimer = 0
     this.moveInterval = config.moveInterval
@@ -64,13 +63,12 @@ export default class Npc extends GameObject {
     if (this.moveTimer < interval) return
     this.moveTimer = 0
 
-    // Перемещаем на целые координаты
     this.moveTo(next.x, next.y)
     this.pathIndex++
   }
 
   update(dt, tileMap, allCharacters) {
-    // Только активный NPC двигается
+    // Только активный персонаж двигается
     if (!this.isActive) return
 
     this.updateMovement(dt, this.pathSpeed)

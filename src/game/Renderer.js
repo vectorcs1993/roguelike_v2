@@ -120,9 +120,11 @@ export default class Renderer {
       ctx.globalAlpha = 1
     }
 
-    // Персонажи (NPC и игрок)
+    // Персонажи (все в одном массиве)
     for (const char of characters) {
-      const tile = map.getTile(char.x | 0, char.y | 0)
+      const tileX = Math.floor(char.x)
+      const tileY = Math.floor(char.y)
+      const tile = map.getTile(tileX, tileY)
       if (!tile || (!tile.visible && !tile.explored)) continue
 
       ctx.fillStyle = char.color
@@ -168,66 +170,6 @@ export default class Renderer {
 
     // Отрисовка UI панели
     this.drawUiPanel(uiButtons, uiHeight)
-  }
-
-  drawUiPanel(buttons, uiHeight) {
-    const ctx = this.ctx
-    const w = this.canvasW
-    const h = this.canvasH
-    const uiY = h - uiHeight
-
-    // Фон UI панели
-    ctx.fillStyle = this.config.colors.uiBg
-    ctx.fillRect(0, uiY, w, uiHeight)
-
-    // Разделительная линия
-    ctx.strokeStyle = this.config.colors.uiButton
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.moveTo(0, uiY)
-    ctx.lineTo(w, uiY)
-    ctx.stroke()
-
-    // Кнопки
-    const buttonWidth = 120
-    const buttonHeight = 50
-    const startX = (w - (buttons.length * (buttonWidth + 10))) / 2
-    const buttonY = uiY + (uiHeight - buttonHeight) / 2
-
-    for (let i = 0; i < buttons.length; i++) {
-      const btn = buttons[i]
-      const btnX = startX + i * (buttonWidth + 10)
-
-      // Фон кнопки
-      ctx.fillStyle = btn.isActive ? this.config.colors.uiButtonActive : this.config.colors.uiButton
-      ctx.fillRect(btnX, buttonY, buttonWidth, buttonHeight)
-
-      // Рамка
-      ctx.strokeStyle = '#ffffff'
-      ctx.lineWidth = 1
-      ctx.strokeRect(btnX, buttonY, buttonWidth, buttonHeight)
-
-      // Символ персонажа
-      ctx.font = `24px "Courier New", monospace`
-      ctx.fillStyle = btn.isActive ? '#ffffff' : '#cccccc'
-      ctx.fillText(btn.char, btnX + 30, buttonY + buttonHeight / 2)
-
-      // Имя персонажа
-      ctx.font = `12px monospace`
-      ctx.textAlign = 'left'
-      ctx.fillStyle = btn.isActive ? '#ffffff' : '#aaaaaa'
-      ctx.fillText(btn.name, btnX + 50, buttonY + buttonHeight / 2 - 5)
-
-      // Статус
-      ctx.font = `10px monospace`
-      ctx.fillStyle = btn.isActive ? '#88ff88' : '#888888'
-      ctx.fillText(btn.isActive ? '● Управление' : '○ Ожидание', btnX + 50, buttonY + buttonHeight / 2 + 10)
-
-      ctx.textAlign = 'center'
-    }
-
-    // Восстанавливаем шрифт
-    ctx.font = `bold ${this.tileSize}px "Courier New", monospace`
   }
 
   drawPath(path, camera) {
@@ -331,5 +273,67 @@ export default class Renderer {
     ctx.font = prevFont
     ctx.textAlign = prevAlign
     ctx.textBaseline = prevBaseline
+  }
+
+  drawUiPanel(buttons, uiHeight) {
+    const ctx = this.ctx
+    const w = this.canvasW
+    const h = this.canvasH
+    const uiY = h - uiHeight
+
+    // Фон UI панели
+    ctx.fillStyle = this.config.colors.uiBg || 'rgba(0, 0, 0, 0.8)'
+    ctx.fillRect(0, uiY, w, uiHeight)
+
+    // Разделительная линия
+    ctx.strokeStyle = this.config.colors.uiButton || '#333333'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(0, uiY)
+    ctx.lineTo(w, uiY)
+    ctx.stroke()
+
+    // Кнопки
+    const buttonWidth = 120
+    const buttonHeight = 50
+    const startX = (w - (buttons.length * (buttonWidth + 10))) / 2
+    const buttonY = uiY + (uiHeight - buttonHeight) / 2
+
+    for (let i = 0; i < buttons.length; i++) {
+      const btn = buttons[i]
+      const btnX = startX + i * (buttonWidth + 10)
+
+      // Фон кнопки
+      ctx.fillStyle = btn.isActive ? (this.config.colors.uiButtonActive || '#44aaff') : (this.config.colors.uiButton || '#333333')
+      ctx.fillRect(btnX, buttonY, buttonWidth, buttonHeight)
+
+      // Рамка
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 1
+      ctx.strokeRect(btnX, buttonY, buttonWidth, buttonHeight)
+
+      // Символ персонажа
+      ctx.font = `24px "Courier New", monospace`
+      ctx.fillStyle = btn.isActive ? '#ffffff' : '#cccccc'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(btn.char, btnX + 30, buttonY + buttonHeight / 2)
+
+      // Имя персонажа
+      ctx.font = `12px monospace`
+      ctx.textAlign = 'left'
+      ctx.fillStyle = btn.isActive ? '#ffffff' : '#aaaaaa'
+      ctx.fillText(btn.name, btnX + 50, buttonY + buttonHeight / 2 - 5)
+
+      // Статус
+      ctx.font = `10px monospace`
+      ctx.fillStyle = btn.isActive ? '#88ff88' : '#888888'
+      ctx.fillText(btn.isActive ? '● Управление' : '○ Ожидание', btnX + 50, buttonY + buttonHeight / 2 + 10)
+    }
+
+    // Восстанавливаем шрифт
+    ctx.font = `bold ${this.tileSize}px "Courier New", monospace`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
   }
 }

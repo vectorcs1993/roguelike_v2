@@ -1,11 +1,11 @@
 // src/game/Location.js
 import TileMap from './TileMap.js'
-import Npc from './Npc.js'
+import Character from './Character.js'
 import Item from './Item.js'
 import Pathfinder from './Pathfinder.js'
 
 export default class Location {
-  constructor(config, pillars, npcConfigs = [], itemConfigs = []) {
+  constructor(config, pillars, characters = [], itemConfigs = []) {
     this.config = config
     this.name = 'default'
 
@@ -15,18 +15,17 @@ export default class Location {
 
     this.pathfinder = new Pathfinder(this.map)
 
-    // Создание NPC - теперь они НЕ двигаются автоматически
-    this.npcs = []
-    for (let i = 0; i < npcConfigs.length; i++) {
-      const npcConfig = npcConfigs[i]
-      this.npcs.push(new Npc(
-        npcConfig.x, npcConfig.y,
-        npcConfig.char || config.symbols.npcStatic,
-        npcConfig.color || config.colors.npcStatic,
-        npcConfig.type || 'static',
+    // Создание персонажей (включая игрока)
+    this.characters = []
+    for (const charConfig of characters) {
+      this.characters.push(new Character(
+        charConfig.x, charConfig.y,
+        charConfig.char,
+        charConfig.color,
+        charConfig.type,
         config,
-        npcConfig.id || `npc_${i}`,
-        npcConfig.name
+        charConfig.id,
+        charConfig.name
       ))
     }
 
@@ -38,57 +37,40 @@ export default class Location {
         config
       ))
     }
-
-    // Персонаж игрока (будет добавлен позже)
-    this.player = null
   }
 
-  setPlayer(player) {
-    this.player = player
-  }
   getBlockedCells(activeCharacter = null) {
-    const allChars = this.getAllCharacters()
-    return allChars
+    return this.characters
       .filter(c => c !== activeCharacter)
-      .filter(c => c && typeof c.occupies === 'function') // Добавляем проверку
       .map(c => ({ x: c.x | 0, y: c.y | 0 }))
   }
 
   getAllCharacters() {
-    const chars = [...this.npcs]
-    if (this.player) chars.push(this.player)
-    return chars.filter(c => c) // Фильтруем null/undefined
+    return this.characters
   }
 
   getActiveCharacter() {
-    if (this.player && this.player.isActive) return this.player
-    return this.npcs.find(n => n.isActive) || null
+    return this.characters.find(c => c.isActive) || null
   }
 
   switchToCharacter(characterId) {
     // Деактивируем всех
-    if (this.player) this.player.isActive = false
-    this.npcs.forEach(n => n.isActive = false)
+    this.characters.forEach(c => c.isActive = false)
 
     // Активируем выбранного
-    if (this.player && this.player.id === characterId) {
-      this.player.isActive = true
-      return this.player
-    }
-
-    const npc = this.npcs.find(n => n.id === characterId)
-    if (npc) {
-      npc.isActive = true
-      return npc
+    const character = this.characters.find(c => c.id === characterId)
+    if (character) {
+      character.isActive = true
+      return character
     }
 
     return null
   }
 
-  updateNpcs(dt, allCharacters) {
-    // Обновляем всех NPC, но двигаться будет только активный
-    for (const npc of this.npcs) {
-      npc.update(dt, this.map, allCharacters)
+  updateCharacters(dt) {
+    const allChars = this.getAllCharacters()
+    for (const character of this.characters) {
+      character.update(dt, this.map, allChars)
     }
   }
 
@@ -115,8 +97,7 @@ export default class Location {
   isWalkable(x, y, activeCharacter = null) {
     if (!this.map.isWalkable(x, y)) return false
 
-    const allChars = this.getAllCharacters()
-    return !allChars.some(char => char !== activeCharacter && char.occupies(x, y))
+    return !this.characters.some(char => char !== activeCharacter && char.occupies(x, y))
   }
 
   getTileInfo(tileX, tileY) {
@@ -133,14 +114,10 @@ export default class Location {
         }
       }
 
-      for (const npc of this.npcs) {
-        if ((npc.x | 0) === tileX && (npc.y | 0) === tileY) {
-          return { type: 'npc', name: npc.name, pos: { tileX, tileY } }
+      for (const character of this.characters) {
+        if (character.occupies(tileX, tileY)) {
+          return { type: 'character', name: character.name, pos: { tileX, tileY } }
         }
-      }
-
-      if (this.player && (this.player.x | 0) === tileX && (this.player.y | 0) === tileY) {
-        return { type: 'player', name: this.player.name, pos: { tileX, tileY } }
       }
 
       return { type: 'floor', name: `📍 Пол (${tileX}, ${tileY})`, pos: { tileX, tileY } }
@@ -168,7 +145,8 @@ export default class Location {
       [35, 10], [36, 10], [37, 10], [55, 32], [56, 32], [57, 32]
     ]
 
-    const npcs = [
+    const characters = [
+      { x: 30, y: 20, type: 'player', char: config.symbols.player, color: config.colors.player, id: 'hero', name: '🧝 Герой' },
       { x: 20, y: 12, type: 'static', char: config.symbols.npcStatic, color: config.colors.npcStatic, id: 'merchant', name: '🧙 Торговец' },
       { x: 45, y: 22, type: 'wander', char: config.symbols.npcWander, color: config.colors.npcWander, id: 'guard', name: '⚔️ Стражник' },
       { x: 35, y: 35, type: 'static', char: '🔮', color: '#ff66cc', id: 'mage', name: '🔮 Маг' }
@@ -179,7 +157,7 @@ export default class Location {
       { x: 25, y: 30 }, { x: 50, y: 15 }, { x: 35, y: 5 }
     ]
 
-    const location = new Location(config, pillars, npcs, items)
+    const location = new Location(config, pillars, characters, items)
     location.name = '🌲 Зачарованный лес'
     return location
   }
@@ -192,7 +170,8 @@ export default class Location {
       [30, 8], [31, 8], [32, 8], [28, 33], [29, 33], [30, 33]
     ]
 
-    const npcs = [
+    const characters = [
+      { x: 30, y: 20, type: 'player', char: config.symbols.player, color: config.colors.player, id: 'hero', name: '⚔️ Воин' },
       { x: 25, y: 18, type: 'static', char: '👻', color: '#aa66ff', id: 'ghost', name: '👻 Призрак' },
       { x: 35, y: 28, type: 'wander', char: '🧟', color: '#66ff66', id: 'zombie', name: '🧟 Зомби' },
       { x: 15, y: 8, type: 'static', char: '🧙', color: '#ffaa44', id: 'wizard', name: '🧙 Волшебник' }
@@ -202,7 +181,7 @@ export default class Location {
       { x: 12, y: 12 }, { x: 48, y: 18 }, { x: 30, y: 30 }
     ]
 
-    const location = new Location(config, pillars, npcs, items)
+    const location = new Location(config, pillars, characters, items)
     location.name = '🏰 Тёмное подземелье'
     return location
   }
@@ -215,8 +194,9 @@ export default class Location {
       [55, 10], [55, 11], [55, 12], [5, 30], [5, 31], [5, 32]
     ]
 
-    const npcs = [
-      { x: 30, y: 20, type: 'wander', char: '🐫', color: '#ccaa66', id: 'camel', name: '🐫 Караванщик' },
+    const characters = [
+      { x: 30, y: 20, type: 'player', char: config.symbols.player, color: config.colors.player, id: 'hero', name: '🐫 Путешественник' },
+      { x: 20, y: 12, type: 'wander', char: '🐫', color: '#ccaa66', id: 'camel', name: '🐫 Караванщик' },
       { x: 52, y: 25, type: 'static', char: '🏺', color: '#ff8844', id: 'trader', name: '🏺 Торговец' },
       { x: 12, y: 12, type: 'static', char: '🐪', color: '#cc8844', id: 'nomad', name: '🐪 Кочевник' }
     ]
@@ -225,7 +205,7 @@ export default class Location {
       { x: 20, y: 15 }, { x: 40, y: 25 }, { x: 10, y: 35 }, { x: 55, y: 5 }
     ]
 
-    const location = new Location(config, pillars, npcs, items)
+    const location = new Location(config, pillars, characters, items)
     location.name = '🏜️ Бескрайняя пустыня'
     return location
   }
