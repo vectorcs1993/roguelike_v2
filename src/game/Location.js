@@ -161,7 +161,39 @@ export default class Location {
     }
     return blocked
   }
+  // Однократное открытие карты для всех союзников при старте
+  revealInitialMap(radius) {
+    const activeChar = this.getActiveCharacter()
+    if (!activeChar) return
 
+    // Собираем всех союзников (с одинаковым teamId)
+    const allies = this.characters.filter(
+      char => char.teamId === activeChar.teamId
+    )
+
+    // Для каждого союзника открываем клетки в радиусе
+    for (const ally of allies) {
+      const centerX = Math.floor(ally.x)
+      const centerY = Math.floor(ally.y)
+
+      // Открываем клетки в радиусе (круг, не квадрат)
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const x = centerX + dx
+          const y = centerY + dy
+          const dist = Math.sqrt(dx * dx + dy * dy)
+
+          if (dist <= radius) {
+            const tile = this.map.getTile(x, y)
+            if (tile) {
+              tile.explored = true  // Помечаем как исследованную
+              // НЕ делаем visible, только explored
+            }
+          }
+        }
+      }
+    }
+  }
   // Проверка, являются ли персонажи союзниками
   areAllies(character1, character2) {
     // Если это один и тот же персонаж

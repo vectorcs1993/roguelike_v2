@@ -24,6 +24,9 @@ export default class GameLoop {
       }
     }
 
+    // ПРИ СТАРТЕ: открываем карту для всех союзников
+    this.currentLocation.revealInitialMap(config.fovRadius)
+
     // Камера
     this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, config.cameraSpeed)
 
