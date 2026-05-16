@@ -1,11 +1,15 @@
 // src/game/Location.js
+
 import TileMap from './TileMap.js'
 import Character from './Character.js'
 import Item from './Item.js'
 import Pathfinder from './Pathfinder.js'
+import PlayerTeam from './PlayerTeam.js'
+import EnemyTeam from './EnemyTeam.js'
+import NeutralTeam from './NeutralTeam.js'
 
 export default class Location {
-  constructor(config, pillars, characters = [], itemConfigs = []) {
+  constructor(config, pillars, teamConfigs = [], itemConfigs = []) {
     this.config = config
     this.name = 'default'
 
@@ -15,37 +19,81 @@ export default class Location {
 
     this.pathfinder = new Pathfinder(this.map)
 
-    // Создание персонажей (все одинаковые, управляемые)
-    this.characters = []
-    for (const charConfig of characters) {
-      this.characters.push(new Character(
-        charConfig.x, charConfig.y,
-        charConfig.char,
-        charConfig.color,
-        config,
-        charConfig.id,
-        charConfig.name
-      ))
+    // Хранилище команд
+    this.teams = new Map()
+    this.characters = [] // Плоский список для быстрого доступа
+
+    // Создание команд
+    for (const teamConfig of teamConfigs) {
+      let team
+
+      switch (teamConfig.type) {
+        case 'player':
+          team = new PlayerTeam(teamConfig)
+          break
+        case 'enemy':
+          team = new EnemyTeam(teamConfig)
+          break
+        case 'neutral':
+          team = new NeutralTeam(teamConfig)
+          break
+        default:
+          console.warn(`Unknown team type: ${teamConfig.type}`)
+          continue
+      }
+
+      // Добавляем персонажей в команду
+      for (const charConfig of teamConfig.characters) {
+        // Используем цвет персонажа из конфига, если нет - цвет команды
+        const charColor = charConfig.color || teamConfig.color || team.color || '#ffffff'
+
+        const character = new Character(
+          charConfig.x, charConfig.y,
+          charConfig.char,
+          charColor,
+          config,
+          charConfig.id,
+          charConfig.name,
+          team
+        )
+        team.addCharacter(character)
+        this.characters.push(character)
+      }
+
+      this.teams.set(team.id, team)
     }
 
     // Создание предметов
     this.items = []
     for (const itemConfig of itemConfigs) {
-      this.items.push(new Item(
-        itemConfig.x, itemConfig.y,
-        config
-      ))
+      this.items.push(new Item(itemConfig.x, itemConfig.y, config))
     }
   }
 
-  getBlockedCells(activeCharacter = null) {
-    return this.characters
-      .filter(c => c !== activeCharacter)
-      .map(c => ({ x: c.x | 0, y: c.y | 0 }))
-  }
-
+  // Получение всех персонажей
   getAllCharacters() {
     return this.characters
+  }
+
+  // Получение команды по ID
+  getTeam(teamId) {
+    return this.teams.get(teamId)
+  }
+
+  // Получение всех команд
+  getAllTeams() {
+    return Array.from(this.teams.values())
+  }
+
+  // Получение персонажей определённой команды
+  getTeamCharacters(teamId) {
+    const team = this.getTeam(teamId)
+    return team ? team.characters : []
+  }
+
+  // Получение всех игровых персонажей (тех, на кого можно переключаться)
+  getSwitchableCharacters() {
+    return this.characters.filter(c => c.canSwitchTo)
   }
 
   getActiveCharacter() {
@@ -53,23 +101,26 @@ export default class Location {
   }
 
   switchToCharacter(characterId) {
-    // Деактивируем всех
-    this.characters.forEach(c => c.isActive = false)
-
-    // Активируем выбранного
     const character = this.characters.find(c => c.id === characterId)
-    if (character) {
-      character.isActive = true
-      return character
+
+    // Проверяем, можно ли переключаться на этого персонажа
+    if (!character || !character.canSwitchTo) {
+      console.warn(`Cannot switch to character: ${character?.name}`)
+      return null
     }
 
-    return null
+    // Деактивируем всех
+    this.characters.forEach(c => c.isActive = false)
+    character.isActive = true
+    return character
   }
 
-  updateCharacters(dt) {
-    const allChars = this.getAllCharacters()
-    for (const character of this.characters) {
-      character.update(dt, this.map, allChars)
+  updateTeams(dt) {
+    // Обновляем все команды
+    for (const team of this.teams.values()) {
+      if (team.update && typeof team.update === 'function') {
+        team.update(dt, this.map, this.characters)
+      }
     }
   }
 
@@ -96,7 +147,24 @@ export default class Location {
   isWalkable(x, y, activeCharacter = null) {
     if (!this.map.isWalkable(x, y)) return false
 
+    // Проверяем блокировку от всех персонажей
     return !this.characters.some(char => char !== activeCharacter && char.occupies(x, y))
+  }
+
+  getBlockedCells(activeCharacter = null) {
+    // Собираем блокировки от всех команд
+    const blocked = []
+    for (const team of this.teams.values()) {
+      // Игнорируем команду активного персонажа при сборе блокировок
+      if (activeCharacter && team === activeCharacter.team) continue
+      blocked.push(...team.getBlockedCells(activeCharacter))
+    }
+    return blocked
+  }
+
+  isCharacterVisible(character) {
+    if (!character.team) return false
+    return character.team.isCharacterVisible(character, this.map)
   }
 
   getTileInfo(tileX, tileY) {
@@ -136,6 +204,7 @@ export default class Location {
     }
   }
 
+  // Статические методы для создания локаций
   static createForest(config) {
     const pillars = [
       [10, 8], [10, 9], [10, 10], [30, 15], [30, 16], [30, 17],
@@ -144,12 +213,41 @@ export default class Location {
       [35, 10], [36, 10], [37, 10], [55, 32], [56, 32], [57, 32]
     ]
 
-    const characters = [
-      { x: 30, y: 20, char: config.symbols.player, color: config.colors.player, id: 'hero', name: '🧝 Герой' },
-      { x: 20, y: 12, char: '🧙', color: '#aa66ff', id: 'merchant', name: '🧙 Торговец' },
-      { x: 45, y: 22, char: '⚔️', color: '#ff8844', id: 'guard', name: '⚔️ Стражник' },
-      { x: 35, y: 35, char: '🔮', color: '#ff66cc', id: 'mage', name: '🔮 Маг' },
-      { x: 55, y: 8, char: '🏹', color: '#66ff66', id: 'archer', name: '🏹 Лучник' }
+    const teamConfigs = [
+      {
+        type: 'player',
+        id: 'heroes',
+        name: 'Герои',
+        color: '#44aaff', // ← цвет команды
+        characters: [
+          { x: 30, y: 20, char: config.symbols.player, color: '#00ff00', id: 'hero', name: '🧝 Герой' },
+          { x: 20, y: 12, char: '🧙', color: '#aa66ff', id: 'merchant', name: '🧙 Торговец' },
+          { x: 45, y: 22, char: '⚔️', color: '#ff8844', id: 'guard', name: '⚔️ Стражник' },
+          { x: 35, y: 35, char: '🔮', color: '#ff66cc', id: 'mage', name: '🔮 Маг' },
+          { x: 55, y: 8, char: '🏹', color: '#66ff66', id: 'archer', name: '🏹 Лучник' }
+        ]
+      },
+      {
+        type: 'enemy',
+        id: 'monsters',
+        name: 'Монстры',
+        color: '#ff4444', // ← цвет команды
+        characters: [
+          { x: 12, y: 25, char: '👹', color: '#ff4444', id: 'enemy1', name: '👹 Орк' },
+          { x: 48, y: 30, char: '🐺', color: '#cc6666', id: 'enemy2', name: '🐺 Волк' },
+          { x: 25, y: 5, char: '🧌', color: '#aa4444', id: 'enemy3', name: '🧌 Тролль' }
+        ]
+      },
+      {
+        type: 'neutral',
+        id: 'animals',
+        name: 'Животные',
+        color: '#ffaa44', // ← цвет команды
+        characters: [
+          { x: 40, y: 15, char: '🦊', color: '#ff8844', id: 'fox', name: '🦊 Лиса' },
+          { x: 18, y: 32, char: '🐇', color: '#cccc88', id: 'rabbit', name: '🐇 Кролик' }
+        ]
+      }
     ]
 
     const items = [
@@ -157,58 +255,15 @@ export default class Location {
       { x: 25, y: 30 }, { x: 50, y: 15 }, { x: 35, y: 5 }
     ]
 
-    const location = new Location(config, pillars, characters, items)
+    const location = new Location(config, pillars, teamConfigs, items)
     location.name = '🌲 Зачарованный лес'
     return location
   }
 
-  static createDungeon(config) {
-    const pillars = [
-      [5, 5], [5, 6], [5, 7], [54, 5], [54, 6], [54, 7],
-      [10, 35], [11, 35], [12, 35], [45, 32], [46, 32], [47, 32],
-      [20, 15], [21, 15], [22, 15], [38, 25], [39, 25], [40, 25],
-      [30, 8], [31, 8], [32, 8], [28, 33], [29, 33], [30, 33]
-    ]
-
-    const characters = [
-      { x: 30, y: 20, char: config.symbols.player, color: config.colors.player, id: 'hero', name: '⚔️ Воин' },
-      { x: 25, y: 18, char: '👻', color: '#aa66ff', id: 'ghost', name: '👻 Призрак' },
-      { x: 35, y: 28, char: '🧟', color: '#66ff66', id: 'zombie', name: '🧟 Зомби' },
-      { x: 15, y: 8, char: '🧙', color: '#ffaa44', id: 'wizard', name: '🧙 Волшебник' },
-      { x: 50, y: 35, char: '🗡️', color: '#ff6666', id: 'knight', name: '🗡️ Рыцарь' }
-    ]
-
-    const items = [
-      { x: 12, y: 12 }, { x: 48, y: 18 }, { x: 30, y: 30 }
-    ]
-
-    const location = new Location(config, pillars, characters, items)
-    location.name = '🏰 Тёмное подземелье'
-    return location
-  }
-
-  static createDesert(config) {
-    const pillars = [
-      [8, 20], [9, 20], [10, 20], [50, 18], [51, 18], [52, 18],
-      [25, 8], [26, 8], [27, 8], [35, 32], [36, 32], [37, 32],
-      [42, 12], [43, 12], [44, 12], [18, 28], [19, 28], [20, 28],
-      [55, 10], [55, 11], [55, 12], [5, 30], [5, 31], [5, 32]
-    ]
-
-    const characters = [
-      { x: 30, y: 20, char: config.symbols.player, color: config.colors.player, id: 'hero', name: '🐫 Путешественник' },
-      { x: 20, y: 12, char: '🐫', color: '#ccaa66', id: 'camel', name: '🐫 Караванщик' },
-      { x: 52, y: 25, char: '🏺', color: '#ff8844', id: 'trader', name: '🏺 Торговец' },
-      { x: 12, y: 12, char: '🐪', color: '#cc8844', id: 'nomad', name: '🐪 Кочевник' },
-      { x: 45, y: 35, char: '🏜️', color: '#ffcc66', id: 'scout', name: '🏜️ Разведчик' }
-    ]
-
-    const items = [
-      { x: 20, y: 15 }, { x: 40, y: 25 }, { x: 10, y: 35 }, { x: 55, y: 5 }
-    ]
-
-    const location = new Location(config, pillars, characters, items)
-    location.name = '🏜️ Бескрайняя пустыня'
+  // Можно легко создавать свои уникальные команды!
+  static createCustomLocation(config, teamConfigs, pillars, items, name) {
+    const location = new Location(config, pillars, teamConfigs, items)
+    location.name = name
     return location
   }
 }

@@ -1,11 +1,14 @@
+// src/game/Character.js
+
 import GameObject from './GameObject.js'
 
 export default class Character extends GameObject {
-  constructor(x, y, char, color, config, id = null, name = null) {
+  constructor(x, y, char, color, config, id = null, name = null, team = null) { // team теперь объект
     super(x, y, char, color)
     this.id = id || `char_${Date.now()}_${Math.random()}`
     this.name = name || 'Персонаж'
-    this.isActive = false
+    this.team = team // Объект команды
+    this.isActive = false // Активен только для игроков
     this.moveTimer = 0
     this.moveInterval = config.moveInterval
     this.pathSpeed = config.pathSpeed || 6
@@ -14,13 +17,17 @@ export default class Character extends GameObject {
     this.followingPath = false
   }
 
+  // Геттеры для удобства
+  get teamId() { return this.team?.id || 'none' }
+  get isPlayerControlled() { return this.team?.isPlayerControlled || false }
+  get canSwitchTo() { return this.team?.canSwitchTo || false }
+
   setPath(path) {
     if (!path || path.length <= 1) {
       this.followingPath = false
       this.path = []
       return
     }
-    // Убираем первую точку (текущую позицию)
     if (path.length > 0 && path[0].x === (this.x | 0) && path[0].y === (this.y | 0)) {
       path.shift()
     }
@@ -67,7 +74,7 @@ export default class Character extends GameObject {
   }
 
   update(dt, tileMap, allCharacters) {
-    // Только активный персонаж двигается
+    // Только активный персонаж двигается по командам игрока
     if (!this.isActive) return
 
     this.updateMovement(dt, this.pathSpeed)

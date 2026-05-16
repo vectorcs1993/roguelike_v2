@@ -1,4 +1,5 @@
 // src/game/GameLoop.js
+
 import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
@@ -12,11 +13,15 @@ export default class GameLoop {
 
     this.currentLocation = initialLocation || Location.createForest(config)
 
-    // Активируем первого персонажа (игрока)
+    // Активируем первого персонажа (игрока) - ИСПРАВЛЕНО
     const characters = this.currentLocation.getAllCharacters()
     if (characters.length > 0) {
-      const playerChar = characters.find(c => c.type === 'player') || characters[0]
-      playerChar.isActive = true
+      // Ищем персонажа, которого можно переключать (canSwitchTo = true)
+      const playerChar = characters.find(c => c.canSwitchTo === true) || characters[0]
+      if (playerChar && playerChar.canSwitchTo) {
+        playerChar.isActive = true
+        console.log(`Активирован персонаж: ${playerChar.name}`)
+      }
     }
 
     // Камера
@@ -35,15 +40,26 @@ export default class GameLoop {
   changeLocation(newLocation) {
     this.currentLocation = newLocation
 
-    // Активируем первого персонажа
+    // Активируем первого персонажа - ИСПРАВЛЕНО
     const characters = this.currentLocation.getAllCharacters()
     if (characters.length > 0) {
-      const playerChar = characters.find(c => c.type === 'player') || characters[0]
-      playerChar.isActive = true
+      const playerChar = characters.find(c => c.canSwitchTo === true) || characters[0]
+      if (playerChar && playerChar.canSwitchTo) {
+        playerChar.isActive = true
+        console.log(`Активирован персонаж: ${playerChar.name}`)
+      }
     }
   }
 
   switchCharacter(characterId) {
+    const character = this.currentLocation.getAllCharacters().find(c => c.id === characterId)
+
+    // Проверяем canSwitchTo вместо team?.id
+    if (character && !character.canSwitchTo) {
+      console.log(`Нельзя переключиться на: ${character.name}`)
+      return
+    }
+
     const newActive = this.currentLocation.switchToCharacter(characterId)
     if (newActive) {
       this.camera.setPosition(newActive.x, newActive.y)
@@ -65,7 +81,6 @@ export default class GameLoop {
 
   handleClick(screenX, screenY) {
     if (this.checkUiClick(screenX, screenY)) return true
-
     if (this.input.isCameraMovingNow()) return false
 
     const worldX = (screenX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x
@@ -76,6 +91,7 @@ export default class GameLoop {
     const activeChar = this.currentLocation.getActiveCharacter()
     if (!activeChar) return false
 
+    // Можно кликать на врагов - путь построится до их позиции
     const blockedCells = this.currentLocation.getBlockedCells(activeChar)
     const isBlocked = blockedCells.some(c => c.x === tileX && c.y === tileY)
     if (isBlocked) return false
@@ -111,6 +127,14 @@ export default class GameLoop {
       if (x >= btnX && x <= btnX + buttonWidth &&
         y >= btnY && y <= btnY + buttonHeight) {
 
+        console.log('Клик по кнопке:', btn)
+
+        // Проверяем, можно ли выбрать персонажа
+        if (btn.isSelectable === false) {
+          console.log(`Нельзя управлять: ${btn.name}`)
+          return true
+        }
+
         if (btn.isActive) {
           this.centerOnCharacter(btn.id)
         } else {
@@ -142,7 +166,6 @@ export default class GameLoop {
     this.hoverTileY = worldY | 0
   }
 
-  // В методе update убираем проверку type
   update(dt) {
     const click = this.input.consumeClick()
     if (click) {
@@ -153,10 +176,13 @@ export default class GameLoop {
       this.updateHoverTile(this.input.mouseX, this.input.mouseY)
     }
 
+    // Обновляем все команды
+    this.currentLocation.updateTeams(dt)
+
     const activeChar = this.currentLocation.getActiveCharacter()
 
     if (activeChar) {
-      // Все персонажи теперь обновляются одинаково
+      // Обновляем активного персонажа
       activeChar.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
 
       // Обновляем FOV от активного персонажа
@@ -203,12 +229,17 @@ export default class GameLoop {
     this.uiButtons = []
 
     for (const character of this.currentLocation.getAllCharacters()) {
+
+      const isSelectable = character.canSwitchTo === true
+
       this.uiButtons.push({
         id: character.id,
         name: character.name,
         char: character.char,
         isActive: character.isActive,
-        type: character.type
+        teamId: character.team?.id || 'none',
+        teamColor: character.team?.color,
+        isSelectable: isSelectable
       })
     }
   }

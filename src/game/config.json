@@ -29,7 +29,8 @@
     "uiBg": "rgba(0, 0, 0, 0.8)",
     "uiButton": "#333333",
     "uiButtonActive": "#44aaff",
-    "uiText": "#ffffff"
+    "uiText": "#ffffff",
+    "enemy": "#ff4444"
   },
   "symbols": {
     "wall": "#",

@@ -115,13 +115,21 @@ export default class Renderer {
       const tileX = Math.floor(char.x)
       const tileY = Math.floor(char.y)
       const tile = map.getTile(tileX, tileY)
-      if (!tile || (!tile.visible && !tile.explored)) continue
+
+      // Проверяем видимость через систему команд
+      const isVisible = this._location?.isCharacterVisible(char) ?? (tile && tile.visible)
+
+      if (!isVisible) continue
 
       ctx.fillStyle = char.color
-      if (!tile.visible) ctx.globalAlpha = 0.4
+      if (char.team?.visibleInFog && !tile.visible) {
+        ctx.globalAlpha = 0.4
+      } else {
+        ctx.globalAlpha = 1
+      }
 
       // Подсветка активного персонажа
-      if (char.isActive && tile.visible) {
+      if (char.isActive && tile && tile.visible) {
         ctx.shadowBlur = 10
         ctx.shadowColor = char.color
       }
@@ -332,18 +340,27 @@ export default class Renderer {
       const btn = buttons[i]
       const btnX = startX + i * (buttonWidth + 10)
 
+      // ИСПРАВЛЕНО: используем btn.isSelectable
+      const isSelectable = btn.isSelectable === true
+
       // Фон кнопки
-      ctx.fillStyle = btn.isActive ? (this.config.colors.uiButtonActive || '#44aaff') : (this.config.colors.uiButton || '#333333')
+      if (!isSelectable) {
+        ctx.fillStyle = '#222222' // Враги/нейтралы - тёмные
+      } else if (btn.isActive) {
+        ctx.fillStyle = this.config.colors.uiButtonActive || '#44aaff' // Активный игрок
+      } else {
+        ctx.fillStyle = this.config.colors.uiButton || '#333333' // Неактивный игрок
+      }
       ctx.fillRect(btnX, buttonY, buttonWidth, buttonHeight)
 
       // Рамка
-      ctx.strokeStyle = '#ffffff'
+      ctx.strokeStyle = isSelectable ? '#ffffff' : '#555555'
       ctx.lineWidth = 1
       ctx.strokeRect(btnX, buttonY, buttonWidth, buttonHeight)
 
       // Символ персонажа
       ctx.font = `24px "Courier New", monospace`
-      ctx.fillStyle = btn.isActive ? '#ffffff' : '#cccccc'
+      ctx.fillStyle = isSelectable ? (btn.isActive ? '#ffffff' : '#cccccc') : '#666666'
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText(btn.char, btnX + 30, buttonY + buttonHeight / 2)
@@ -351,13 +368,18 @@ export default class Renderer {
       // Имя персонажа
       ctx.font = `12px monospace`
       ctx.textAlign = 'left'
-      ctx.fillStyle = btn.isActive ? '#ffffff' : '#aaaaaa'
+      ctx.fillStyle = isSelectable ? (btn.isActive ? '#ffffff' : '#aaaaaa') : '#666666'
       ctx.fillText(btn.name, btnX + 50, buttonY + buttonHeight / 2 - 5)
 
       // Статус
       ctx.font = `10px monospace`
-      ctx.fillStyle = btn.isActive ? '#88ff88' : '#888888'
-      ctx.fillText(btn.isActive ? '● Управление' : '○ Ожидание', btnX + 50, buttonY + buttonHeight / 2 + 10)
+      if (!isSelectable) {
+        ctx.fillStyle = '#553333'
+        ctx.fillText('👹 Враг', btnX + 50, buttonY + buttonHeight / 2 + 10)
+      } else {
+        ctx.fillStyle = btn.isActive ? '#88ff88' : '#888888'
+        ctx.fillText(btn.isActive ? '● Управление' : '○ Ожидание', btnX + 50, buttonY + buttonHeight / 2 + 10)
+      }
     }
 
     // Восстанавливаем шрифт
