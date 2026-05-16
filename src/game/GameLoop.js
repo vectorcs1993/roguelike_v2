@@ -142,6 +142,7 @@ export default class GameLoop {
     this.hoverTileY = worldY | 0
   }
 
+  // В методе update убираем проверку type
   update(dt) {
     const click = this.input.consumeClick()
     if (click) {
@@ -155,7 +156,7 @@ export default class GameLoop {
     const activeChar = this.currentLocation.getActiveCharacter()
 
     if (activeChar) {
-      // Обновляем активного персонажа
+      // Все персонажи теперь обновляются одинаково
       activeChar.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
 
       // Обновляем FOV от активного персонажа

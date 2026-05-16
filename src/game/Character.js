@@ -1,11 +1,10 @@
 import GameObject from './GameObject.js'
 
 export default class Character extends GameObject {
-  constructor(x, y, char, color, type, config, id = null, name = null) {
+  constructor(x, y, char, color, config, id = null, name = null) {
     super(x, y, char, color)
     this.id = id || `char_${Date.now()}_${Math.random()}`
-    this.name = name || (type === 'player' ? 'Герой' : (type === 'static' ? 'Торговец' : 'Стражник'))
-    this.type = type // 'player', 'static', 'wander'
+    this.name = name || 'Персонаж'
     this.isActive = false
     this.moveTimer = 0
     this.moveInterval = config.moveInterval

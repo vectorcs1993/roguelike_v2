@@ -21,8 +21,6 @@
     "wall": "#555555",
     "floor": "#0a0a12",
     "player": "#00ff00",
-    "npcStatic": "#44aaff",
-    "npcWander": "#ff8844",
     "item": "#ffd700",
     "grid": "rgba(255, 255, 255, 0.06)",
     "exploredFloor": "#0a0a0f",
@@ -37,8 +35,6 @@
     "wall": "#",
     "floor": ".",
     "player": "@",
-    "npcStatic": "M",
-    "npcWander": "G",
     "item": "$"
   }
 }

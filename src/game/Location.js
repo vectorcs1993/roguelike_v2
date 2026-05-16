@@ -15,14 +15,13 @@ export default class Location {
 
     this.pathfinder = new Pathfinder(this.map)
 
-    // Создание персонажей (включая игрока)
+    // Создание персонажей (все одинаковые, управляемые)
     this.characters = []
     for (const charConfig of characters) {
       this.characters.push(new Character(
         charConfig.x, charConfig.y,
         charConfig.char,
         charConfig.color,
-        charConfig.type,
         config,
         charConfig.id,
         charConfig.name
@@ -146,10 +145,11 @@ export default class Location {
     ]
 
     const characters = [
-      { x: 30, y: 20, type: 'player', char: config.symbols.player, color: config.colors.player, id: 'hero', name: '🧝 Герой' },
-      { x: 20, y: 12, type: 'static', char: config.symbols.npcStatic, color: config.colors.npcStatic, id: 'merchant', name: '🧙 Торговец' },
-      { x: 45, y: 22, type: 'wander', char: config.symbols.npcWander, color: config.colors.npcWander, id: 'guard', name: '⚔️ Стражник' },
-      { x: 35, y: 35, type: 'static', char: '🔮', color: '#ff66cc', id: 'mage', name: '🔮 Маг' }
+      { x: 30, y: 20, char: config.symbols.player, color: config.colors.player, id: 'hero', name: '🧝 Герой' },
+      { x: 20, y: 12, char: '🧙', color: '#aa66ff', id: 'merchant', name: '🧙 Торговец' },
+      { x: 45, y: 22, char: '⚔️', color: '#ff8844', id: 'guard', name: '⚔️ Стражник' },
+      { x: 35, y: 35, char: '🔮', color: '#ff66cc', id: 'mage', name: '🔮 Маг' },
+      { x: 55, y: 8, char: '🏹', color: '#66ff66', id: 'archer', name: '🏹 Лучник' }
     ]
 
     const items = [
@@ -171,10 +171,11 @@ export default class Location {
     ]
 
     const characters = [
-      { x: 30, y: 20, type: 'player', char: config.symbols.player, color: config.colors.player, id: 'hero', name: '⚔️ Воин' },
-      { x: 25, y: 18, type: 'static', char: '👻', color: '#aa66ff', id: 'ghost', name: '👻 Призрак' },
-      { x: 35, y: 28, type: 'wander', char: '🧟', color: '#66ff66', id: 'zombie', name: '🧟 Зомби' },
-      { x: 15, y: 8, type: 'static', char: '🧙', color: '#ffaa44', id: 'wizard', name: '🧙 Волшебник' }
+      { x: 30, y: 20, char: config.symbols.player, color: config.colors.player, id: 'hero', name: '⚔️ Воин' },
+      { x: 25, y: 18, char: '👻', color: '#aa66ff', id: 'ghost', name: '👻 Призрак' },
+      { x: 35, y: 28, char: '🧟', color: '#66ff66', id: 'zombie', name: '🧟 Зомби' },
+      { x: 15, y: 8, char: '🧙', color: '#ffaa44', id: 'wizard', name: '🧙 Волшебник' },
+      { x: 50, y: 35, char: '🗡️', color: '#ff6666', id: 'knight', name: '🗡️ Рыцарь' }
     ]
 
     const items = [
@@ -195,10 +196,11 @@ export default class Location {
     ]
 
     const characters = [
-      { x: 30, y: 20, type: 'player', char: config.symbols.player, color: config.colors.player, id: 'hero', name: '🐫 Путешественник' },
-      { x: 20, y: 12, type: 'wander', char: '🐫', color: '#ccaa66', id: 'camel', name: '🐫 Караванщик' },
-      { x: 52, y: 25, type: 'static', char: '🏺', color: '#ff8844', id: 'trader', name: '🏺 Торговец' },
-      { x: 12, y: 12, type: 'static', char: '🐪', color: '#cc8844', id: 'nomad', name: '🐪 Кочевник' }
+      { x: 30, y: 20, char: config.symbols.player, color: config.colors.player, id: 'hero', name: '🐫 Путешественник' },
+      { x: 20, y: 12, char: '🐫', color: '#ccaa66', id: 'camel', name: '🐫 Караванщик' },
+      { x: 52, y: 25, char: '🏺', color: '#ff8844', id: 'trader', name: '🏺 Торговец' },
+      { x: 12, y: 12, char: '🐪', color: '#cc8844', id: 'nomad', name: '🐪 Кочевник' },
+      { x: 45, y: 35, char: '🏜️', color: '#ffcc66', id: 'scout', name: '🏜️ Разведчик' }
     ]
 
     const items = [
