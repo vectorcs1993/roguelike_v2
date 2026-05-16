@@ -237,8 +237,8 @@ export default class Location {
         name: 'Отряд',
         color: '#44aaff',
         characters: [
-          { x: 30, y: 20, char: '🔫', color: '#44ffaa', id: 'op1', name: 'Ликвидатор 1', fovRadius: 10 },
-          { x: 28, y: 22, char: '🔫', color: '#44ffaa', id: 'op2', name: 'Ликвидатор 2', fovRadius: 10 }
+          { x: 30, y: 20, char: '@', color: '#44ffaa', id: 'op1', name: 'Ликвидатор 1', fovRadius: 10 },  // @ вместо 🔫
+          { x: 28, y: 22, char: '@', color: '#44ffaa', id: 'op2', name: 'Ликвидатор 2', fovRadius: 10 }
         ]
       },
       {
@@ -247,8 +247,8 @@ export default class Location {
         name: 'Твари',
         color: '#ff4444',
         characters: [
-          { x: 12, y: 25, char: '👹', color: '#ff4444', id: 'creature1', name: 'Тварь 1', fovRadius: 6 },
-          { x: 48, y: 30, char: '👹', color: '#ff4444', id: 'creature2', name: 'Тварь 2', fovRadius: 6 }
+          { x: 12, y: 25, char: 'g', color: '#ff4444', id: 'creature1', name: 'Тварь 1', fovRadius: 6 },
+          { x: 48, y: 30, char: 'T', color: '#ff4444', id: 'creature2', name: 'Тварь 2', fovRadius: 6 }
         ]
       }
     ]

@@ -97,7 +97,7 @@ export default class Renderer {
       }
     }
 
-    // Путь символом *
+    // Путь
     if (this._activeCharacter?.path?.length) {
       ctx.fillStyle = '#ffaa00'
       ctx.font = `${ts}px ${this.fontFamily}`

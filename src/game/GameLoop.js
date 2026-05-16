@@ -83,51 +83,6 @@ export default class GameLoop {
     return this.currentLocation.getBlockedCells(activeChar)
   }
 
-  findClosestWalkableCellAround(targetX, targetY, activeChar) {
-    // Проверяем все 8 направлений вокруг цели
-    const directions = [
-      { x: 0, y: -1 },  // верх
-      { x: 0, y: 1 },   // низ
-      { x: -1, y: 0 },  // лево
-      { x: 1, y: 0 },   // право
-      { x: -1, y: -1 }, // верх-лево
-      { x: 1, y: -1 },  // верх-право
-      { x: -1, y: 1 },  // низ-лево
-      { x: 1, y: 1 }    // низ-право
-    ]
-
-    const availableCells = []
-    const activeX = Math.floor(activeChar.x)
-    const activeY = Math.floor(activeChar.y)
-
-    for (const dir of directions) {
-      const newX = targetX + dir.x
-      const newY = targetY + dir.y
-
-      // Проверяем границы
-      if (newX < 0 || newX >= this.config.cols || newY < 0 || newY >= this.config.rows) continue
-
-      // Проверяем проходимость
-      if (!this.currentLocation.map.isWalkable(newX, newY)) continue
-
-      // Проверяем, не занято ли другим персонажем
-      const isOccupied = this.currentLocation.getAllCharacters().some(
-        c => c !== activeChar && c.occupies(newX, newY)
-      )
-      if (isOccupied) continue
-
-      // Расстояние от активного персонажа до этой клетки
-      const distToActive = Math.abs(newX - activeX) + Math.abs(newY - activeY)
-      availableCells.push({ x: newX, y: newY, distToActive })
-    }
-
-    if (availableCells.length === 0) return null
-
-    // Сортируем по близости к активному персонажу
-    availableCells.sort((a, b) => a.distToActive - b.distToActive)
-    return availableCells[0]
-  }
-
   handleClick(screenX, screenY) {
     if (this.input.isCameraMovingNow()) return false
 
@@ -139,31 +94,25 @@ export default class GameLoop {
     const activeChar = this.currentLocation.getActiveCharacter()
     if (!activeChar) return false
 
-    // Проверяем, есть ли персонаж на целевой клетке
+    // Проверяем, есть ли персонаж на целевой клетке - если да, игнорируем клик
     const targetCharacter = this.currentLocation.getAllCharacters().find(
       c => c !== activeChar && c.occupies(tileX, tileY)
     )
 
-    let targetX = tileX
-    let targetY = tileY
-
     if (targetCharacter) {
-      // Если кликнули на персонажа - ищем свободную клетку рядом с ним
-      const adjacentCell = this.findClosestWalkableCellAround(tileX, tileY, activeChar)
-      if (!adjacentCell) return false
-      targetX = adjacentCell.x
-      targetY = adjacentCell.y
+      // Клик по персонажу - ничего не делаем
+      return false
     }
 
     // Проверяем, не занята ли целевая клетка
     const isOccupied = this.currentLocation.getAllCharacters().some(
-      c => c !== activeChar && c.occupies(targetX, targetY)
+      c => c !== activeChar && c.occupies(tileX, tileY)
     )
     if (isOccupied) return false
 
     const path = this.currentLocation.findPath(
       Math.floor(activeChar.x), Math.floor(activeChar.y),
-      targetX, targetY,
+      tileX, tileY,
       activeChar
     )
 
@@ -256,7 +205,7 @@ export default class GameLoop {
 
   initRenderer(canvasWidth, canvasHeight, dpr) {
     this.renderer = new Renderer(this.ctx, this.config)
-    this.renderer.dpr = dpr // Передаем DPR
+    this.renderer.dpr = dpr
     this.renderer.resize(canvasWidth, canvasHeight, dpr)
   }
 
