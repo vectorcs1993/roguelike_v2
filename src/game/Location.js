@@ -36,9 +36,16 @@ export default class Location {
           continue
       }
 
+
       for (const charConfig of teamConfig.characters) {
         const charColor = charConfig.color || teamConfig.color || team.color || '#ffffff'
         const fovRadius = charConfig.fovRadius || 8
+
+        // Получаем настройки AP из конфига персонажа
+        const apConfig = charConfig.ap || {}
+        const maxAP = apConfig.max || 12
+        const moveAPCost = apConfig.moveCost !== undefined ? apConfig.moveCost : 1
+        const moveAPCostDiagonal = apConfig.moveCost !== undefined ? apConfig.moveCost : 1 // диагональ стоит столько же
 
         const character = new Character(
           charConfig.x, charConfig.y,
@@ -48,7 +55,8 @@ export default class Location {
           charConfig.id,
           charConfig.name,
           team,
-          fovRadius
+          fovRadius,
+          { maxAP, moveAPCost, moveAPCostDiagonal } // Передаем AP конфиг
         )
         team.addCharacter(character)
         this.characters.push(character)
@@ -209,7 +217,7 @@ export default class Location {
     }
 
     if (tile && tile.explored) {
-      return { type: 'explored', name: '🌫️ Ранее видно', pos: { tileX, tileY } }
+      return { type: 'explored', name: '🌫️ Открытая область', pos: { tileX, tileY } }
     }
 
     return { type: 'unknown', name: '🌑 Туман войны', pos: { tileX, tileY } }
@@ -221,6 +229,8 @@ export default class Location {
       item.collected = false
     }
   }
+
+  // В статическом методе createDefault:
 
   static createDefault(config) {
     const pillars = [
@@ -237,8 +247,16 @@ export default class Location {
         name: 'Отряд',
         color: '#44aaff',
         characters: [
-          { x: 30, y: 20, char: '@', color: '#44ffaa', id: 'op1', name: 'Ликвидатор 1', fovRadius: 10 },  // @ вместо 🔫
-          { x: 28, y: 22, char: '@', color: '#44ffaa', id: 'op2', name: 'Ликвидатор 2', fovRadius: 10 }
+          {
+            x: 30, y: 20, char: '@', color: '#44ffaa', id: 'op1',
+            name: 'Ликвидатор 1', fovRadius: 8,
+            ap: { max: 8, moveCost: 1 }
+          },
+          {
+            x: 28, y: 22, char: '@', color: '#44ffaa', id: 'op2',
+            name: 'Ликвидатор 2', fovRadius: 10,
+            ap: { max: 10, moveCost: 2 }
+          }
         ]
       },
       {
@@ -247,15 +265,26 @@ export default class Location {
         name: 'Твари',
         color: '#ff4444',
         characters: [
-          { x: 12, y: 25, char: 'g', color: '#ff4444', id: 'creature1', name: 'Тварь 1', fovRadius: 6 },
-          { x: 48, y: 30, char: 'T', color: '#ff4444', id: 'creature2', name: 'Тварь 2', fovRadius: 6 }
+          {
+            x: 12, y: 25, char: 'g', color: '#ff4444', id: 'creature1',
+            name: 'Гоблин', fovRadius: 5,
+            ap: { max: 12, moveCost: 1 }
+          },
+          {
+            x: 48, y: 30, char: 'T', color: '#ff4444', id: 'creature2',
+            name: 'Тролль', fovRadius: 6,
+            ap: { max: 8, moveCost: 2 }
+          }
         ]
       }
     ]
 
     const items = [
-      { x: 15, y: 10 }, { x: 40, y: 20 },
-      { x: 25, y: 30 }, { x: 50, y: 15 }, { x: 35, y: 5 }
+      { x: 15, y: 10, apRestore: 5 },      // Предметы могут восстанавливать AP
+      { x: 40, y: 20, apRestore: 3 },
+      { x: 25, y: 30, apRestore: 10 },
+      { x: 50, y: 15, apRestore: 2 },
+      { x: 35, y: 5, apRestore: 8 }
     ]
 
     const location = new Location(config, pillars, teamConfigs, items)

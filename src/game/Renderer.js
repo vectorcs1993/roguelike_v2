@@ -75,7 +75,19 @@ export default class Renderer {
       for (let x = startX; x < endX; x++) {
         const tile = map.getTile(x, y)
         if (tile) {
-          tile.draw(ctx, x * ts + ox, y * ts + oy, ts, tile.visible, tile.explored, this.fontFamily)
+          const drawX = x * ts + ox
+          const drawY = y * ts + oy
+          const gap = 0.25 // Маленький зазор между тайлами
+
+          // Сохраняем контекст
+          ctx.save()
+          ctx.beginPath()
+          ctx.rect(drawX + gap, drawY + gap, ts - gap * 2, ts - gap * 2)
+          ctx.clip()
+
+          tile.draw(ctx, drawX, drawY, ts, tile.visible, tile.explored, this.fontFamily)
+
+          ctx.restore()
         }
       }
     }
@@ -129,17 +141,27 @@ export default class Renderer {
 
       if (path && path.length > 0) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
-        for (let i = 0; i < path.length - 1; i++) {
+
+        // Пропускаем ПЕРВУЮ точку (текущая позиция персонажа)
+        for (let i = 1; i < path.length - 1; i++) {
           const p = path[i]
           ctx.fillText('·', p.x * ts + ox + ts / 2, p.y * ts + oy + ts / 2)
         }
 
         const last = path[path.length - 1]
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'
-        ctx.lineWidth = 2
-        ctx.setLineDash([4, 4])
-        ctx.strokeRect(last.x * ts + ox + 4, last.y * ts + oy + 4, ts - 8, ts - 8)
-        ctx.setLineDash([])
+        // Проверяем, что целевая клетка - НЕ персонаж
+        const isTargetCharacter = this._allCharacters?.some(
+          c => c !== this._activeCharacter && c.occupies(last.x, last.y)
+        )
+
+        // Рисуем рамку только если цель не персонаж
+        if (!isTargetCharacter) {
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'
+          ctx.lineWidth = 2
+          ctx.setLineDash([4, 4])
+          ctx.strokeRect(last.x * ts + ox + 4, last.y * ts + oy + 4, ts - 8, ts - 8)
+          ctx.setLineDash([])
+        }
       }
     }
 

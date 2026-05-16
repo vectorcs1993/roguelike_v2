@@ -1,3 +1,5 @@
+// src/game/Tile.js
+
 export default class Tile {
   constructor(type, char) {
     this.type = type
@@ -12,20 +14,19 @@ export default class Tile {
   draw(ctx, x, y, ts, isVisible, isExplored, fontFamily) {
     if (!isVisible && !isExplored) return
 
-    let alpha
+    let alpha = 1
     let bgColor
     let textColor
 
     if (isVisible) {
-      // ВИДИМО
-      bgColor = this.isWall ? '#3a3a5a' : '#353545'  // Значительно светлее
-      textColor = this.isWall ? '#9999bb' : '#bbbbbb'  // Ярче текст
+      // ВИДИМО - делаем все тайлы ОДИНАКОВОГО цвета
+      bgColor = '#2a2a3a'  // Один цвет для всего
+      textColor = '#8888aa'
     } else {
-      bgColor = this.isWall ? '#3a3a5a' : '#353545'  // Значительно светлее
-      textColor = this.isWall ? '#8888aa' : '#aaaaaa'
-      // РАНЕЕ ВИДНО - СВЕТЛЕЕ
+      // РАНЕЕ ВИДНО - тоже одинаковый цвет, но темнее
+      bgColor = '#1a1a2a'
+      textColor = '#666688'
       alpha = 0.8
-
     }
 
     ctx.globalAlpha = alpha

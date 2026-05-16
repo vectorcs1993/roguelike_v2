@@ -9,7 +9,7 @@ export default class Pathfinder {
     if (sx === ex && sy === ey) return null
     if (!map.isWalkable(ex, ey)) return null
 
-    // Проверяем только целевую клетку (нельзя встать на персонажа)
+    // Проверяем целевую клетку (нельзя встать на персонажа)
     for (const b of blockedCells) {
       if (b.x === ex && b.y === ey) return null
     }
@@ -78,28 +78,24 @@ export default class Pathfinder {
         // Стены нельзя проходить
         if (!map.isWalkable(n.x, n.y)) continue
 
-        // Проверка среза углов
+        // Проверка среза углов для диагонального движения
         if (n.cost > 1) {
           const adj1 = map.isWalkable(n.x, current.y)
           const adj2 = map.isWalkable(current.x, n.y)
           if (!adj1 || !adj2) continue
         }
 
-        // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ:
-        // Клетки с персонажами не запрещены, но имеют высокую стоимость
-        let isOccupied = false
+        // Клетки с персонажами - высокий штраф (обходим, но не запрещаем)
         let occupationCost = 0
-
         for (const b of blockedCells) {
           if (b.x === n.x && b.y === n.y) {
-            isOccupied = true
-            occupationCost = 100 // Огромный штраф, чтобы обходить, но не запрещать
+            occupationCost = 100
             break
           }
         }
 
-        // Если это целевая клетка и она занята - всё равно нельзя
-        if (n.x === ex && n.y === ey && isOccupied) continue
+        // Если это целевая клетка и она занята - нельзя
+        if (n.x === ex && n.y === ey && occupationCost > 0) continue
 
         const moveCost = n.cost + occupationCost
         const g = current.g + moveCost

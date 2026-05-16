@@ -35,6 +35,9 @@ export default class GameLoop {
     this.hoverTileY = null
 
     this.pathCache = new PathCache(200)
+
+    // Флаг ожидания конца хода
+    this.waitingForTurnEnd = false
   }
 
   switchCharacter(characterId) {
@@ -49,7 +52,6 @@ export default class GameLoop {
           const fromX = active.x | 0
           const fromY = active.y | 0
 
-          let preloaded = 0
           for (let dy = -8; dy <= 8; dy++) {
             for (let dx = -8; dx <= 8; dx++) {
               if (dx === 0 && dy === 0) continue
@@ -60,12 +62,10 @@ export default class GameLoop {
                 const path = this.currentLocation.pathfinder.find(fromX, fromY, toX, toY, blocked)
                 if (path) {
                   this.pathCache.set(fromX, fromY, toX, toY, blocked, path)
-                  preloaded++
                 }
               }
             }
           }
-          console.log(`🚀 Preloaded ${preloaded} paths for ${active.name}`)
         }
       }, 50)
     }
@@ -86,13 +86,19 @@ export default class GameLoop {
   handleClick(screenX, screenY) {
     if (this.input.isCameraMovingNow()) return false
 
+    const activeChar = this.currentLocation.getActiveCharacter()
+    if (!activeChar) return false
+
+    // Если AP закончились - нельзя двигаться
+    if (activeChar.currentAP <= 0) {
+      console.log(`${activeChar.name}: Нет очков действий!`)
+      return false
+    }
+
     const worldX = (screenX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x
     const worldY = (screenY - this.renderer.halfH) / this.renderer.tileSize + this.camera.y
     const tileX = worldX | 0
     const tileY = worldY | 0
-
-    const activeChar = this.currentLocation.getActiveCharacter()
-    if (!activeChar) return false
 
     // Проверяем, есть ли персонаж на целевой клетке - если да, игнорируем клик
     const targetCharacter = this.currentLocation.getAllCharacters().find(
@@ -100,7 +106,6 @@ export default class GameLoop {
     )
 
     if (targetCharacter) {
-      // Клик по персонажу - ничего не делаем
       return false
     }
 
@@ -117,6 +122,8 @@ export default class GameLoop {
     )
 
     if (path && path.length > 0) {
+      // УБРАНА проверка на весь путь!
+      // Персонаж начнет идти и остановится сам, когда не хватит AP
       activeChar.setPath(path)
       return true
     }
