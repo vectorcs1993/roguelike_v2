@@ -18,31 +18,32 @@ export default class Renderer {
     this._location = null
     this._activeCharacter = null
     this._allCharacters = []
+    this._pathCache = null
   }
-
   resize(canvasW, canvasH) {
     this.canvasW = canvasW
     this.canvasH = canvasH
     this.halfW = canvasW / 2
     this.halfH = canvasH / 2
+    // Убираем вычитание uiHeight при вычислении tileSize
     this.tileSize = Math.max(
       this.config.tileSizeMin,
-      Math.min(this.config.tileSize, Math.floor(Math.min(canvasW, canvasH - this.config.uiHeight) / this.config.tileSizeMaxDivisor))
+      Math.min(this.config.tileSize, Math.floor(Math.min(canvasW, canvasH) / this.config.tileSizeMaxDivisor))
     )
     this.ctx.font = `bold ${this.tileSize}px "Courier New", monospace`
     this.ctx.textAlign = 'center'
     this.ctx.textBaseline = 'middle'
   }
 
-  draw(map, characters, items, camera, input, uiButtons, uiHeight) {
+  draw(map, characters, items, camera, input) {
     const ctx = this.ctx
     const w = this.canvasW
-    const h = this.canvasH - uiHeight
+    const h = this.canvasH // Вся высота canvas
     const ts = this.tileSize
 
-    // Очистка
+    // Очистка всего canvas
     ctx.fillStyle = this.config.colors.bg
-    ctx.fillRect(0, 0, w, h + uiHeight)
+    ctx.fillRect(0, 0, w, h)
 
     // Смещение камеры
     const offsetX = this.halfW - camera.x * ts
@@ -97,7 +98,7 @@ export default class Renderer {
     }
 
     // Сетка
-    this.drawGrid(map, camera);
+    this.drawGrid(map, camera)
 
     // Предметы
     for (const item of items) {
@@ -110,20 +111,18 @@ export default class Renderer {
       ctx.globalAlpha = 1
     }
 
-    // Персонажи (все в одном массиве)
+    // Персонажи
     for (const char of characters) {
       const tileX = Math.floor(char.x)
       const tileY = Math.floor(char.y)
       const tile = map.getTile(tileX, tileY)
 
-      // ✅ Проверяем видимость через систему команд
       const isVisible = this._location?.isCharacterVisibleForActive(char) ?? (tile && tile.visible)
 
       if (!isVisible) continue
 
       ctx.fillStyle = char.color
 
-      // Полупрозрачность для союзников в тумане
       const isAlly = this._location?.areAllies(this._activeCharacter, char) ?? false
       if (isAlly && !tile?.visible) {
         ctx.globalAlpha = 0.5
@@ -131,7 +130,6 @@ export default class Renderer {
         ctx.globalAlpha = 1
       }
 
-      // Подсветка активного персонажа
       if (char.isActive && tile?.visible) {
         ctx.shadowBlur = 10
         ctx.shadowColor = char.color
@@ -147,7 +145,7 @@ export default class Renderer {
       ctx.globalAlpha = 1
     }
 
-    // Визуализация пути активного персонажа
+    // Визуализация пути
     if (this._activeCharacter && this._activeCharacter.path && this._activeCharacter.path.length > 0) {
       this.drawPath(this._activeCharacter.path, camera)
     }
@@ -172,9 +170,6 @@ export default class Renderer {
         }
       }
     }
-
-    // Отрисовка UI панели
-    this.drawUiPanel(uiButtons, uiHeight)
   }
 
   drawGrid(map, camera) {
@@ -216,6 +211,7 @@ export default class Renderer {
 
     ctx.stroke()
   }
+
   drawPath(path, camera) {
     if (!path || path.length < 2) return
     const ctx = this.ctx
@@ -329,81 +325,5 @@ export default class Renderer {
     ctx.font = prevFont
     ctx.textAlign = prevAlign
     ctx.textBaseline = prevBaseline
-  }
-
-  drawUiPanel(buttons, uiHeight) {
-    const ctx = this.ctx
-    const w = this.canvasW
-    const h = this.canvasH
-    const uiY = h - uiHeight
-
-    // Фон UI панели
-    ctx.fillStyle = this.config.colors.uiBg || 'rgba(0, 0, 0, 0.8)'
-    ctx.fillRect(0, uiY, w, uiHeight)
-
-    // Разделительная линия
-    ctx.strokeStyle = this.config.colors.uiButton || '#333333'
-    ctx.lineWidth = 2
-    ctx.beginPath()
-    ctx.moveTo(0, uiY)
-    ctx.lineTo(w, uiY)
-    ctx.stroke()
-
-    // Кнопки
-    const buttonWidth = 120
-    const buttonHeight = 50
-    const startX = (w - (buttons.length * (buttonWidth + 10))) / 2
-    const buttonY = uiY + (uiHeight - buttonHeight) / 2
-
-    for (let i = 0; i < buttons.length; i++) {
-      const btn = buttons[i]
-      const btnX = startX + i * (buttonWidth + 10)
-
-      // ИСПРАВЛЕНО: используем btn.isSelectable
-      const isSelectable = btn.isSelectable === true
-
-      // Фон кнопки
-      if (!isSelectable) {
-        ctx.fillStyle = '#222222' // Враги/нейтралы - тёмные
-      } else if (btn.isActive) {
-        ctx.fillStyle = this.config.colors.uiButtonActive || '#44aaff' // Активный игрок
-      } else {
-        ctx.fillStyle = this.config.colors.uiButton || '#333333' // Неактивный игрок
-      }
-      ctx.fillRect(btnX, buttonY, buttonWidth, buttonHeight)
-
-      // Рамка
-      ctx.strokeStyle = isSelectable ? '#ffffff' : '#555555'
-      ctx.lineWidth = 1
-      ctx.strokeRect(btnX, buttonY, buttonWidth, buttonHeight)
-
-      // Символ персонажа
-      ctx.font = `24px "Courier New", monospace`
-      ctx.fillStyle = isSelectable ? (btn.isActive ? '#ffffff' : '#cccccc') : '#666666'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(btn.char, btnX + 30, buttonY + buttonHeight / 2)
-
-      // Имя персонажа
-      ctx.font = `12px monospace`
-      ctx.textAlign = 'left'
-      ctx.fillStyle = isSelectable ? (btn.isActive ? '#ffffff' : '#aaaaaa') : '#666666'
-      ctx.fillText(btn.name, btnX + 50, buttonY + buttonHeight / 2 - 5)
-
-      // Статус
-      ctx.font = `10px monospace`
-      if (!isSelectable) {
-        ctx.fillStyle = '#553333'
-        ctx.fillText('👹 Враг', btnX + 50, buttonY + buttonHeight / 2 + 10)
-      } else {
-        ctx.fillStyle = btn.isActive ? '#88ff88' : '#888888'
-        ctx.fillText(btn.isActive ? '● Управление' : '○ Ожидание', btnX + 50, buttonY + buttonHeight / 2 + 10)
-      }
-    }
-
-    // Восстанавливаем шрифт
-    ctx.font = `bold ${this.tileSize}px "Courier New", monospace`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
   }
 }

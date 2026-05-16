@@ -13,7 +13,6 @@
   "dtCap": 0.1,
   "pathSpeed": 6,
   "cameraSpeed": 15,
-  "uiHeight": 80,
   "colors": {
     "bg": "#000000",
     "wallBg": "#222233",
