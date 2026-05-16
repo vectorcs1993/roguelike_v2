@@ -8,6 +8,8 @@ export default class Pathfinder {
 
     if (sx === ex && sy === ey) return null
     if (!map.isWalkable(ex, ey)) return null
+
+    // Проверяем только целевую клетку (нельзя встать на персонажа)
     for (const b of blockedCells) {
       if (b.x === ex && b.y === ey) return null
     }
@@ -18,11 +20,8 @@ export default class Pathfinder {
     const startKey = key(sx, sy)
     const endKey = key(ex, ey)
 
-    // Храним все узлы в Map: key → { x, y, g, h, f, parentKey }
     const nodes = new Map()
-    // Открытый список: Set из ключей
     const openSet = new Set()
-    // Закрытый: Set из ключей
     const closedSet = new Set()
 
     const startNode = {
@@ -36,7 +35,6 @@ export default class Pathfinder {
     openSet.add(startKey)
 
     while (openSet.size > 0) {
-      // Найти ключ с минимальным f
       let currentKey = null
       let minF = Infinity
       for (const k of openSet) {
@@ -49,9 +47,7 @@ export default class Pathfinder {
 
       const current = nodes.get(currentKey)
 
-      // Достигли цели?
       if (currentKey === endKey) {
-        // Восстанавливаем путь
         const path = []
         let node = current
         while (node) {
@@ -64,7 +60,6 @@ export default class Pathfinder {
       openSet.delete(currentKey)
       closedSet.add(currentKey)
 
-      // 8 соседей с проверкой среза углов
       const allNeighbors = [
         { x: current.x, y: current.y - 1, cost: 1 },
         { x: current.x, y: current.y + 1, cost: 1 },
@@ -80,22 +75,35 @@ export default class Pathfinder {
         const nKey = key(n.x, n.y)
         if (closedSet.has(nKey)) continue
 
+        // Стены нельзя проходить
         if (!map.isWalkable(n.x, n.y)) continue
 
-        // Запрет среза угла: нельзя по диагонали если хотя бы одна из двух прилегающих клеток — стена
+        // Проверка среза углов
         if (n.cost > 1) {
           const adj1 = map.isWalkable(n.x, current.y)
           const adj2 = map.isWalkable(current.x, n.y)
           if (!adj1 || !adj2) continue
         }
 
-        let blockedByNpc = false
-        for (const b of blockedCells) {
-          if (b.x === n.x && b.y === n.y) { blockedByNpc = true; break }
-        }
-        if (blockedByNpc) continue
+        // КЛЮЧЕВОЕ ИЗМЕНЕНИЕ:
+        // Клетки с персонажами не запрещены, но имеют высокую стоимость
+        let isOccupied = false
+        let occupationCost = 0
 
-        const g = current.g + n.cost
+        for (const b of blockedCells) {
+          if (b.x === n.x && b.y === n.y) {
+            isOccupied = true
+            occupationCost = 100 // Огромный штраф, чтобы обходить, но не запрещать
+            break
+          }
+        }
+
+        // Если это целевая клетка и она занята - всё равно нельзя
+        if (n.x === ex && n.y === ey && isOccupied) continue
+
+        const moveCost = n.cost + occupationCost
+        const g = current.g + moveCost
+
         const existing = nodes.get(nKey)
 
         if (!existing) {

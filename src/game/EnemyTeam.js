@@ -3,9 +3,9 @@
 import Team from './Team.js'
 
 export default class EnemyTeam extends Team {
-  constructor(config) {
-    super('enemy', 'Враги', {
-      color: '#ff4444',
+  constructor(config = {}) {
+    super(config.id || 'creatures', config.name || 'Твари', {
+      color: config.color || '#ff4444',
       isPlayerControlled: false,
       canSwitchTo: false,
       visibleInFog: false,
@@ -14,7 +14,6 @@ export default class EnemyTeam extends Team {
   }
 
   update() {
-    // Враги пока стоят на месте
-    // Позже здесь будет ИИ
+    // Твари пока стоят на месте
   }
 }

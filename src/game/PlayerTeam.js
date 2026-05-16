@@ -4,8 +4,8 @@ import Team from './Team.js'
 
 export default class PlayerTeam extends Team {
   constructor(config = {}) {
-    super(config.id || 'player', config.name || 'Игроки', {
-      color: config.color || '#44aaff',
+    super(config.id || 'squad', config.name || 'Отряд', {
+      color: config.color || '#44ff44',
       isPlayerControlled: true,
       canSwitchTo: true,
       visibleInFog: true,
@@ -14,7 +14,6 @@ export default class PlayerTeam extends Team {
   }
 
   update() {
-    // Игроки не обновляются автоматически
     return
   }
 }

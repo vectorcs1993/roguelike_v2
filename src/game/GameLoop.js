@@ -118,14 +118,31 @@ export default class GameLoop {
     const activeChar = this.currentLocation.getActiveCharacter()
     if (!activeChar) return false
 
-    // Можно кликать на врагов - путь построится до их позиции
-    const blockedCells = this.currentLocation.getBlockedCells(activeChar)
-    const isBlocked = blockedCells.some(c => c.x === tileX && c.y === tileY)
-    if (isBlocked) return false
+    // Проверяем, есть ли персонаж на целевой клетке
+    const targetCharacter = this.currentLocation.getAllCharacters().find(
+      c => c !== activeChar && c.occupies(tileX, tileY)
+    )
+
+    let targetX = tileX
+    let targetY = tileY
+
+    if (targetCharacter) {
+      // Если кликнули на персонажа - ищем свободную клетку рядом
+      const adjacent = this.findAdjacentWalkableCell(tileX, tileY, activeChar)
+      if (!adjacent) return false
+      targetX = adjacent.x
+      targetY = adjacent.y
+    }
+
+    // Целевая клетка не должна быть занята
+    const isOccupied = this.currentLocation.getAllCharacters().some(
+      c => c !== activeChar && c.occupies(targetX, targetY)
+    )
+    if (isOccupied) return false
 
     const path = this.currentLocation.findPath(
       activeChar.x | 0, activeChar.y | 0,
-      tileX, tileY,
+      targetX, targetY,
       activeChar
     )
 
@@ -134,6 +151,34 @@ export default class GameLoop {
       return true
     }
     return false
+  }
+
+  findAdjacentWalkableCell(targetX, targetY, activeChar) {
+    const directions = [
+      { x: 0, y: -1 }, { x: 0, y: 1 },
+      { x: -1, y: 0 }, { x: 1, y: 0 },
+      { x: -1, y: -1 }, { x: 1, y: -1 },
+      { x: -1, y: 1 }, { x: 1, y: 1 }
+    ]
+
+    for (const dir of directions) {
+      const newX = targetX + dir.x
+      const newY = targetY + dir.y
+
+      if (newX < 0 || newX >= this.config.cols ||
+        newY < 0 || newY >= this.config.rows) continue
+
+      if (!this.currentLocation.map.isWalkable(newX, newY)) continue
+
+      const isOccupied = this.currentLocation.getAllCharacters().some(
+        c => c !== activeChar && c.occupies(newX, newY)
+      )
+      if (isOccupied) continue
+
+      return { x: newX, y: newY }
+    }
+
+    return null
   }
 
   checkUiClick(x, y) {
