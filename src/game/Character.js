@@ -91,9 +91,7 @@ export default class Character extends GameObject {
       return
     }
 
-    const next = this.path[0] // Всегда берем первую точку
-
-    // Стоимость одинаковая для всех направлений
+    const next = this.path[0]
     const apCost = this.moveAPCost
 
     if (!this.canAffordAP(apCost)) {
@@ -115,13 +113,8 @@ export default class Character extends GameObject {
       return
     }
 
-    this.moveTimer += dt
-    const interval = 1 / this.pathSpeed
-    if (this.moveTimer < interval) return
-    this.moveTimer = 0
-
+    // МГНОВЕННОЕ ПЕРЕМЕЩЕНИЕ (без анимации)
     if (this.moveTo(next.x, next.y)) {
-      // Удаляем пройденную точку
       this.path.shift()
     } else {
       this.followingPath = false

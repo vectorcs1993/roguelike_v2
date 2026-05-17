@@ -15,11 +15,6 @@
         {{ locationNameValue }}
       </q-chip>
 
-      <!-- Кнопки отладки -->
-      <div class="debug-buttons">
-
-      </div>
-
       <!-- Панель персонажей внизу -->
       <div class="characters-panel">
         <div class="characters-header">
@@ -54,7 +49,7 @@
           <q-btn @click="regenerateLevel" color="orange" label="Обновить уровень" flat dense />
           <q-btn @click="revealFullMap" color="purple" label="Открыть карту" flat dense />
         </div>
-
+        вцф
       </div>
     </div>
   </q-page>
