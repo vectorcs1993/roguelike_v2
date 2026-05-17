@@ -166,7 +166,7 @@ export default class Location {
           if (dist <= radius) {
             const tile = this.map.getTile(x, y)
             if (tile) {
-              tile.explored = true
+              tile.revealed = true  // Используем revealed вместо explored
             }
           }
         }

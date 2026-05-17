@@ -57,6 +57,7 @@ export default class Renderer {
     const ox = this.halfW - camera.x * ts
     const oy = this.halfH - camera.y * ts
 
+    // Очистка экрана
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, this.canvasW, this.canvasH)
 
@@ -67,31 +68,30 @@ export default class Renderer {
     const endX = Math.min(map.cols, startX + Math.ceil(this.canvasW / ts) + 2)
     const endY = Math.min(map.rows, startY + Math.ceil(this.canvasH / ts) + 2)
 
-    // Тайлы
+    // Тайлы - рисуем ТОЛЬКО видимые или исследованные
     for (let y = startY; y < endY; y++) {
       for (let x = startX; x < endX; x++) {
         const tile = map.getTile(x, y)
-        if (tile) {
-          const drawX = x * ts + ox
-          const drawY = y * ts + oy
-          const gap = 0.25
+        if (!tile) continue
 
-          ctx.save()
-          ctx.beginPath()
-          ctx.rect(drawX + gap, drawY + gap, ts - gap * 2, ts - gap * 2)
-          ctx.clip()
-
-          // Рисуем только если видимо или исследовано
-          if (tile.visible || tile.explored) {
-            tile.draw(ctx, drawX, drawY, ts, tile.visible, tile.explored, this.fontFamily)
-          } else {
-            // Невидимые клетки - черные
-            ctx.fillStyle = '#000000'
-            ctx.fillRect(drawX + gap, drawY + gap, ts - gap * 2, ts - gap * 2)
-          }
-
-          ctx.restore()
+        // Ключевое условие: если не видимо и не исследовано - НЕ РИСУЕМ
+        if (!tile.visible && !tile.explored) {
+          continue
         }
+
+        const drawX = x * ts + ox
+        const drawY = y * ts + oy
+        const gap = 0.25
+
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(drawX + gap, drawY + gap, ts - gap * 2, ts - gap * 2)
+        ctx.clip()
+
+        // Рисуем только если видимо или исследовано
+        tile.draw(ctx, drawX, drawY, ts, tile.visible, tile.explored, this.fontFamily)
+
+        ctx.restore()
       }
     }
 

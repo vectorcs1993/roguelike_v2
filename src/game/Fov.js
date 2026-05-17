@@ -1,3 +1,5 @@
+// src/game/Fov.js
+
 export default class Fov {
   constructor(map) {
     this.map = map
@@ -5,7 +7,6 @@ export default class Fov {
 
   compute(originX, originY, radius) {
     const map = this.map
-    // Убираем map.resetVisibility() - теперь visible сбрасывается в TileMap.computeFov
 
     // Исходная клетка всегда видна
     const originTile = map.getTile(originX, originY)
@@ -53,7 +54,7 @@ export default class Fov {
 
         if (dx * dx + dy * dy < radius * radius) {
           const tile = map.getTile(worldX, worldY)
-          if (tile) tile.visible = true
+          if (tile) tile.visible = true  // Только visible, revealed установит TileMap
         }
 
         if (blocked) {
