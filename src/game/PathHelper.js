@@ -10,52 +10,54 @@ export const NEIGHBOR_ORDER = [
   { dx: 1, dy: 1 }    // вниз-вправо
 ]
 
-
-// возвращает путь до ближайшей доступной клетки
-// с учетом реальной длины пути, а не линейного расстояния
 export function findPathToNearestWalkable(targetX, targetY, map, allCharacters, excludeCharacter, pathfinder, startX, startY) {
-  // Проверяем, можно ли встать на целевую клетку
-  const isWalkable = map.isWalkable(targetX, targetY)
-  const targetCharacter = allCharacters?.find(c => c !== excludeCharacter && c.occupies(targetX, targetY))
-  const canStand = isWalkable && !targetCharacter
+  // Формируем список заблокированных клеток (другие персонажи)
+  const blockedCells = allCharacters
+    .filter(c => c !== excludeCharacter)
+    .map(c => ({ x: Math.floor(c.x), y: Math.floor(c.y) }));
+
+  // Проверяем целевую клетку
+  const isWalkable = map.isWalkable(targetX, targetY);
+  const isBlocked = blockedCells.some(b => b.x === targetX && b.y === targetY);
+  const canStand = isWalkable && !isBlocked;
 
   if (canStand) {
-    // Строим путь до цели
-    const path = pathfinder.find(startX, startY, targetX, targetY, [])
+    // Строим путь до цели (используем targetX, targetY, а не nx, ny)
+    const path = pathfinder.find(startX, startY, targetX, targetY, blockedCells);
     if (path && path.length > 0) {
-      return { path, target: { x: targetX, y: targetY, isOriginal: true } }
+      return { path, target: { x: targetX, y: targetY, isOriginal: true } };
     }
-    return null
+    return null;
   }
 
   // Для недоступной цели - ищем лучшую соседнюю клетку по ДЛИНЕ ПУТИ
-  let bestPath = null
-  let bestTarget = null
-  let bestPathLength = Infinity
+  let bestPath = null;
+  let bestTarget = null;
+  let bestPathLength = Infinity;
 
   for (const neighbor of NEIGHBOR_ORDER) {
-    const nx = targetX + neighbor.dx
-    const ny = targetY + neighbor.dy
+    const nx = targetX + neighbor.dx;
+    const ny = targetY + neighbor.dy;
 
     if (nx >= 0 && nx < map.cols && ny >= 0 && ny < map.rows) {
-      const neighborWalkable = map.isWalkable(nx, ny)
-      const neighborOccupied = allCharacters?.some(c => c !== excludeCharacter && c.occupies(nx, ny))
+      const neighborWalkable = map.isWalkable(nx, ny);
+      const neighborBlocked = blockedCells.some(b => b.x === nx && b.y === ny);
 
-      if (neighborWalkable && !neighborOccupied) {
+      if (neighborWalkable && !neighborBlocked) {
         // Строим путь до этой соседней клетки
-        const path = pathfinder.find(startX, startY, nx, ny, [])
+        const path = pathfinder.find(startX, startY, nx, ny, blockedCells);
         if (path && path.length > 0 && path.length < bestPathLength) {
-          bestPathLength = path.length
-          bestPath = path
-          bestTarget = { x: nx, y: ny, isOriginal: false, originalX: targetX, originalY: targetY }
+          bestPathLength = path.length;
+          bestPath = path;
+          bestTarget = { x: nx, y: ny, isOriginal: false, originalX: targetX, originalY: targetY };
         }
       }
     }
   }
 
   if (bestPath && bestTarget) {
-    return { path: bestPath, target: bestTarget }
+    return { path: bestPath, target: bestTarget };
   }
 
-  return null
+  return null;
 }
