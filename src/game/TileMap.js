@@ -10,6 +10,7 @@ export default class TileMap {
     this.cols = cols
     this.rows = rows
     this.grid = []
+    this.items = new Map() // Отдельное хранилище для предметов
     this.fov = new Fov(this)
   }
 
@@ -30,17 +31,44 @@ export default class TileMap {
     }
   }
 
-  // Новый метод для установки ящиков
   setCrates(cratePositions) {
     for (const [x, y] of cratePositions) {
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
         const tile = this.getTile(x, y)
-        // Можно ставить ящик только на пол
         if (tile && tile.isWalkable) {
           this.grid[y][x] = new Crate()
         }
       }
     }
+  }
+
+  // Добавление предмета на карту
+  addItem(item) {
+    const key = `${item.x},${item.y}`
+    this.items.set(key, item)
+  }
+
+  // Получение предмета на клетке
+  getItemAt(x, y) {
+    const key = `${x},${y}`
+    return this.items.get(key)
+  }
+
+  // Удаление предмета (при подборе)
+  removeItemAt(x, y) {
+    const key = `${x},${y}`
+    const item = this.items.get(key)
+    if (item) {
+      this.items.delete(key)
+      return item
+    }
+    return null
+  }
+
+  // Проверка, есть ли предмет на клетке
+  hasItemAt(x, y) {
+    const key = `${x},${y}`
+    return this.items.has(key)
   }
 
   getTile(x, y) {

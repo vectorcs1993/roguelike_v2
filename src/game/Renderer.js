@@ -102,19 +102,33 @@ export default class Renderer {
       }
     }
 
-    // ПРЕДМЕТЫ - только символы
-    for (const item of items) {
+    // Предметы - видимые ИЛИ исследованные
+    for (const item of this._location?.items || []) {
+      if (item.collected) continue
+
       const tile = map.getTile(Math.floor(item.x), Math.floor(item.y))
-      if (tile && tile.visible && !item.collected) {
+
+      // Показываем предмет если клетка видна ИЛИ исследована
+      const isVisible = tile && tile.visible
+      const isExplored = tile && tile.explored
+
+      if (isVisible || isExplored) {
         const drawX = item.x * ts + ox
         const drawY = item.y * ts + oy
 
-        ctx.fillStyle = '#aaaaaa'  // Светло-серый для предметов
+        // Цвет для видимых и исследованных предметов
+        let color
+        if (isVisible) {
+          color = '#aaaaaa'  // Светло-серый для видимых
+        } else {
+          color = '#555555'  // Тёмно-серый для исследованных (в тумане)
+        }
+
+        ctx.fillStyle = color
         ctx.font = `${ts}px ${this.fontFamily}`
         ctx.fillText(item.char, drawX + ts / 2, drawY + ts / 2)
       }
     }
-
     // ПЕРСОНАЖИ - только символы
     for (const char of characters) {
       const tile = map.getTile(Math.floor(char.x), Math.floor(char.y))

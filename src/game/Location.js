@@ -1,6 +1,6 @@
 import TileMap from './TileMap.js'
 import Character from './Character.js'
-import Item from './Item.js'
+import ItemTile from './ItemTile.js'
 import Pathfinder from './Pathfinder.js'
 import PlayerTeam from './PlayerTeam.js'
 import EnemyTeam from './EnemyTeam.js'
@@ -68,8 +68,9 @@ export default class Location {
 
     this.items = []
     for (const itemConfig of itemConfigs) {
-      const item = new Item(itemConfig.x, itemConfig.y, itemConfig.itemType || 'generic')
+      const item = new ItemTile(itemConfig.x, itemConfig.y, itemConfig.itemType || 'generic')
       this.items.push(item)
+      this.map.addItem(item)
     }
   }
 
@@ -119,12 +120,14 @@ export default class Location {
 
   checkItemPickup(characterX, characterY) {
     const collected = []
-    for (const item of this.items) {
-      if (!item.collected && item.occupies(characterX | 0, characterY | 0)) {
-        item.collect()
-        collected.push(item)
-      }
+    const item = this.map.getItemAt(characterX, characterY)
+
+    if (item && !item.collected) {
+      item.collect()
+      this.map.removeItemAt(characterX, characterY)
+      collected.push(item)
     }
+
     return collected
   }
 
@@ -169,17 +172,14 @@ export default class Location {
   getTileInfo(tileX, tileY) {
     const tile = this.map.getTile(tileX, tileY)
 
-    // Если клетка не видна
     if (!tile || (!tile.visible && !tile.explored)) {
       return {
         type: 'unknown',
-        name: '🌑 Туман войны',
-        description: 'Неисследованная область'
+        name: '🌑 Туман войны'
       }
     }
 
-    // Если клетка видна или исследована
-    // Сначала проверяем персонажей (приоритет выше)
+    // Сначала проверяем персонажей
     for (const character of this.characters) {
       if (character.occupies(tileX, tileY) && this.isCharacterVisibleForActive(character)) {
         return character.getTooltipInfo()
@@ -187,10 +187,9 @@ export default class Location {
     }
 
     // Затем проверяем предметы
-    for (const item of this.items) {
-      if (!item.collected && item.x === tileX && item.y === tileY && tile.visible) {
-        return item.getTooltipInfo()
-      }
+    const item = this.map.getItemAt(tileX, tileY)
+    if (item && !item.collected && tile.visible) {
+      return item.getTooltipInfo()
     }
 
     // Возвращаем информацию о тайле
@@ -199,15 +198,13 @@ export default class Location {
       tileInfo.pos = { x: tileX, y: tileY }
       if (!tile.visible && tile.explored) {
         tileInfo.name += ' (Исследовано)'
-        tileInfo.explored = true
       }
       return tileInfo
     }
 
     return {
       type: 'unknown',
-      name: '❓ Неизвестно',
-      description: 'Невозможно определить'
+      name: '❓ Неизвестно'
     }
   }
 

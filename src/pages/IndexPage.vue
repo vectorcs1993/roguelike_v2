@@ -17,8 +17,7 @@
 
       <!-- Кнопки отладки -->
       <div class="debug-buttons">
-        <q-btn @click="regenerateLevel" color="orange" size="sm" label="🔄" flat dense />
-        <q-btn @click="revealFullMap" color="purple" size="sm" label="🗺️" flat dense />
+
       </div>
 
       <!-- Панель персонажей внизу -->
@@ -52,7 +51,10 @@
               </div>
             </div>
           </q-card>
+          <q-btn @click="regenerateLevel" color="orange" label="Обновить уровень" flat dense />
+          <q-btn @click="revealFullMap" color="purple" label="Открыть карту" flat dense />
         </div>
+
       </div>
     </div>
   </q-page>
