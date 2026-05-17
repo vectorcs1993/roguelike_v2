@@ -1,4 +1,4 @@
-
+// src/game/PathHelper.js
 export const NEIGHBOR_ORDER = [
   { dx: 0, dy: -1 },  // вверх
   { dx: 0, dy: 1 },   // вниз
@@ -10,18 +10,28 @@ export const NEIGHBOR_ORDER = [
   { dx: 1, dy: 1 }    // вниз-вправо
 ]
 
-export function findNearestWalkableCell(targetX, targetY, map, allCharacters, excludeCharacter, fromX, fromY) {
+
+// возвращает путь до ближайшей доступной клетки
+// с учетом реальной длины пути, а не линейного расстояния
+export function findPathToNearestWalkable(targetX, targetY, map, allCharacters, excludeCharacter, pathfinder, startX, startY) {
   // Проверяем, можно ли встать на целевую клетку
   const isWalkable = map.isWalkable(targetX, targetY)
   const targetCharacter = allCharacters?.find(c => c !== excludeCharacter && c.occupies(targetX, targetY))
   const canStand = isWalkable && !targetCharacter
 
   if (canStand) {
-    return { x: targetX, y: targetY, isOriginal: true }
+    // Строим путь до цели
+    const path = pathfinder.find(startX, startY, targetX, targetY, [])
+    if (path && path.length > 0) {
+      return { path, target: { x: targetX, y: targetY, isOriginal: true } }
+    }
+    return null
   }
 
-  // Собираем все доступные соседние клетки
-  const availableNeighbors = []
+  // Для недоступной цели - ищем лучшую соседнюю клетку по ДЛИНЕ ПУТИ
+  let bestPath = null
+  let bestTarget = null
+  let bestPathLength = Infinity
 
   for (const neighbor of NEIGHBOR_ORDER) {
     const nx = targetX + neighbor.dx
@@ -32,27 +42,20 @@ export function findNearestWalkableCell(targetX, targetY, map, allCharacters, ex
       const neighborOccupied = allCharacters?.some(c => c !== excludeCharacter && c.occupies(nx, ny))
 
       if (neighborWalkable && !neighborOccupied) {
-        // Вычисляем расстояние от активного персонажа до этой клетки
-        const dist = Math.abs(nx - fromX) + Math.abs(ny - fromY)
-        availableNeighbors.push({ x: nx, y: ny, dist })
+        // Строим путь до этой соседней клетки
+        const path = pathfinder.find(startX, startY, nx, ny, [])
+        if (path && path.length > 0 && path.length < bestPathLength) {
+          bestPathLength = path.length
+          bestPath = path
+          bestTarget = { x: nx, y: ny, isOriginal: false, originalX: targetX, originalY: targetY }
+        }
       }
     }
   }
 
-  if (availableNeighbors.length === 0) {
-    return null // Нет доступных клеток
+  if (bestPath && bestTarget) {
+    return { path: bestPath, target: bestTarget }
   }
 
-  // Сортируем по расстоянию от активного персонажа (ближайшие first)
-  availableNeighbors.sort((a, b) => a.dist - b.dist)
-
-  // Возвращаем ближайшую клетку
-  const closest = availableNeighbors[0]
-  return {
-    x: closest.x,
-    y: closest.y,
-    isOriginal: false,
-    originalX: targetX,
-    originalY: targetY
-  }
+  return null
 }

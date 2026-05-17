@@ -171,7 +171,7 @@ function resizeCanvas() {
   const dpr = Math.min(window.devicePixelRatio || 1, config.dprCap)
   const rect = wrapper.getBoundingClientRect()
 
-  console.log('Resize canvas:', rect.width, rect.height)
+  // console.log('Resize canvas:', rect.width, rect.height)
 
   if (rect.width <= 0 || rect.height <= 0) return
 

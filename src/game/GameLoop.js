@@ -4,7 +4,7 @@ import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
 import Location from './Location.js'
-import { findNearestWalkableCell } from './PathHelper.js'
+import { findPathToNearestWalkable } from './PathHelper.js'
 
 export default class GameLoop {
   constructor(canvas, config, initialLocation = null, biomeType = null) {
@@ -34,10 +34,10 @@ export default class GameLoop {
     // ИНИЦИАЛИЗИРУЕМ КАМЕРУ НА АКТИВНОМ ПЕРСОНАЖЕ
     if (activeCharacter) {
       this.camera = new Camera(activeCharacter.x, activeCharacter.y, config.cameraSpeed)
-      console.log(`Камера центрирована на: ${activeCharacter.name} (${activeCharacter.x}, ${activeCharacter.y})`)
+      // console.log(`Камера центрирована на: ${activeCharacter.name} (${activeCharacter.x}, ${activeCharacter.y})`)
     } else {
       this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, config.cameraSpeed)
-      console.log(`Камера центрирована на центр карты (${this.config.cols / 2}, ${this.config.rows / 2})`)
+      // console.log(`Камера центрирована на центр карты (${this.config.cols / 2}, ${this.config.rows / 2})`)
     }
 
     this.input = new InputManager(config.swipeThreshold)
@@ -85,13 +85,13 @@ export default class GameLoop {
       c => c.isPlayerControlled || c.canSwitchTo
     )
 
-    console.log(`Открываем FOV для ${allies.length} союзников:`)
+    // console.log(`Открываем FOV для ${allies.length} союзников:`)
 
     // Для каждого союзника вычисляем FOV и объединяем
     for (const ally of allies) {
       const tileX = Math.floor(ally.x)
       const tileY = Math.floor(ally.y)
-      console.log(`  - ${ally.name} (${tileX}, ${tileY}), радиус: ${ally.fovRadius}`)
+      // console.log(`  - ${ally.name} (${tileX}, ${tileY}), радиус: ${ally.fovRadius}`)
 
       // Вычисляем FOV для этого союзника
       this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8)
@@ -140,7 +140,7 @@ export default class GameLoop {
     // Центрируем камеру на новом активном персонаже
     if (newActiveCharacter) {
       this.camera.setPosition(newActiveCharacter.x, newActiveCharacter.y)
-      console.log(`Камера центрирована на: ${newActiveCharacter.name}`)
+      // console.log(`Камера центрирована на: ${newActiveCharacter.name}`)
     } else {
       this.camera.setPosition(this.config.cols / 2, this.config.rows / 2)
     }
@@ -193,7 +193,7 @@ export default class GameLoop {
     const character = this.currentLocation.getAllCharacters().find(c => c.id === characterId)
     if (character) {
       this.camera.setPosition(character.x, character.y)
-      console.log(`Камера центрирована на персонаже: ${character.name}`)
+      // console.log(`Камера центрирована на персонаже: ${character.name}`)
     }
   }
 
@@ -201,7 +201,7 @@ export default class GameLoop {
     const activeChar = this.currentLocation.getActiveCharacter()
     if (activeChar) {
       this.camera.setPosition(activeChar.x, activeChar.y)
-      console.log(`Камера центрирована на активном персонаже: ${activeChar.name} (ID: ${activeChar.id})`)
+      // console.log(`Камера центрирована на активном персонаже: ${activeChar.name} (ID: ${activeChar.id})`)
       return true
     }
     console.warn('Нет активного персонажа для центрирования')
@@ -219,7 +219,6 @@ export default class GameLoop {
     const activeChar = this.currentLocation.getActiveCharacter()
     if (!activeChar) return false
 
-    // Если AP закончились - нельзя двигаться
     if (activeChar.currentAP <= 0) {
       console.log(`${activeChar.name}: Нет очков действий!`)
       return false
@@ -230,39 +229,45 @@ export default class GameLoop {
     const tileX = worldX | 0
     const tileY = worldY | 0
 
-    // Получаем целевую клетку используя общую логику
-    const target = this.getTargetCell(tileX, tileY, activeChar)
-    if (!target) {
-      console.log(`Нет доступных клеток рядом с (${tileX}, ${tileY})`)
+    const fromX = Math.floor(activeChar.x)
+    const fromY = Math.floor(activeChar.y)
+
+    // Проверяем соседнюю клетку
+    const isAdjacent = Math.abs(fromX - tileX) <= 1 && Math.abs(fromY - tileY) <= 1
+
+    if (isAdjacent) {
+      const isWalkable = this.currentLocation.map.isWalkable(tileX, tileY)
+      const targetCharacter = this.currentLocation.getAllCharacters().find(
+        c => c !== activeChar && c.occupies(tileX, tileY)
+      )
+      const canStand = isWalkable && !targetCharacter
+
+      if (canStand) {
+        if (activeChar.moveTo(tileX, tileY)) {
+          return true
+        }
+      }
       return false
     }
 
-    // Находим путь
-    const path = this.currentLocation.findPath(
-      Math.floor(activeChar.x), Math.floor(activeChar.y),
-      target.x, target.y,
-      activeChar
+    // Для несоседних - используем новую функцию
+    const result = findPathToNearestWalkable(
+      tileX, tileY,
+      this.currentLocation.map,
+      this.currentLocation.getAllCharacters(),
+      activeChar,
+      this.currentLocation.pathfinder,
+      fromX, fromY
     )
 
-    // Если путь найден - начинаем движение
-    if (path && path.length > 0) {
-      activeChar.setPath(path)
+    if (result && result.path && result.path.length > 0) {
+      activeChar.setPath(result.path)
       return true
     }
 
     return false
   }
-  getTargetCell(targetX, targetY, activeChar) {
-    return findNearestWalkableCell(
-      targetX,
-      targetY,
-      this.currentLocation.map,
-      this.currentLocation.getAllCharacters(),
-      activeChar,
-      Math.floor(activeChar.x),  // добавляем позицию активного персонажа
-      Math.floor(activeChar.y)
-    )
-  }
+
   updateHoverTile(mouseX, mouseY) {
     if (!mouseX || !mouseY || !this.renderer) {
       this.hoverTileX = null

@@ -1,4 +1,4 @@
-import { findNearestWalkableCell } from './PathHelper'
+import { findPathToNearestWalkable } from './PathHelper'
 
 export default class Renderer {
   // Константы класса
@@ -171,57 +171,61 @@ export default class Renderer {
       const toX = this.hoverTileX
       const toY = this.hoverTileY
 
-      // Используем общую логику из хелпера с передачей позиции активного персонажа
-      const target = findNearestWalkableCell(
-        toX,
-        toY,
+      const isAdjacent = Math.abs(fromX - toX) <= 1 && Math.abs(fromY - toY) <= 1
+
+      if (isAdjacent) {
+        // Показываем рамку для соседних
+        const hoverTile = map.getTile(toX, toY)
+        if (hoverTile && hoverTile.visible) {
+          const x = toX * ts + ox
+          const y = toY * ts + oy
+          const isWalkable = map.isWalkable(toX, toY)
+          const targetCharacter = this._allCharacters?.find(c => c !== this._activeCharacter && c.occupies(toX, toY))
+          const canStand = isWalkable && !targetCharacter
+
+          ctx.strokeStyle = canStand ? '#44ff44' : '#ff4444'
+          ctx.lineWidth = 2
+          ctx.setLineDash([])
+          ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
+
+          if (this._location) {
+            const info = this._location.getTileInfo(toX, toY)
+            if (info) this.drawTooltip(info.name)
+          }
+        }
+        return
+      }
+
+      // Для несоседних - используем новую функцию
+      const result = findPathToNearestWalkable(
+        toX, toY,
         map,
         this._allCharacters,
         this._activeCharacter,
-        fromX,
-        fromY
+        this._pathfinder,
+        fromX, fromY
       )
 
-      if (!target) return
+      if (result && result.path && result.path.length > 0) {
+        // Сохраняем для возможного использования
+        this._bestPreviewPath = result.path
+        this._bestPreviewTarget = result.target
 
-      const blocked = this._location?.getBlockedCells(this._activeCharacter) || []
-
-      let path = null
-      if (this._pathCache) {
-        path = this._pathCache.get(fromX, fromY, target.x, target.y, blocked)
-      }
-
-      if (!path && this._pathfinder) {
-        path = this._pathfinder.find(fromX, fromY, target.x, target.y, blocked)
-        if (this._pathCache && path) {
-          this._pathCache.set(fromX, fromY, target.x, target.y, blocked, path)
-        }
-      }
-
-      if (path && path.length > 0) {
         ctx.fillStyle = '#444444'
-
-        // Рисуем ВСЕ точки пути, включая последнюю (но не первую - это позиция персонажа)
-        // Используем indexOf для определения последней точки
-        for (let i = 1; i < path.length; i++) {
-          const p = path[i]
+        for (let i = 1; i < result.path.length; i++) {
+          const p = result.path[i]
           const drawX = p.x * ts + ox
           const drawY = p.y * ts + oy
-
-          // Если это последняя точка пути
-          if (i === path.length - 1) {
-            // Рисуем специальный символ для конечной точки
+          if (i === result.path.length - 1) {
             ctx.fillStyle = '#666666'
             ctx.fillText('★', drawX + ts / 2, drawY + ts / 2)
           } else {
-            // Обычные промежуточные точки
             ctx.fillStyle = '#444444'
             ctx.fillText('·', drawX + ts / 2, drawY + ts / 2)
           }
         }
 
-        // Рисуем рамку вокруг оригинальной цели (если она заблокирована)
-        if (!target.isOriginal) {
+        if (!result.target.isOriginal) {
           ctx.strokeStyle = '#ff8888'
           ctx.lineWidth = 1
           ctx.setLineDash([4, 4])
@@ -230,7 +234,6 @@ export default class Renderer {
         }
       }
     }
-
     // ПОДСВЕТКА ХОВЕРА
     if (!input.isCameraMovingNow() && this.hoverTileX !== null) {
       const hoverTile = map.getTile(this.hoverTileX, this.hoverTileY)
