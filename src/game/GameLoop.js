@@ -6,25 +6,40 @@ import Renderer from './Renderer.js'
 import Location from './Location.js'
 
 export default class GameLoop {
-  constructor(canvas, config, initialLocation = null) {
+  constructor(canvas, config, initialLocation = null, biomeType = null) {
     this.config = config
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
-    this.currentLocation = initialLocation || Location.createDefault(config)
+    // Если передан biomeType, генерируем процедурную локацию
+    if (biomeType && !initialLocation) {
+      this.currentLocation = Location.generateProcedural(config, biomeType)
+    } else {
+      this.currentLocation = initialLocation || Location.createDefault(config)
+    }
+
 
     const characters = this.currentLocation.getAllCharacters()
+    let activeCharacter = null
+
     if (characters.length > 0) {
       const playerChar = characters.find(c => c.canSwitchTo === true) || characters[0]
       if (playerChar && playerChar.canSwitchTo) {
         playerChar.isActive = true
+        activeCharacter = playerChar
         console.log(`Активирован персонаж: ${playerChar.name}`)
       }
     }
-
     this.currentLocation.revealInitialMap()
 
-    this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, config.cameraSpeed)
+    // ИНИЦИАЛИЗИРУЕМ КАМЕРУ НА АКТИВНОМ ПЕРСОНАЖЕ
+    if (activeCharacter) {
+      this.camera = new Camera(activeCharacter.x, activeCharacter.y, config.cameraSpeed)
+      console.log(`Камера центрирована на: ${activeCharacter.name} (${activeCharacter.x}, ${activeCharacter.y})`)
+    } else {
+      this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, config.cameraSpeed)
+      console.log(`Камера центрирована на центр карты (${this.config.cols / 2}, ${this.config.rows / 2})`)
+    }
 
     this.input = new InputManager(config.swipeThreshold)
     this.renderer = null
@@ -39,13 +54,60 @@ export default class GameLoop {
     // Флаг ожидания конца хода
     this.waitingForTurnEnd = false
   }
+  regenerateLevel(biomeType = null) {
+    console.log(`Regenerating level with biome: ${biomeType || 'random'}`)
 
+    // Сохраняем ID активного персонажа до регенерации
+    const oldActiveId = this.currentLocation.getActiveCharacter()?.id
+
+    this.currentLocation = Location.generateProcedural(this.config, biomeType)
+
+    const characters = this.currentLocation.getAllCharacters()
+    let newActiveCharacter = null
+
+    if (characters.length > 0) {
+      // Пытаемся найти персонажа с тем же ID (если есть)
+      if (oldActiveId) {
+        newActiveCharacter = characters.find(c => c.id === oldActiveId)
+      }
+
+      // Если не нашли по ID, берем первого игрового персонажа
+      if (!newActiveCharacter) {
+        newActiveCharacter = characters.find(c => c.canSwitchTo === true) || characters[0]
+      }
+
+      if (newActiveCharacter && newActiveCharacter.canSwitchTo) {
+        newActiveCharacter.isActive = true
+        console.log(`Активирован персонаж: ${newActiveCharacter.name} (ID: ${newActiveCharacter.id})`)
+      }
+    }
+
+    this.currentLocation.revealInitialMap()
+
+    // Центрируем камеру на новом активном персонаже
+    if (newActiveCharacter) {
+      this.camera.setPosition(newActiveCharacter.x, newActiveCharacter.y)
+      console.log(`Камера центрирована на: ${newActiveCharacter.name}`)
+    } else {
+      this.camera.setPosition(this.config.cols / 2, this.config.rows / 2)
+    }
+
+    this.pathCache.clear()
+
+    // Вызываем колбэк если есть
+    if (this.onLocationChanged) {
+      this.onLocationChanged()
+    }
+
+    // Возвращаем ID активного персонажа для UI
+    return newActiveCharacter?.id
+  }
   switchCharacter(characterId) {
-    // characterId теперь может быть числом
     const newActive = this.currentLocation.switchToCharacter(characterId)
     if (newActive) {
       newActive.restoreFullAP()
       this.camera.setPosition(newActive.x, newActive.y)
+      console.log(`Камера перецентрирована на: ${newActive.name}`)
 
       setTimeout(() => {
         const active = this.currentLocation.getActiveCharacter()
@@ -77,7 +139,19 @@ export default class GameLoop {
     const character = this.currentLocation.getAllCharacters().find(c => c.id === characterId)
     if (character) {
       this.camera.setPosition(character.x, character.y)
+      console.log(`Камера центрирована на персонаже: ${character.name}`)
     }
+  }
+
+  centerOnActiveCharacter() {
+    const activeChar = this.currentLocation.getActiveCharacter()
+    if (activeChar) {
+      this.camera.setPosition(activeChar.x, activeChar.y)
+      console.log(`Камера центрирована на активном персонаже: ${activeChar.name} (ID: ${activeChar.id})`)
+      return true
+    }
+    console.warn('Нет активного персонажа для центрирования')
+    return false
   }
 
   getBlockedCells() {

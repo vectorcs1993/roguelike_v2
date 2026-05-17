@@ -1,4 +1,4 @@
-// src/game/Location.js
+// src/game/Location.js (обновленный)
 
 import TileMap from './TileMap.js'
 import Character from './Character.js'
@@ -6,11 +6,13 @@ import Item from './Item.js'
 import Pathfinder from './Pathfinder.js'
 import PlayerTeam from './PlayerTeam.js'
 import EnemyTeam from './EnemyTeam.js'
+import BiomeGenerator from './BiomeGenerator.js'
 
 export default class Location {
-  constructor(config, pillars, teamConfigs = [], itemConfigs = []) {
+  constructor(config, pillars, teamConfigs = [], itemConfigs = [], biomeName = null) {
     this.config = config
-    this.name = 'default'
+    this.biomeName = biomeName || 'Неизвестная локация'
+    this.name = this.biomeName
 
     this.map = new TileMap(config.cols, config.rows)
     this.map.fill()
@@ -41,11 +43,9 @@ export default class Location {
         const charColor = charConfig.color || teamConfig.color || team.color || '#ffffff'
         const fovRadius = charConfig.fovRadius || 8
 
-        // Получаем настройки AP из конфига персонажа
         const apConfig = charConfig.ap || {}
         const maxAP = apConfig.max || 12
         const moveAPCost = apConfig.moveCost !== undefined ? apConfig.moveCost : 1
-        const moveAPCostDiagonal = apConfig.moveCost !== undefined ? apConfig.moveCost : 1 // диагональ стоит столько же
 
         const character = new Character(
           charConfig.x, charConfig.y,
@@ -56,7 +56,7 @@ export default class Location {
           charConfig.name,
           team,
           fovRadius,
-          { maxAP, moveAPCost, moveAPCostDiagonal } // Передаем AP конфиг
+          { maxAP, moveAPCost }
         )
         team.addCharacter(character)
         this.characters.push(character)
@@ -88,7 +88,6 @@ export default class Location {
   }
 
   switchToCharacter(characterId) {
-    // Сравниваем с учетом типа (число/строка)
     const character = this.characters.find(c => String(c.id) === String(characterId))
 
     if (!character || !character.canSwitchTo) {
@@ -140,8 +139,6 @@ export default class Location {
   getBlockedCells(activeCharacter = null) {
     const blocked = []
     for (const team of this.teams.values()) {
-      // ВОЗВРАЩАЕМ ВСЕХ персонажей (и союзников, и врагов)
-      // Активный персонаж исключается
       blocked.push(...team.getBlockedCells(activeCharacter))
     }
     return blocked
@@ -234,17 +231,21 @@ export default class Location {
     }
   }
 
-  static createDefault(config) {
-    const pillars = [
-      [10, 8], [10, 9], [10, 10], [30, 15], [30, 16], [30, 17],
-      [50, 25], [50, 26], [15, 30], [16, 30], [17, 30],
-      [45, 7], [45, 8], [45, 9], [25, 20], [26, 20], [27, 20],
-      [35, 10], [36, 10], [37, 10], [55, 32], [56, 32], [57, 32]
-    ]
+  //  метод для создания процедурно-сгенерированной локации
+  static generateProcedural(config) {
+    const generator = new BiomeGenerator(config);
+    const { walls, width, height } = generator.generate();
 
-    // Генератор числовых ID
-    let nextId = 1
-    const generateId = () => nextId++
+    const biomeName = '🏰 Жилой комплекс';
+
+    // Поиск свободных позиций для персонажей
+    const playerStart = this.findEmptyTileInRoom(walls, width, height);
+    const allyStart = this.findEmptyTileInRoom(walls, width, height, [playerStart]);
+    const enemyStart1 = this.findEmptyTileInRoom(walls, width, height, [playerStart, allyStart]);
+    const enemyStart2 = this.findEmptyTileInRoom(walls, width, height, [playerStart, allyStart, enemyStart1]);
+
+    let nextId = 1;
+    const generateId = () => nextId++;
 
     const teamConfigs = [
       {
@@ -254,47 +255,94 @@ export default class Location {
         color: '#44aaff',
         characters: [
           {
-            x: 30, y: 20, char: '@', color: '#44ffaa', id: generateId(),
-            name: 'Ликвидатор 1', fovRadius: 8,
-            ap: { max: 8, moveCost: 1 }
+            x: playerStart.x, y: playerStart.y, char: '@', color: '#44ffaa', id: generateId(),
+            name: 'Герой', fovRadius: 12,
+            ap: { max: 12, moveCost: 1 }
           },
           {
-            x: 28, y: 22, char: '@', color: '#44ffaa', id: generateId(),
-            name: 'Ликвидатор 2', fovRadius: 10,
-            ap: { max: 10, moveCost: 2 }
+            x: allyStart.x, y: allyStart.y, char: '@', color: '#44ffaa', id: generateId(),
+            name: 'Спутник', fovRadius: 10,
+            ap: { max: 10, moveCost: 1 }
           }
         ]
       },
       {
         type: 'enemy',
         id: 'creatures',
-        name: 'Твари',
+        name: 'Монстры',
         color: '#ff4444',
         characters: [
           {
-            x: 12, y: 25, char: 'g', color: '#ff4444', id: generateId(),
-            name: 'Перекожник', fovRadius: 5,
-            ap: { max: 12, moveCost: 1 }
+            x: enemyStart1.x, y: enemyStart1.y, char: 'g', color: '#ff6666', id: generateId(),
+            name: 'Гоблин', fovRadius: 8,
+            ap: { max: 10, moveCost: 1 }
           },
           {
-            x: 48, y: 30, char: 'T', color: '#ff4444', id: generateId(),
-            name: 'Слизь', fovRadius: 6,
+            x: enemyStart2.x, y: enemyStart2.y, char: 'O', color: '#ff4444', id: generateId(),
+            name: 'Орк', fovRadius: 8,
             ap: { max: 8, moveCost: 2 }
           }
         ]
       }
-    ]
+    ];
 
-    const items = [
-      { x: 15, y: 10, apRestore: 5 },
-      { x: 40, y: 20, apRestore: 3 },
-      { x: 25, y: 30, apRestore: 10 },
-      { x: 50, y: 15, apRestore: 2 },
-      { x: 35, y: 5, apRestore: 8 }
-    ]
+    const occupiedPositions = [
+      ...teamConfigs[0].characters.map(c => ({ x: c.x, y: c.y })),
+      ...teamConfigs[1].characters.map(c => ({ x: c.x, y: c.y }))
+    ];
 
-    const location = new Location(config, pillars, teamConfigs, items)
-    location.name = '🏭 Заброшенный комплекс'
-    return location
+    const items = [];
+    for (let i = 0; i < 20; i++) {
+      const pos = this.findEmptyTileInRoom(walls, width, height, occupiedPositions);
+      if (pos) {
+        items.push({ x: pos.x, y: pos.y, apRestore: 2 + Math.floor(Math.random() * 8) });
+        occupiedPositions.push(pos);
+      }
+    }
+
+    const updatedConfig = { ...config, cols: width, rows: height };
+    const location = new Location(updatedConfig, walls, teamConfigs, items, biomeName);
+    return location;
+  }
+
+  static findEmptyTileInRoom(walls, cols, rows, occupied = []) {
+    const occupiedSet = new Set(occupied.map(o => `${o.x},${o.y}`));
+    const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`));
+
+    // Ищем внутри комнат (вдали от стен)
+    for (let y = 3; y < rows - 3; y++) {
+      for (let x = 3; x < cols - 3; x++) {
+        const key = `${x},${y}`;
+        if (!wallSet.has(key) && !occupiedSet.has(key)) {
+          // Проверяем, что это внутри комнаты (рядом есть стены)
+          let wallCount = 0;
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              if (wallSet.has(`${x + dx},${y + dy}`)) wallCount++;
+            }
+          }
+          if (wallCount > 0 && wallCount < 8) {
+            return { x, y };
+          }
+        }
+      }
+    }
+
+    // Fallback: любая свободная клетка
+    for (let y = 2; y < rows - 2; y++) {
+      for (let x = 2; x < cols - 2; x++) {
+        const key = `${x},${y}`;
+        if (!wallSet.has(key) && !occupiedSet.has(key)) {
+          return { x, y };
+        }
+      }
+    }
+
+    return { x: 10, y: 10 };
+  }
+
+  // Старый метод createDefault оставляем для совместимости, но делаем процедурным
+  static createDefault(config) {
+    return Location.generateProcedural(config)
   }
 }

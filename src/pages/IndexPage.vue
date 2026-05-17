@@ -10,6 +10,10 @@
       {{ locationNameValue }}
     </q-chip>
 
+    <div class="debug-buttons">
+      <q-btn @click="regenerateLevel" color="orange" size="sm" label="🔄 Новый уровень" />
+      <q-btn @click="revealFullMap" color="purple" size="sm" label="🗺️ Открыть карту" />
+    </div>
     <!-- Панель персонажей -->
     <div class="characters-panel">
       <div class="characters-container">
@@ -53,9 +57,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import config from 'src/game/config.json'
 import GameLoop from 'src/game/GameLoop.js'
-import Location from 'src/game/Location.js'
 
-const startLocation = Location.createDefault(config)
 
 const canvasRef = ref(null)
 let game = null
@@ -122,8 +124,6 @@ function updateCharactersList() {
     maxAP: char.maxAP,
     apPercentage: char.getAPPercentage ? char.getAPPercentage() : (char.currentAP / char.maxAP) * 100
   }))
-
-  console.log('Characters list updated:', charactersListData.value.map(c => ({ id: c.id, name: c.name, type: typeof c.id })))
 }
 
 async function onCharacterClick(character) {
@@ -141,7 +141,35 @@ async function onCharacterClick(character) {
   await updateCharactersList()
   requestAnimationFrame(() => updateCharactersList())
 }
+function regenerateLevel() {
+  if (!game) return
+  console.log('Regenerating level...')
 
+  game.regenerateLevel()
+
+  setTimeout(() => {
+    if (game) {
+      game.centerOnActiveCharacter()
+      updateCharactersList()
+    }
+  }, 100)
+}
+function revealFullMap() {
+  if (!game?.currentLocation) return
+
+  const map = game.currentLocation.map
+  // Открываем все тайлы
+  for (let y = 0; y < map.rows; y++) {
+    for (let x = 0; x < map.cols; x++) {
+      const tile = map.getTile(x, y)
+      if (tile) {
+        tile.visible = true
+        tile.explored = true
+      }
+    }
+  }
+  console.log('Карта полностью открыта!')
+}
 function onCanvasClick(e) {
   const panel = document.querySelector('.characters-panel')
   if (panel) {
@@ -192,7 +220,7 @@ function onMouseDown(e) { game?.onMouseDown(e) }
 function onMouseUp(e) { game?.onMouseUp(e) }
 
 onMounted(() => {
-  game = new GameLoop(canvasRef.value, config, startLocation)
+  game = new GameLoop(canvasRef.value, config)
   resizeCanvas()
 
   window.addEventListener('resize', onResize)
@@ -375,6 +403,19 @@ onUnmounted(() => {
   backdrop-filter: blur(4px);
   border: 1px solid rgba(0, 255, 0, 0.3);
   pointer-events: none;
+}
+
+.debug-buttons {
+  position: absolute;
+  top: 80px;
+  right: 120px;
+  z-index: 15;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 8px;
+  border-radius: 8px;
+  backdrop-filter: blur(4px);
+  display: flex;
+  gap: 8px;
 }
 
 @media (max-width: 768px) {

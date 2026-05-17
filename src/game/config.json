@@ -1,7 +1,5 @@
 {
-  "tileSize": 128,
-  "cols": 60,
-  "rows": 40,
+  "tileSize": 64,
   "moveInterval": 0.2,
   "npcMoveSpeed": 8,
   "npcWanderInterval": 1.5,

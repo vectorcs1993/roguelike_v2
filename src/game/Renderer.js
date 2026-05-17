@@ -57,14 +57,11 @@ export default class Renderer {
     const ox = this.halfW - camera.x * ts
     const oy = this.halfH - camera.y * ts
 
-    // Очистка
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, this.canvasW, this.canvasH)
 
-    // Отключаем сглаживание
     ctx.imageSmoothingEnabled = false
 
-    // Границы
     const startX = Math.max(0, Math.floor(camera.x - this.canvasW / ts / 2) - 1)
     const startY = Math.max(0, Math.floor(camera.y - this.canvasH / ts / 2) - 1)
     const endX = Math.min(map.cols, startX + Math.ceil(this.canvasW / ts) + 2)
@@ -77,39 +74,45 @@ export default class Renderer {
         if (tile) {
           const drawX = x * ts + ox
           const drawY = y * ts + oy
-          const gap = 0.25 // Маленький зазор между тайлами
+          const gap = 0.25
 
-          // Сохраняем контекст
           ctx.save()
           ctx.beginPath()
           ctx.rect(drawX + gap, drawY + gap, ts - gap * 2, ts - gap * 2)
           ctx.clip()
 
-          tile.draw(ctx, drawX, drawY, ts, tile.visible, tile.explored, this.fontFamily)
+          // Рисуем только если видимо или исследовано
+          if (tile.visible || tile.explored) {
+            tile.draw(ctx, drawX, drawY, ts, tile.visible, tile.explored, this.fontFamily)
+          } else {
+            // Невидимые клетки - черные
+            ctx.fillStyle = '#000000'
+            ctx.fillRect(drawX + gap, drawY + gap, ts - gap * 2, ts - gap * 2)
+          }
 
           ctx.restore()
         }
       }
     }
 
-    // Предметы
+    // Предметы - только видимые
     for (const item of items) {
-      const tile = map.getTile(item.x, item.y)
-      if (tile && (tile.visible || tile.explored)) {
-        item.draw(ctx, item.x * ts + ox, item.y * ts + oy, ts, tile.visible, this.fontFamily)
+      const tile = map.getTile(Math.floor(item.x), Math.floor(item.y))
+      if (tile && tile.visible) {
+        item.draw(ctx, item.x * ts + ox, item.y * ts + oy, ts, true, this.fontFamily)
       }
     }
 
-    // Персонажи
+    // Персонажи - только видимые
     for (const char of characters) {
       const tile = map.getTile(Math.floor(char.x), Math.floor(char.y))
-      const isVisible = this._location?.isCharacterVisibleForActive(char) ?? tile?.visible
+      const isVisible = this._location?.isCharacterVisibleForActive(char) ?? (tile && tile.visible)
       if (isVisible) {
         char.draw(ctx, char.vx * ts + ox, char.vy * ts + oy, ts, true, char === this._activeCharacter, this.fontFamily)
       }
     }
 
-    // Путь
+    // Путь (всегда рисуем)
     if (this._activeCharacter?.path?.length) {
       ctx.fillStyle = '#ffaa00'
       ctx.font = `${ts}px ${this.fontFamily}`
@@ -142,19 +145,16 @@ export default class Renderer {
       if (path && path.length > 0) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'
 
-        // Пропускаем ПЕРВУЮ точку (текущая позиция персонажа)
         for (let i = 1; i < path.length - 1; i++) {
           const p = path[i]
           ctx.fillText('·', p.x * ts + ox + ts / 2, p.y * ts + oy + ts / 2)
         }
 
         const last = path[path.length - 1]
-        // Проверяем, что целевая клетка - НЕ персонаж
         const isTargetCharacter = this._allCharacters?.some(
           c => c !== this._activeCharacter && c.occupies(last.x, last.y)
         )
 
-        // Рисуем рамку только если цель не персонаж
         if (!isTargetCharacter) {
           ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)'
           ctx.lineWidth = 2
@@ -165,17 +165,20 @@ export default class Renderer {
       }
     }
 
-    // Подсветка ховера
+    // Подсветка ховера - только видимые клетки
     if (!input.isCameraMovingNow() && this.hoverTileX !== null) {
-      const x = this.hoverTileX * ts + ox
-      const y = this.hoverTileY * ts + oy
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'
-      ctx.lineWidth = 2
-      ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
+      const hoverTile = map.getTile(this.hoverTileX, this.hoverTileY)
+      if (hoverTile && hoverTile.visible) {
+        const x = this.hoverTileX * ts + ox
+        const y = this.hoverTileY * ts + oy
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)'
+        ctx.lineWidth = 2
+        ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
 
-      if (this._location) {
-        const info = this._location.getTileInfo(this.hoverTileX, this.hoverTileY)
-        if (info) this.drawTooltip(info.name)
+        if (this._location) {
+          const info = this._location.getTileInfo(this.hoverTileX, this.hoverTileY)
+          if (info) this.drawTooltip(info.name)
+        }
       }
     }
   }
