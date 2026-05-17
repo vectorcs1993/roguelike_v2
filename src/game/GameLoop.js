@@ -1,10 +1,8 @@
-// src/game/GameLoop.js
 import PathCache from './PathCache.js'
 import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
 import Location from './Location.js'
-import { findPathToNearestWalkable } from './PathHelper.js'
 
 export default class GameLoop {
   constructor(canvas, config, initialLocation = null, biomeType = null) {
@@ -214,58 +212,55 @@ export default class GameLoop {
   }
 
   handleClick(screenX, screenY) {
-    if (this.input.isCameraMovingNow()) return false
+    if (this.input.isCameraMovingNow()) return false;
 
-    const activeChar = this.currentLocation.getActiveCharacter()
-    if (!activeChar) return false
+    const activeChar = this.currentLocation.getActiveCharacter();
+    if (!activeChar) return false;
 
     if (activeChar.currentAP <= 0) {
-      console.log(`${activeChar.name}: Нет очков действий!`)
-      return false
+      console.log(`${activeChar.name}: Нет очков действий!`);
+      return false;
     }
 
-    const worldX = (screenX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x
-    const worldY = (screenY - this.renderer.halfH) / this.renderer.tileSize + this.camera.y
-    const tileX = worldX | 0
-    const tileY = worldY | 0
+    const worldX = (screenX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x;
+    const worldY = (screenY - this.renderer.halfH) / this.renderer.tileSize + this.camera.y;
+    const tileX = worldX | 0;
+    const tileY = worldY | 0;
 
-    const fromX = Math.floor(activeChar.x)
-    const fromY = Math.floor(activeChar.y)
+    const fromX = Math.floor(activeChar.x);
+    const fromY = Math.floor(activeChar.y);
 
-    // Проверяем соседнюю клетку
-    const isAdjacent = Math.abs(fromX - tileX) <= 1 && Math.abs(fromY - tileY) <= 1
+    const isAdjacent = Math.abs(fromX - tileX) <= 1 && Math.abs(fromY - tileY) <= 1;
 
     if (isAdjacent) {
-      const isWalkable = this.currentLocation.map.isWalkable(tileX, tileY)
+      const isWalkable = this.currentLocation.map.isWalkable(tileX, tileY);
       const targetCharacter = this.currentLocation.getAllCharacters().find(
         c => c !== activeChar && c.occupies(tileX, tileY)
-      )
-      const canStand = isWalkable && !targetCharacter
+      );
+      const canStand = isWalkable && !targetCharacter;
 
       if (canStand) {
         if (activeChar.moveTo(tileX, tileY)) {
-          return true
+          return true;
         }
       }
-      return false
+      return false;
     }
 
-    // Для несоседних - используем новую функцию
-    const result = findPathToNearestWalkable(
+    // Для несоседних (или для занятых соседних) - используем Pathfinder
+    const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
       tileX, tileY,
-      this.currentLocation.map,
       this.currentLocation.getAllCharacters(),
       activeChar,
-      this.currentLocation.pathfinder,
       fromX, fromY
-    )
+    );
 
     if (result && result.path && result.path.length > 0) {
-      activeChar.setPath(result.path)
-      return true
+      activeChar.setPath(result.path);
+      return true;
     }
 
-    return false
+    return false;
   }
 
   updateHoverTile(mouseX, mouseY) {

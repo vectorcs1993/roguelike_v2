@@ -1,5 +1,3 @@
-// src/game/Team.js
-
 export default class Team {
   constructor(id, name, config) {
     this.id = id

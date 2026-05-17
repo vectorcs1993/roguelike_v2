@@ -1,4 +1,3 @@
-import { findPathToNearestWalkable } from './PathHelper'
 
 export default class Renderer {
   // Константы класса
@@ -197,14 +196,12 @@ export default class Renderer {
       }
 
       // Для несоседних - используем новую функцию
-      const result = findPathToNearestWalkable(
+      const result = this._pathfinder.findPathToNearestWalkable(
         toX, toY,
-        map,
         this._allCharacters,
         this._activeCharacter,
-        this._pathfinder,
         fromX, fromY
-      )
+      );
 
       if (result && result.path && result.path.length > 0) {
         // Сохраняем для возможного использования

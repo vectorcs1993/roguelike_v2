@@ -1,10 +1,20 @@
-// src/game/Pathfinder.js
+export const NEIGHBOR_ORDER = [
+  { dx: 0, dy: -1 },  // вверх
+  { dx: 0, dy: 1 },   // вниз
+  { dx: -1, dy: 0 },  // влево
+  { dx: 1, dy: 0 },   // вправо
+  { dx: -1, dy: -1 }, // вверх-влево
+  { dx: 1, dy: -1 },  // вверх-вправо
+  { dx: -1, dy: 1 },  // вниз-влево
+  { dx: 1, dy: 1 }    // вниз-вправо
+]
 
 export default class Pathfinder {
   constructor(map) {
     this.map = map
   }
 
+  // ОСНОВНОЙ МЕТОД A* ДЛЯ ПОИСКА ПУТИ
   find(sx, sy, ex, ey, blockedCells = []) {
     const map = this.map
 
@@ -77,7 +87,6 @@ export default class Pathfinder {
         const nKey = key(n.x, n.y)
         if (closedSet.has(nKey)) continue
 
-        // Используем isWalkable для проверки проходимости
         if (!map.isWalkable(n.x, n.y)) continue
 
         // Проверка среза углов для диагонального движения
@@ -87,7 +96,7 @@ export default class Pathfinder {
           if (!adj1 || !adj2) continue
         }
 
-        // Клетки с персонажами - высокий штраф (обходим, но не запрещаем)
+        // Клетки с персонажами - высокий штраф
         let occupationCost = 0
         for (const b of blockedCells) {
           if (b.x === n.x && b.y === n.y) {
@@ -127,5 +136,64 @@ export default class Pathfinder {
     }
 
     return null
+  }
+
+  // МЕТОД ДЛЯ ПОИСКА ПУТИ ДО БЛИЖАЙШЕЙ ДОСТУПНОЙ КЛЕТКИ
+  findPathToNearestWalkable(targetX, targetY, allCharacters, excludeCharacter, startX, startY) {
+    // Формируем список заблокированных клеток (другие персонажи)
+    const blockedCells = allCharacters
+      .filter(c => c !== excludeCharacter)
+      .map(c => ({ x: Math.floor(c.x), y: Math.floor(c.y) }));
+
+    // Проверяем целевую клетку
+    const isWalkable = this.map.isWalkable(targetX, targetY);
+    const isBlocked = blockedCells.some(b => b.x === targetX && b.y === targetY);
+    const canStand = isWalkable && !isBlocked;
+
+    if (canStand) {
+      // Строим путь до цели
+      const path = this.find(startX, startY, targetX, targetY, blockedCells);
+      if (path && path.length > 0) {
+        return { path, target: { x: targetX, y: targetY, isOriginal: true } };
+      }
+      return null;
+    }
+
+    // Для недоступной цели - ищем лучшую соседнюю клетку по длине пути
+    let bestPath = null;
+    let bestTarget = null;
+    let bestPathLength = Infinity;
+
+    for (const neighbor of NEIGHBOR_ORDER) {
+      const nx = targetX + neighbor.dx;
+      const ny = targetY + neighbor.dy;
+
+      if (nx >= 0 && nx < this.map.cols && ny >= 0 && ny < this.map.rows) {
+        const neighborWalkable = this.map.isWalkable(nx, ny);
+        const neighborBlocked = blockedCells.some(b => b.x === nx && b.y === ny);
+
+        if (neighborWalkable && !neighborBlocked) {
+          // Строим путь до этой соседней клетки
+          const path = this.find(startX, startY, nx, ny, blockedCells);
+          if (path && path.length > 0 && path.length < bestPathLength) {
+            bestPathLength = path.length;
+            bestPath = path;
+            bestTarget = {
+              x: nx,
+              y: ny,
+              isOriginal: false,
+              originalX: targetX,
+              originalY: targetY
+            };
+          }
+        }
+      }
+    }
+
+    if (bestPath && bestTarget) {
+      return { path: bestPath, target: bestTarget };
+    }
+
+    return null;
   }
 }
