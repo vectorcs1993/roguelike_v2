@@ -7,18 +7,17 @@ export default class Tile {
     this.visible = false
     this.explored = false
 
-    // Флаги проходимости и видимости
     this._isWalkable = config.isWalkable !== undefined ? config.isWalkable : (type === 0)
     this._blocksSight = config.blocksSight !== undefined ? config.blocksSight : (type === 1)
 
-    // Имя для тултипа
     this.name = config.name || this.getDefaultName()
 
-    // Настройки цвета
-    this.visibleColor = config.visibleColor || '#8888aa'
-    this.exploredColor = config.exploredColor || '#666688'
-    this.bgVisibleColor = config.bgVisibleColor || '#2a2a3a'
-    this.bgExploredColor = config.bgExploredColor || '#1a1a2a'
+    // МРАЧНЫЕ ЦВЕТА ДЛЯ САМОСБОРА
+    this.visibleColor = config.visibleColor || '#8a8a8a'      // Тускло-серый
+    this.exploredColor = config.exploredColor || '#5a5a5a'    // Темно-серый
+    this.bgVisibleColor = config.bgVisibleColor || '#1a1a2e'  // Очень темный синеватый
+    this.bgExploredColor = config.bgExploredColor || '#0f0f1a' // Почти черный
+
   }
 
   getDefaultName() {
@@ -43,20 +42,28 @@ export default class Tile {
   draw(ctx, x, y, ts, isVisible, isExplored, fontFamily) {
     if (!isVisible && !isExplored) return
 
-    let bgColor, textColor, alpha = 1
+    let bgColor, textColor, alpha
 
     if (isVisible) {
       bgColor = this.bgVisibleColor
       textColor = this.visibleColor
+      alpha = 0.9
     } else {
       bgColor = this.bgExploredColor
       textColor = this.exploredColor
-      alpha = 0.7
+      alpha = 0.6
     }
 
     ctx.globalAlpha = alpha
     ctx.fillStyle = bgColor
     ctx.fillRect(x, y, ts, ts)
+
+    // Добавляем легкую текстуру для исследованных клеток
+    if (!isVisible && isExplored) {
+      ctx.fillStyle = '#2a2a3a'
+      ctx.globalAlpha = 0.3
+      ctx.fillRect(x, y, ts, ts)
+    }
 
     if (this.char !== ' ') {
       ctx.fillStyle = textColor

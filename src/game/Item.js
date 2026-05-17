@@ -4,7 +4,7 @@ import GameObject from './GameObject.js'
 
 export default class Item extends GameObject {
   constructor(x, y, itemType = 'generic') {
-    super(x, y, '$', '#ffd700')
+    super(x, y, '$', '#aa8844')  // Золото → тусклая бронза
     this.collected = false
     this.itemType = itemType
     this.itemName = this.getItemName()
@@ -12,11 +12,11 @@ export default class Item extends GameObject {
 
   getItemName() {
     const names = {
-      generic: '💰 Сундук с сокровищами',
-      health: '❤️ Зелье лечения',
-      mana: '💙 Зелье маны',
-      weapon: '⚔️ Оружие',
-      armor: '🛡️ Броня'
+      generic: '📦 Ржавые припасы',
+      health: '💉 Аптечка (старая)',
+      mana: '⚡ Батарея (разряженная)',
+      weapon: '🔫 Ржавый автомат',
+      armor: '🛡️ Пробитая броня'
     }
     return names[this.itemType] || '📦 Предмет'
   }

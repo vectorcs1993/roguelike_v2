@@ -6,11 +6,11 @@ export default class Floor extends Tile {
   constructor() {
     const floorChar = ' '
     const floorConfig = {
-      name: '📍 Пол',
-      visibleColor: '#8888aa',
-      exploredColor: '#666688',
-      bgVisibleColor: '#2a2a3a',
-      bgExploredColor: '#1a1a2a',
+      name: '📍 Зараженный пол',
+      visibleColor: '#6a6a7a',        // Тусклый серо-синий
+      exploredColor: '#3a3a4a',        // Темный серо-синий
+      bgVisibleColor: '#1a1a2e',       // Очень темный
+      bgExploredColor: '#0f0f1a',      // Почти черный
       isWalkable: true,
       blocksSight: false
     }

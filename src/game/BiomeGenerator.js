@@ -1,4 +1,4 @@
-// src/game/BiomeGenerator.js
+import { ENEMIES, ENEMY_TYPES } from './EnemyData.js'
 
 export default class BiomeGenerator {
   constructor(config = {}) {
@@ -31,6 +31,36 @@ export default class BiomeGenerator {
       spawnInCorridors: config.items?.spawnInCorridors || false,
       maxAttemptsPerItem: config.items?.maxAttemptsPerItem || 100
     }
+
+    // Параметры генерации врагов
+    this.enemyConfig = {
+      enabled: config.enemies?.enabled !== false,
+      count: config.enemies?.count || 8,
+      spawnInRoomsOnly: config.enemies?.spawnInRoomsOnly !== false,
+      spawnInCorridors: config.enemies?.spawnInCorridors || false,
+      maxPerRoom: config.enemies?.maxPerRoom || 3,
+      difficultyMultiplier: config.enemies?.difficultyMultiplier || 1,
+      allowedTypes: config.enemies?.allowedTypes || Object.keys(ENEMY_TYPES),
+      avoidPlayerStart: config.enemies?.avoidPlayerStart !== false,
+      avoidNearPlayer: config.enemies?.avoidNearPlayer || 5,
+      maxAttemptsPerEnemy: config.enemies?.maxAttemptsPerEnemy || 100
+    }
+
+    // Веса для случайного выбора врагов (чем сложнее - тем реже)
+    this.enemyWeights = {
+      [ENEMY_TYPES.GROANER]: 100,
+      [ENEMY_TYPES.CRAWLER]: 90,
+      [ENEMY_TYPES.MOLD]: 70,
+      [ENEMY_TYPES.CLAWER]: 60,
+      [ENEMY_TYPES.SLIME]: 40,
+      [ENEMY_TYPES.RUNNER]: 80,
+      [ENEMY_TYPES.FATSO]: 30,
+      [ENEMY_TYPES.HOWLER]: 50,
+      [ENEMY_TYPES.STICKER]: 70,
+      [ENEMY_TYPES.MUSHROOM]: 45,
+      [ENEMY_TYPES.NONHUMAN]: 25,
+      [ENEMY_TYPES.RAT_KING]: 15
+    }
   }
 
   generate() {
@@ -38,8 +68,8 @@ export default class BiomeGenerator {
     const GRID_SIZE = this.gridSize;
 
     console.log(`Генерация с отступом: ${this.roomSpacing}, попыток: ${this.maxAttempts}`);
-    console.log(`Настройки ящиков:`, this.crateConfig);
-    console.log(`Настройки предметов:`, this.itemConfig);
+    console.log(`Настройки ящиков:`, JSON.stringify(this.crateConfig));
+    console.log(`Настройки предметов:`, JSON.stringify(this.itemConfig));
 
     // 1. СОЗДАЁМ СЕТКУ ДЛЯ ОТСЛЕЖИВАНИЯ ЗАНЯТЫХ КЛЕТОК
     const occupiedGrid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(false));
@@ -510,5 +540,197 @@ export default class BiomeGenerator {
 
     console.log(`Сгенерировано ${items.length} из ${this.itemConfig.count} предметов`)
     return items
+  }
+
+  // Генерация врагов
+  generateEnemies(walls, width, height, rooms, corridorCells, playerStart = null) {
+    if (!this.enemyConfig.enabled) {
+      console.log('Генерация врагов отключена в настройках')
+      return []
+    }
+
+    const enemies = []
+    const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
+
+    // Создаем множество клеток комнат
+    const roomCells = new Set()
+    for (const room of rooms) {
+      for (let y = room.y + 1; y < room.y + room.h; y++) {
+        for (let x = room.x + 1; x < room.x + room.w; x++) {
+          roomCells.add(`${x},${y}`)
+        }
+      }
+    }
+
+    // Собираем доступные клетки для спавна врагов
+    const availableCells = []
+
+    for (let y = 2; y < height - 2; y++) {
+      for (let x = 2; x < width - 2; x++) {
+        const key = `${x},${y}`
+
+        if (wallSet.has(key)) continue
+
+        // Проверяем условия спавна
+        let canPlace = true
+
+        if (this.enemyConfig.spawnInRoomsOnly && !roomCells.has(key)) {
+          canPlace = false
+        }
+
+        if (!this.enemyConfig.spawnInCorridors && corridorCells.has(key)) {
+          canPlace = false
+        }
+
+        if (this.enemyConfig.avoidPlayerStart && playerStart) {
+          const distToPlayer = Math.abs(x - playerStart.x) + Math.abs(y - playerStart.y)
+          if (distToPlayer < this.enemyConfig.avoidNearPlayer) {
+            canPlace = false
+          }
+        }
+
+        if (canPlace) {
+          // Даем вес клеткам в зависимости от удаленности от центра
+          const roomDistance = this.getDistanceToNearestRoom(x, y, rooms)
+          availableCells.push({ key, x, y, weight: roomDistance })
+        }
+      }
+    }
+
+    console.log(`Доступно клеток для врагов: ${availableCells.length}`)
+
+    if (availableCells.length === 0) {
+      console.warn('Нет доступных клеток для размещения врагов!')
+      return []
+    }
+
+    // Сортируем по весу (дальние комнаты имеют больший вес)
+    availableCells.sort((a, b) => b.weight - a.weight)
+
+    // Определяем количество врагов с учетом сложности
+    let targetCount = Math.min(this.enemyConfig.count, availableCells.length)
+    targetCount = Math.floor(targetCount * this.enemyConfig.difficultyMultiplier)
+
+    // Перемешиваем доступные клетки (но учитываем вес)
+    const shuffled = []
+    for (let i = 0; i < targetCount && i < availableCells.length; i++) {
+      shuffled.push(availableCells[i])
+    }
+
+    // Генерируем врагов
+    for (let i = 0; i < targetCount && i < shuffled.length; i++) {
+      const { x, y } = shuffled[i]
+
+      // Выбираем случайного врага с учетом весов
+      const enemyType = this.selectRandomEnemy()
+      if (!enemyType) continue
+
+      const enemyData = ENEMIES[enemyType]
+
+      enemies.push({
+        x, y,
+        type: enemyType,
+        name: enemyData.name,
+        char: enemyData.char,
+        color: enemyData.color,
+        hp: enemyData.hp,
+        armor: enemyData.armor,
+        damageMin: enemyData.damageMin,
+        damageMax: enemyData.damageMax,
+        damageType: enemyData.damageType,
+        range: enemyData.range,
+        initiative: enemyData.initiative,
+        accuracy: enemyData.accuracy,
+        ap: enemyData.ap,
+        fovRadius: enemyData.fovRadius,
+        features: enemyData.features,
+        description: enemyData.description
+      })
+    }
+
+    // Группируем врагов по комнатам (не более maxPerRoom)
+    const finalEnemies = []
+    const roomEnemyCount = new Map()
+
+    for (const enemy of enemies) {
+      const roomKey = this.findRoomForCell(enemy.x, enemy.y, rooms)
+      const count = roomEnemyCount.get(roomKey) || 0
+
+      if (count < this.enemyConfig.maxPerRoom) {
+        finalEnemies.push(enemy)
+        roomEnemyCount.set(roomKey, count + 1)
+      }
+    }
+
+    console.log(`Сгенерировано ${finalEnemies.length} из ${targetCount} врагов`)
+
+    // Выводим статистику по типам врагов
+    const typeStats = {}
+    for (const enemy of finalEnemies) {
+      typeStats[enemy.name] = (typeStats[enemy.name] || 0) + 1
+    }
+    console.log('Типы врагов:', typeStats)
+
+    return finalEnemies
+  }
+
+  // Выбор случайного врага с учетом весов
+  selectRandomEnemy() {
+    const availableTypes = this.enemyConfig.allowedTypes
+
+    // Собираем доступных врагов с весами
+    const weighted = []
+    for (const type of availableTypes) {
+      if (ENEMIES[type]) {
+        const weight = this.enemyWeights[type] || 50
+        weighted.push({ type, weight })
+      }
+    }
+
+    if (weighted.length === 0) return null
+
+    // Вычисляем общий вес
+    let totalWeight = 0
+    for (const w of weighted) {
+      totalWeight += w.weight
+    }
+
+    // Выбираем случайного
+    let random = Math.random() * totalWeight
+    for (const w of weighted) {
+      if (random < w.weight) {
+        return w.type
+      }
+      random -= w.weight
+    }
+
+    return weighted[0].type
+  }
+
+  // Расстояние до ближайшей комнаты
+  getDistanceToNearestRoom(x, y, rooms) {
+    let minDist = Infinity
+    for (const room of rooms) {
+      const roomCenterX = room.x + room.w / 2
+      const roomCenterY = room.y + room.h / 2
+      const dist = Math.abs(x - roomCenterX) + Math.abs(y - roomCenterY)
+      if (dist < minDist) {
+        minDist = dist
+      }
+    }
+    // Чем дальше от центра комнаты, тем больше вес
+    return minDist
+  }
+
+  // Находим комнату для клетки
+  findRoomForCell(x, y, rooms) {
+    for (let i = 0; i < rooms.length; i++) {
+      const room = rooms[i]
+      if (x >= room.x && x <= room.x + room.w &&
+        y >= room.y && y <= room.y + room.h) {
+        return i
+      }
+    }
+    return -1
   }
 }

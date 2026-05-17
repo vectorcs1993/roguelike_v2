@@ -1,60 +1,65 @@
 <template>
   <q-page class="game-page">
-    <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd"
-      @click.prevent="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu" @mousedown="onMouseDown"
-      @mouseup="onMouseUp"></canvas>
+    <div class="game-layout">
+      <!-- Canvas wrapper - занимает всё свободное место -->
+      <div class="canvas-wrapper">
+        <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd"
+          @click.prevent="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu"
+          @mousedown="onMouseDown" @mouseup="onMouseUp">
+        </canvas>
+      </div>
 
-    <!-- Название локации -->
-    <q-chip class="location-name" color="dark" text-color="amber">
-      <q-icon name="place" size="xs" />
-      {{ locationNameValue }}
-    </q-chip>
+      <!-- Название локации -->
+      <q-chip class="location-name" color="dark" text-color="amber">
+        <q-icon name="place" size="xs" />
+        {{ locationNameValue }}
+      </q-chip>
 
-    <div class="debug-buttons">
-      <q-btn @click="regenerateLevel" color="orange" size="sm" label="🔄 Новый уровень" />
-      <q-btn @click="revealFullMap" color="purple" size="sm" label="🗺️ Открыть карту" />
-    </div>
-    <!-- Панель персонажей -->
-    <div class="characters-panel">
-      <div class="characters-container">
-        <q-card v-for="character in charactersList" :key="character.id" :class="getCharacterCardClass(character)"
-          :style="{ cursor: character.isSelectable ? 'pointer' : 'not-allowed' }" @click="onCharacterClick(character)" flat bordered>
-          <div class="character-card-content">
-            <div class="character-symbol">{{ character.char }}</div>
-            <div class="character-name">{{ character.name }} id: {{ character.id }}</div>
-            <div class="character-team">
-              <q-chip :style="{ backgroundColor: character.teamColor, color: '#ffffff' }" size="sm" class="team-chip">
-                {{ character.teamName }}
-              </q-chip>
-            </div>
-            <div class="character-ap-section">
-              <div class="character-ap-label">
-                <q-icon name="bolt" size="12px" :color="getAPColor(character.apPercentage)" />
-                <span>Очки действий</span>
+      <!-- Кнопки отладки -->
+      <div class="debug-buttons">
+        <q-btn @click="regenerateLevel" color="orange" size="sm" label="🔄" flat dense />
+        <q-btn @click="revealFullMap" color="purple" size="sm" label="🗺️" flat dense />
+      </div>
+
+      <!-- Панель персонажей внизу -->
+      <div class="characters-panel">
+        <div class="characters-header">
+          <q-icon name="groups" size="18px" />
+          <span>Отряд</span>
+          <span class="characters-count">({{ charactersList.length }})</span>
+        </div>
+        <div class="characters-container">
+          <q-card v-for="character in charactersList" :key="character.id" :class="getCharacterCardClass(character)" class="character-card"
+            :style="{ cursor: character.isSelectable ? 'pointer' : 'not-allowed' }" @click="onCharacterClick(character)" flat bordered>
+            <div class="character-card-content">
+              <div class="character-symbol">{{ character.char }}</div>
+              <div class="character-name">{{ character.name }}</div>
+              <div class="character-team">
+                <q-chip :style="{ backgroundColor: character.teamColor, color: '#ffffff' }" size="sm" class="team-chip">
+                  {{ character.teamName }}
+                </q-chip>
               </div>
-              <div class="character-ap-value" :class="getAPColor(character.apPercentage)">
-                {{ character.ap }}/{{ character.maxAP }}
+              <div class="character-ap-section">
+                <div class="character-ap-label">
+                  <q-icon name="bolt" size="12px" :color="getAPColor(character.apPercentage)" />
+                  <span>AP</span>
+                </div>
+                <div class="character-ap-value" :class="getAPColor(character.apPercentage)">
+                  {{ character.ap }}/{{ character.maxAP }}
+                </div>
+                <q-linear-progress :value="(character.apPercentage || 0) / 100" :color="getAPProgressColor(character.apPercentage)"
+                  class="ap-progress" track-color="grey-8" />
               </div>
-              <q-linear-progress :value="(character.apPercentage || 0) / 100" :color="getAPProgressColor(character.apPercentage)" class="ap-progress"
-                track-color="grey-8" />
             </div>
-          </div>
-        </q-card>
+          </q-card>
+        </div>
       </div>
     </div>
-
-    <!-- Отладочная панель -->
-    <q-card class="debug-panel" flat>
-      <q-card-section class="q-pa-sm">
-        <div class="text-caption text-green">Characters: {{ charactersCount }}</div>
-        <div class="text-caption text-green">Selectable: {{ selectableCount }}</div>
-      </q-card-section>
-    </q-card>
   </q-page>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import config from 'src/game/config.json'
 import GameLoop from 'src/game/GameLoop.js'
 
@@ -63,10 +68,8 @@ const canvasRef = ref(null)
 let game = null
 let resizeTimeout = null
 let updateInterval = null
+let resizeObserver = null
 
-// Реактивные данные
-const charactersCount = ref(0)
-const selectableCount = ref(0)
 const charactersListData = ref([])
 const locationNameValue = ref('')
 
@@ -100,8 +103,6 @@ function getAPProgressColor(percentage) {
 
 function updateCharactersList() {
   if (!game?.currentLocation) {
-    charactersCount.value = 0
-    selectableCount.value = 0
     charactersListData.value = []
     locationNameValue.value = ''
     return
@@ -109,8 +110,6 @@ function updateCharactersList() {
 
   locationNameValue.value = game.currentLocation.name || 'Неизвестная локация'
   const allCharacters = game.currentLocation.getAllCharacters()
-  charactersCount.value = allCharacters.length
-  selectableCount.value = allCharacters.filter(c => c.canSwitchTo === true).length
 
   charactersListData.value = allCharacters.map(char => ({
     id: char.id,
@@ -130,8 +129,6 @@ async function onCharacterClick(character) {
   if (!game) return
   if (!character.isSelectable) return
 
-  console.log(`Clicked on character: ${character.name} (ID: ${character.id}, Type: ${typeof character.id})`)
-
   if (character.isActive) {
     game.centerOnCharacter(character.id)
   } else {
@@ -139,14 +136,11 @@ async function onCharacterClick(character) {
   }
 
   await updateCharactersList()
-  requestAnimationFrame(() => updateCharactersList())
 }
+
 function regenerateLevel() {
   if (!game) return
-  console.log('Regenerating level...')
-
   game.regenerateLevel()
-
   setTimeout(() => {
     if (game) {
       game.centerOnActiveCharacter()
@@ -154,11 +148,10 @@ function regenerateLevel() {
     }
   }, 100)
 }
+
 function revealFullMap() {
   if (!game?.currentLocation) return
-
   const map = game.currentLocation.map
-  // Открываем все тайлы
   for (let y = 0; y < map.rows; y++) {
     for (let x = 0; x < map.cols; x++) {
       const tile = map.getTile(x, y)
@@ -168,23 +161,23 @@ function revealFullMap() {
       }
     }
   }
-  console.log('Карта полностью открыта!')
 }
+
 function onCanvasClick(e) {
-  const panel = document.querySelector('.characters-panel')
-  if (panel) {
-    const rect = panel.getBoundingClientRect()
-    if (e.clientY >= rect.top) return
-  }
   game?.onClick(e)
 }
 
 function resizeCanvas() {
   const canvas = canvasRef.value
-  if (!canvas || !game) return
+  const wrapper = canvas?.parentElement
+  if (!canvas || !wrapper || !game) return
 
   const dpr = Math.min(window.devicePixelRatio || 1, config.dprCap)
-  const rect = canvas.getBoundingClientRect()
+  const rect = wrapper.getBoundingClientRect()
+
+  console.log('Resize canvas:', rect.width, rect.height)
+
+  if (rect.width <= 0 || rect.height <= 0) return
 
   canvas.width = rect.width * dpr
   canvas.height = rect.height * dpr
@@ -221,15 +214,32 @@ function onMouseUp(e) { game?.onMouseUp(e) }
 
 onMounted(() => {
   game = new GameLoop(canvasRef.value, config)
-  resizeCanvas()
+
+  // Принудительно устанавливаем высоту после монтирования
+  nextTick(() => {
+    resizeCanvas()
+
+    // Повторный вызов через небольшую задержку
+    setTimeout(() => {
+      resizeCanvas()
+    }, 100)
+  })
+
+  // Наблюдатель за изменением размера wrapper
+  const wrapper = document.querySelector('.canvas-wrapper')
+  if (wrapper) {
+    resizeObserver = new ResizeObserver(() => {
+      resizeCanvas()
+    })
+    resizeObserver.observe(wrapper)
+  }
 
   window.addEventListener('resize', onResize)
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
 
   game.start()
-
-  setTimeout(() => updateCharactersList(), 50)
+  updateCharactersList()
 
   updateInterval = setInterval(() => {
     updateCharactersList()
@@ -240,6 +250,7 @@ onUnmounted(() => {
   game?.stop()
   clearTimeout(resizeTimeout)
   if (updateInterval) clearInterval(updateInterval)
+  if (resizeObserver) resizeObserver.disconnect()
   window.removeEventListener('resize', onResize)
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('keyup', onKeyUp)
@@ -247,82 +258,139 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Важно: заставляем q-page занимать всю высоту */
 .game-page {
   width: 100%;
-  height: 100%;
+  height: 100vh !important;
   overflow: hidden;
-  touch-action: none;
-  user-select: none;
+  background: #1a1a2e;
   position: relative;
 }
 
+/* Обертка для Quasar */
+:deep(.q-page) {
+  min-height: 100vh !important;
+  height: 100vh !important;
+}
+
+.game-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Canvas wrapper - занимает всё свободное место */
+.canvas-wrapper {
+  flex: 1 1 auto;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background: #000;
+}
+
 .game-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   display: block;
   cursor: default;
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
 }
 
-.location-name {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  z-index: 10;
-  pointer-events: none;
-  backdrop-filter: blur(4px);
-}
-
+/* Панель персонажей - фиксированной высоты */
 .characters-panel {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 20;
+  height: 230px;
   background: rgba(0, 0, 0, 0.95);
   backdrop-filter: blur(8px);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 16px 20px;
-  overflow-x: auto;
-  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.characters-header {
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.characters-count {
+  font-size: 12px;
+  color: #888;
+  font-weight: normal;
 }
 
 .characters-container {
+  flex: 1;
+  padding: 10px 16px;
   display: flex;
   flex-direction: row;
-  justify-content: center;
-  gap: 20px;
-  align-items: stretch;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-items: center;
+}
+
+/* Стили скролла */
+.characters-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.characters-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.characters-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+/* Карточка персонажа - вертикальная */
+.character-card {
+  min-width: 120px;
+  width: 120px;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
 }
 
 .character-card-content {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 16px;
-  min-width: 140px;
-  width: 140px;
-  gap: 8px;
+  padding: 10px;
+  gap: 6px;
 }
 
 .character-symbol {
-  font-size: 48px;
+  font-size: 40px;
   line-height: 1;
-  margin-bottom: 4px;
 }
 
 .character-name {
-  font-size: 14px;
+  font-size: 11px;
   font-weight: bold;
   text-align: center;
   word-break: break-word;
 }
 
 .character-team {
-  margin: 4px 0;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -330,46 +398,44 @@ onUnmounted(() => {
 
 .team-chip {
   margin: 0 !important;
-  font-size: 11px !important;
-  min-height: 20px !important;
-  font-weight: bold;
+  font-size: 9px !important;
+  min-height: 18px !important;
 }
 
 .character-ap-section {
   width: 100%;
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 4px;
+  padding-top: 4px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .character-ap-label {
-  font-size: 10px;
+  font-size: 9px;
   color: #888;
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 3px;
+  justify-content: center;
+  margin-bottom: 2px;
 }
 
 .character-ap-value {
-  font-size: 16px;
+  font-size: 12px;
   font-weight: bold;
   text-align: center;
-  margin: 4px 0;
 }
 
 .ap-progress {
   width: 100%;
-  height: 4px;
-  margin-top: 6px;
+  height: 3px;
+  margin-top: 4px;
 }
 
+/* Стили карточек */
 .active-character-card {
   background: rgba(68, 170, 255, 0.25) !important;
   border: 2px solid #44aaff !important;
-  box-shadow: 0 0 12px rgba(68, 170, 255, 0.5) !important;
-  transform: scale(1.02);
-  transition: all 0.2s ease;
+  box-shadow: 0 0 8px rgba(68, 170, 255, 0.5) !important;
 }
 
 .friendly-character-card {
@@ -378,9 +444,8 @@ onUnmounted(() => {
 }
 
 .friendly-character-card:hover {
-  background: rgba(68, 170, 255, 0.15) !important;
+  background: rgba(68, 170, 255, 0.2) !important;
   transform: translateY(-2px);
-  transition: all 0.2s ease;
 }
 
 .enemy-character-card {
@@ -388,66 +453,41 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 68, 68, 0.4) !important;
 }
 
-.enemy-character-card:hover {
-  background: rgba(255, 68, 68, 0.15) !important;
-  transform: translateY(-2px);
-  transition: all 0.2s ease;
-}
-
-.debug-panel {
+.location-name {
   position: absolute;
-  top: 20px;
-  right: 20px;
-  z-index: 30;
-  background: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(0, 255, 0, 0.3);
+  top: 12px;
+  left: 12px;
+  z-index: 20;
   pointer-events: none;
+  backdrop-filter: blur(4px);
+  font-size: 12px;
 }
 
 .debug-buttons {
   position: absolute;
-  top: 80px;
-  right: 120px;
-  z-index: 15;
-  background: rgba(0, 0, 0, 0.7);
-  padding: 8px;
-  border-radius: 8px;
-  backdrop-filter: blur(4px);
+  top: 12px;
+  right: 12px;
+  z-index: 20;
   display: flex;
   gap: 8px;
 }
 
 @media (max-width: 768px) {
   .characters-panel {
-    padding: 12px 16px;
-    min-height: 150px;
+    height: 160px;
   }
 
-  .character-card-content {
-    padding: 12px;
-    min-width: 110px;
-    width: 110px;
+  .character-card {
+    min-width: 100px;
+    width: 100px;
   }
 
   .character-symbol {
-    font-size: 36px;
+    font-size: 32px;
   }
 
   .character-name {
-    font-size: 11px;
-  }
-
-  .character-ap-value {
-    font-size: 13px;
-  }
-
-  .characters-container {
-    gap: 12px;
-  }
-
-  .team-chip {
-    font-size: 9px !important;
+    font-size: 10px;
   }
 }
 </style>

@@ -372,4 +372,14 @@ export default class GameLoop {
       this.input.endPan(e)
     }
   }
+  updateCanvasSize() {
+    const canvas = this.canvas
+    const container = canvas.parentElement
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0 && this.renderer) {
+      this.renderer.resize(rect.width, rect.height, this.renderer.dpr)
+    }
+  }
 }

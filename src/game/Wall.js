@@ -6,11 +6,11 @@ export default class Wall extends Tile {
   constructor() {
     const wallChar = '#'
     const wallConfig = {
-      name: '🧱 Стена',
-      visibleColor: '#aaaacc',
-      exploredColor: '#777799',
-      bgVisibleColor: '#4a4a5a',
-      bgExploredColor: '#2a2a3a',
+      name: '🧱 Ржавая стена',
+      visibleColor: '#5a5a6a',        // Тусклый серый
+      exploredColor: '#3a3a4a',        // Темно-серый
+      bgVisibleColor: '#2a2a3e',       // Темный с оттенком
+      bgExploredColor: '#151520',      // Очень темный
       isWalkable: false,
       blocksSight: true
     }

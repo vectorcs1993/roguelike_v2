@@ -1,7 +1,3 @@
-// src/game/Location.js
-
-// src/game/Location.js (полностью обновленный)
-
 import TileMap from './TileMap.js'
 import Character from './Character.js'
 import Item from './Item.js'
@@ -222,10 +218,17 @@ export default class Location {
     }
   }
 
-  // ПОЛНЫЙ МЕТОД ГЕНЕРАЦИИ ПРОЦЕДУРНОЙ ЛОКАЦИИ
+  // src/game/Location.js (полный метод generateProcedural)
+
   static generateProcedural(config, biomeType = null) {
-    // Настройки генератора
-    const generatorConfig = {
+    // Если биом не указан - выбираем случайный
+    const selectedBiome = biomeType || (() => {
+      const biomes = ['residential', 'factory', 'technical']
+      return biomes[Math.floor(Math.random() * biomes.length)]
+    })()
+
+    // Базовые настройки генератора
+    let generatorConfig = {
       // Основные параметры карты
       roomCount: 60,
       minRoomSize: 3,
@@ -235,51 +238,112 @@ export default class Location {
       maxAttempts: 500,
       gridSize: 30,
 
-      // Настройки ящиков (сундуков)
+      // Настройки ящиков
       crates: {
-        enabled: true,              // Включена ли генерация ящиков
-        count: 15,                 // Количество ящиков
-        spawnInRoomsOnly: true,    // ТОЛЬКО в комнатах (не в коридорах)
-        spawnNearWalls: true,      // Рядом со стенами
-        minAdjacentWalls: 0,       // Минимум соседних стен (0 - можно и без стен)
-        maxAdjacentWalls: 4,       // Максимум соседних стен
-        avoidCorridors: true,      // Избегать коридоров
-        maxAttemptsPerCrate: 100   // Попыток на один ящик
+        enabled: true,
+        count: 15,
+        spawnInRoomsOnly: true,
+        spawnNearWalls: true,
+        minAdjacentWalls: 0,
+        maxAdjacentWalls: 4,
+        avoidCorridors: true,
+        maxAttemptsPerCrate: 100
       },
 
       // Настройки предметов
       items: {
-        enabled: true,              // Включена ли генерация предметов
-        count: 20,                 // Количество предметов
-        spawnInRoomsOnly: false,   // Можно ли в комнатах
-        spawnInCorridors: false,   // Можно ли в коридорах
-        maxAttemptsPerItem: 100    // Попыток на один предмет
+        enabled: true,
+        count: 20,
+        spawnInRoomsOnly: false,
+        spawnInCorridors: false,
+        maxAttemptsPerItem: 100
+      },
+
+      // Настройки врагов (базовые)
+      enemies: {
+        enabled: true,
+        count: 10,
+        spawnInRoomsOnly: true,
+        spawnInCorridors: false,
+        maxPerRoom: 3,
+        difficultyMultiplier: 1,
+        avoidPlayerStart: true,
+        avoidNearPlayer: 6,
+        maxAttemptsPerEnemy: 100,
+        allowedTypes: [
+          'groaner', 'crawler', 'mold', 'clawer', 'slime',
+          'runner', 'fatso', 'howler', 'sticker', 'mushroom',
+          'nonhuman', 'ratKing'
+        ]
       }
     }
 
-    // Если передан biomeType, можно менять настройки
-    if (biomeType === 'forest') {
-      generatorConfig.crates.count = 20
-      generatorConfig.items.count = 25
-    } else if (biomeType === 'dungeon') {
-      generatorConfig.crates.count = 10
-      generatorConfig.items.count = 15
-      generatorConfig.crates.spawnNearWalls = true
-      generatorConfig.crates.minAdjacentWalls = 1
+    let biomeName
+
+    // Настройки в зависимости от типа биома
+    switch (selectedBiome) {
+      case 'residential': // Жилой этаж
+        biomeName = 'Жилой этаж'
+        generatorConfig.roomCount = 50
+        generatorConfig.minRoomSize = 4
+        generatorConfig.maxRoomSize = 8
+        generatorConfig.corridorWidth = 2
+        generatorConfig.crates.count = 12
+        generatorConfig.crates.spawnNearWalls = true
+        generatorConfig.items.count = 25
+        generatorConfig.enemies.count = 8
+        generatorConfig.enemies.allowedTypes = [
+          'groaner', 'crawler', 'runner', 'sticker', 'ratKing'
+        ]
+        break
+
+      case 'factory': // Фабрика
+        biomeName = 'Фабрика'
+        generatorConfig.roomCount = 40
+        generatorConfig.minRoomSize = 5
+        generatorConfig.maxRoomSize = 10
+        generatorConfig.corridorWidth = 3
+        generatorConfig.roomSpacing = 3
+        generatorConfig.crates.count = 20
+        generatorConfig.crates.spawnNearWalls = false
+        generatorConfig.items.count = 30
+        generatorConfig.enemies.count = 12
+        generatorConfig.enemies.difficultyMultiplier = 1.2
+        generatorConfig.enemies.allowedTypes = [
+          'clawer', 'slime', 'fatso', 'nonhuman', 'mold'
+        ]
+        break
+
+      case 'technical': // Техпомещения
+        biomeName = 'Технический этаж'
+        generatorConfig.roomCount = 35
+        generatorConfig.minRoomSize = 3
+        generatorConfig.maxRoomSize = 7
+        generatorConfig.corridorWidth = 1
+        generatorConfig.roomSpacing = 2
+        generatorConfig.crates.count = 25
+        generatorConfig.crates.spawnNearWalls = true
+        generatorConfig.items.count = 35
+        generatorConfig.enemies.count = 15
+        generatorConfig.enemies.difficultyMultiplier = 1.5
+        generatorConfig.enemies.allowedTypes = [
+          'mold', 'slime', 'howler', 'fatso', 'nonhuman'
+        ]
+        break
+
+      default:
+        biomeName = '🏭 Зараженная зона'
+        break
     }
 
     const generator = new BiomeGenerator(generatorConfig)
     const { walls, width, height, rooms, corridorCells } = generator.generate()
 
-    const biomeName = biomeType === 'forest' ? '🌳 Лесная чаща' :
-      biomeType === 'dungeon' ? '🏰 Подземелье' :
-        '🏰 Жилой комплекс'
+    // Генерируем ящики
+    const { crates, occupiedCells: crateCells } = generator.generateCrates(walls, width, height, rooms, corridorCells)
 
-    // Генерируем ящики (получаем и список ящиков, и занятые клетки)
-    const { crates, occupiedCells } = generator.generateCrates(walls, width, height, rooms, corridorCells)
-
-    // Генерируем предметы (передаем занятые ящиками клетки, чтобы не ставить на них предметы)
-    const items = generator.generateItems(walls, width, height, rooms, corridorCells, occupiedCells)
+    // Генерируем предметы
+    const items = generator.generateItems(walls, width, height, rooms, corridorCells, crateCells)
 
     // Создаем множества для быстрой проверки занятости
     const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
@@ -292,54 +356,73 @@ export default class Location {
       return !wallSet.has(key) && !crateSet.has(key) && !itemSet.has(key)
     }
 
-    // Поиск свободных позиций для персонажей
+    // Поиск свободных позиций для игрока и спутника
     const playerStart = Location.findEmptyTile(width, height, isPositionFree)
     const allyStart = Location.findEmptyTile(width, height, isPositionFree, [playerStart])
-    const enemyStart1 = Location.findEmptyTile(width, height, isPositionFree, [playerStart, allyStart])
-    const enemyStart2 = Location.findEmptyTile(width, height, isPositionFree, [playerStart, allyStart, enemyStart1])
 
     let nextId = 1
     const generateId = () => nextId++
 
-    // Формируем команды
-    const teamConfigs = [
-      {
-        type: 'player',
-        id: 'squad',
-        name: 'Отряд',
-        color: '#44aaff',
-        characters: [
-          {
-            x: playerStart.x, y: playerStart.y, char: '@', color: '#44ffaa', id: generateId(),
-            name: 'Герой', fovRadius: 12,
-            ap: { max: 120, moveCost: 1 }
-          },
-          {
-            x: allyStart.x, y: allyStart.y, char: '@', color: '#44ffaa', id: generateId(),
-            name: 'Спутник', fovRadius: 10,
-            ap: { max: 100, moveCost: 1 }
-          }
-        ]
-      },
-      {
-        type: 'enemy',
-        id: 'creatures',
-        name: 'Монстры',
-        color: '#ff4444',
-        characters: [
-          {
-            x: enemyStart1.x, y: enemyStart1.y, char: 'g', color: '#ff6666', id: generateId(),
-            name: 'Гоблин', fovRadius: 8,
-            ap: { max: 10, moveCost: 1 }
-          },
-          {
-            x: enemyStart2.x, y: enemyStart2.y, char: 'O', color: '#ff4444', id: generateId(),
-            name: 'Орк', fovRadius: 8,
-            ap: { max: 8, moveCost: 2 }
-          }
-        ]
-      }
-    ]
+    // Генерируем врагов (передаем позицию игрока)
+    const enemies = generator.generateEnemies(walls, width, height, rooms, corridorCells, playerStart)
+
+    // Формируем команду ЛИКВИДАТОРОВ (игрок + спутник)
+    const playerTeamConfig = {
+      type: 'player',
+      id: 'liquidators',
+      name: 'Ликвидаторы',
+      color: '#44aaff',
+      characters: [
+        {
+          x: playerStart.x, y: playerStart.y,
+          char: '@',
+          color: '#44ffaa',
+          id: generateId(),
+          name: 'Командир',
+          fovRadius: 12,
+          ap: { max: 120, moveCost: 1 }
+        },
+        {
+          x: allyStart.x, y: allyStart.y,
+          char: '@',
+          color: '#44ffaa',
+          id: generateId(),
+          name: 'Спутник',
+          fovRadius: 10,
+          ap: { max: 100, moveCost: 1 }
+        }
+      ]
+    }
+
+    // Формируем команду врагов из сгенерированных
+    const enemyTeamConfig = {
+      type: 'enemy',
+      id: 'creatures',
+      name: 'Твари',
+      color: '#ff4444',
+      characters: enemies.map((enemy) => ({
+        x: enemy.x,
+        y: enemy.y,
+        char: enemy.char,
+        color: enemy.color,
+        id: generateId(),
+        name: enemy.name,
+        fovRadius: enemy.fovRadius || 8,
+        ap: enemy.ap || { max: 10, moveCost: 1 },
+        // Дополнительные параметры для боя
+        hp: enemy.hp,
+        armor: enemy.armor,
+        damageMin: enemy.damageMin,
+        damageMax: enemy.damageMax,
+        damageType: enemy.damageType,
+        range: enemy.range,
+        initiative: enemy.initiative,
+        accuracy: enemy.accuracy,
+        features: enemy.features || []
+      }))
+    }
+
+    const teamConfigs = [playerTeamConfig, enemyTeamConfig]
 
     // Добавляем предметы в конфиг
     const itemConfigs = items.map(item => ({
@@ -363,16 +446,21 @@ export default class Location {
 
     // Логируем результаты
     console.log(`================== ГЕНЕРАЦИЯ ЛОКАЦИИ ==================`)
-    console.log(`📍 Локация: ${biomeName}`)
+    console.log(`📍 Биом: ${biomeName}`)
     console.log(`🗺️  Размер: ${width} x ${height}`)
     console.log(`📦 Комнат: ${rooms.length}`)
     console.log(`📦 Ящиков: ${crates.length}`)
     console.log(`💎 Предметов: ${items.length}`)
-    console.log(`🚫 Пересечений: ${crates.length + items.length - new Set([...crates.map(c => `${c[0]},${c[1]}`), ...items.map(i => `${i.x},${i.y}`)]).size}`)
-    console.log(`👤 Герой: (${playerStart.x}, ${playerStart.y})`)
+    console.log(`👹 Врагов: ${enemies.length}`)
+    console.log(`👤 Командир: (${playerStart.x}, ${playerStart.y})`)
     console.log(`👥 Спутник: (${allyStart.x}, ${allyStart.y})`)
-    console.log(`👹 Гоблин: (${enemyStart1.x}, ${enemyStart1.y})`)
-    console.log(`👹 Орк: (${enemyStart2.x}, ${enemyStart2.y})`)
+
+    // Статистика по врагам
+    const enemyStats = {}
+    for (const enemy of enemies) {
+      enemyStats[enemy.name] = (enemyStats[enemy.name] || 0) + 1
+    }
+    console.log(`📊 Типы врагов:`, enemyStats)
     console.log(`===================================================`)
 
     return location
