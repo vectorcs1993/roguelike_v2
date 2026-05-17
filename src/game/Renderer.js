@@ -1,8 +1,15 @@
+// src/game/Renderer.js
+
 export default class Renderer {
+  // Константы класса
+  static DEFAULT_TILE_SIZE = 32
+  static MIN_TILE_SIZE = 12
+  static DEFAULT_FONT_FAMILY = "Lucida Console, monospace"
+
   constructor(ctx, config) {
     this.ctx = ctx
     this.config = config
-    this.tileSize = config.tileSize
+    this.tileSize = Renderer.DEFAULT_TILE_SIZE
     this.canvasW = 0
     this.canvasH = 0
     this.halfW = 0
@@ -16,7 +23,7 @@ export default class Renderer {
     this._activeCharacter = null
     this._pathCache = null
     this.dpr = window.devicePixelRatio || 1
-    this.fontFamily = config.fontFamily || 'monospace'
+    this.fontFamily = Renderer.DEFAULT_FONT_FAMILY
   }
 
   resize(canvasW, canvasH) {
@@ -40,12 +47,13 @@ export default class Renderer {
     this.ctx.imageSmoothingEnabled = false
     this.ctx.textRendering = 'geometricPrecision'
 
+    // Вычисляем размер тайла на основе размера экрана
     this.tileSize = Math.max(
-      this.config.tileSizeMin,
-      Math.min(this.config.tileSize, Math.floor(Math.min(canvasW, canvasH) / 15))
+      Renderer.MIN_TILE_SIZE,
+      Math.min(Renderer.DEFAULT_TILE_SIZE, Math.floor(Math.min(canvasW, canvasH) / 15))
     )
 
-    // Используем шрифт из конфига
+    // Используем шрифт из константы
     this.ctx.font = `${this.tileSize}px ${this.fontFamily}`
     this.ctx.textAlign = 'center'
     this.ctx.textBaseline = 'middle'
@@ -74,7 +82,7 @@ export default class Renderer {
         const tile = map.getTile(x, y)
         if (!tile) continue
 
-        // Ключевое условие: если не видимо и не исследовано - НЕ РИСУЕМ
+        // Если клетка НЕ видна И НЕ исследована - ПОЛНОСТЬЮ ПРОПУСКАЕМ
         if (!tile.visible && !tile.explored) {
           continue
         }
@@ -88,7 +96,6 @@ export default class Renderer {
         ctx.rect(drawX + gap, drawY + gap, ts - gap * 2, ts - gap * 2)
         ctx.clip()
 
-        // Рисуем только если видимо или исследовано
         tile.draw(ctx, drawX, drawY, ts, tile.visible, tile.explored, this.fontFamily)
 
         ctx.restore()

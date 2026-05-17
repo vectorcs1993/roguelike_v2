@@ -1,15 +1,8 @@
 {
-  "tileSize": 64,
-  "moveInterval": 0.2,
-  "npcMoveSpeed": 8,
-  "npcWanderInterval": 1.5,
   "swipeThreshold": 10,
   "resizeDebounce": 100,
   "dprCap": 2,
-  "tileSizeMin": 12,
   "tileSizeMaxDivisor": 15,
   "dtCap": 0.1,
-  "pathSpeed": 6,
-  "cameraSpeed": 15,
-  "fontFamily": "Lucida Console, monospace"
+  "cameraSpeed": 15
 }

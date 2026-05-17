@@ -1,9 +1,12 @@
-// src/game/Character.js - убраны методы regenerateAP
+// src/game/Character.js
 
 import GameObject from './GameObject.js'
 
 export default class Character extends GameObject {
-  constructor(x, y, char, color, config, id = null, name = null, team = null, fovRadius = 8, apConfig = {}) {
+  // Константы класса
+  static DEFAULT_PATH_SPEED = 12  // Скорость движения по умолчанию
+
+  constructor(x, y, char, color, id = null, name = null, team = null, fovRadius = 8, apConfig = {}) {
     super(x, y, char, color)
     // Если id уже число - используем его, иначе генерируем числовой
     this.id = (typeof id === 'number') ? id : (id ? parseInt(id) || Date.now() : Date.now())
@@ -11,8 +14,7 @@ export default class Character extends GameObject {
     this.team = team
     this.isActive = false
     this.moveTimer = 0
-    this.moveInterval = config.moveInterval
-    this.pathSpeed = config.pathSpeed || 6
+    this.pathSpeed = Character.DEFAULT_PATH_SPEED
     this.path = []
     this.pathIndex = 0
     this.followingPath = false
@@ -24,7 +26,7 @@ export default class Character extends GameObject {
     // Одна стоимость для всех направлений
     this.moveAPCost = apConfig.moveAPCost !== undefined ? apConfig.moveAPCost : 1
 
-    console.log(`${this.name} (ID: ${this.id}): AP=${this.maxAP}, cost=${this.moveAPCost}`)
+    console.log(`${this.name} (ID: ${this.id}): AP=${this.maxAP}, cost=${this.moveAPCost}, speed=${this.pathSpeed}`)
   }
 
   get teamId() { return this.team?.id || 'none' }

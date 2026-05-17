@@ -1,37 +1,37 @@
 // src/game/Tile.js
 
 export default class Tile {
-  constructor(type, char) {
+  constructor(type, char, config = {}) {
     this.type = type
     this.char = char
     this.visible = false
     this.explored = false
-    this.revealed = false  // НОВОЕ: true - клетка когда-то была в FOV, но сейчас не видна
+
+    // Настройки цвета
+    this.visibleColor = config.visibleColor || '#8888aa'
+    this.exploredColor = config.exploredColor || '#666688'
+    this.bgVisibleColor = config.bgVisibleColor || '#2a2a3a'
+    this.bgExploredColor = config.bgExploredColor || '#1a1a2a'
   }
 
   get isWalkable() { return this.type === 0 }
   get isWall() { return this.type === 1 }
 
-  draw(ctx, x, y, ts, fontFamily) {
-    // Рисуем только если revealed или visible
-    if (!this.revealed && !this.visible) return
+  draw(ctx, x, y, ts, isVisible, isExplored, fontFamily) {
+    if (!isVisible && !isExplored) return
 
-    let bgColor
-    let textColor
+    let bgColor, textColor, alpha = 1
 
-    if (this.visible) {
-      // ВИДИМО СЕЙЧАС
-      bgColor = '#2a2a3a'
-      textColor = '#8888aa'
-    } else if (this.revealed) {
-      // БЫЛО ВИДИМО РАНЕЕ (исследовано)
-      bgColor = '#1a1a2a'
-      textColor = '#666688'
+    if (isVisible) {
+      bgColor = this.bgVisibleColor
+      textColor = this.visibleColor
     } else {
-      // НИКОГДА НЕ БЫЛО ВИДИМО - не рисуем
-      return
+      bgColor = this.bgExploredColor
+      textColor = this.exploredColor
+      alpha = 0.7
     }
 
+    ctx.globalAlpha = alpha
     ctx.fillStyle = bgColor
     ctx.fillRect(x, y, ts, ts)
 
@@ -40,5 +40,7 @@ export default class Tile {
       ctx.font = `${ts}px ${fontFamily}`
       ctx.fillText(this.char, x + ts / 2, y + ts / 2)
     }
+
+    ctx.globalAlpha = 1
   }
 }

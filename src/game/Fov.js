@@ -1,5 +1,3 @@
-// src/game/Fov.js
-
 export default class Fov {
   constructor(map) {
     this.map = map
@@ -52,9 +50,12 @@ export default class Fov {
         const worldX = originX + world.x
         const worldY = originY + world.y
 
+        // 🔥 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: ВСЕ клетки в радиусе получают visible
         if (dx * dx + dy * dy < radius * radius) {
           const tile = map.getTile(worldX, worldY)
-          if (tile) tile.visible = true  // Только visible, revealed установит TileMap
+          if (tile) {
+            tile.visible = true  // Теперь и стены тоже!
+          }
         }
 
         if (blocked) {

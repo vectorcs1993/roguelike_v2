@@ -30,7 +30,6 @@ export default class GameLoop {
         console.log(`Активирован персонаж: ${playerChar.name}`)
       }
     }
-    this.currentLocation.revealInitialMap()
 
     // ИНИЦИАЛИЗИРУЕМ КАМЕРУ НА АКТИВНОМ ПЕРСОНАЖЕ
     if (activeCharacter) {
@@ -82,7 +81,6 @@ export default class GameLoop {
       }
     }
 
-    this.currentLocation.revealInitialMap()
 
     // Центрируем камеру на новом активном персонаже
     if (newActiveCharacter) {

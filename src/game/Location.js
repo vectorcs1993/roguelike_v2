@@ -18,6 +18,7 @@ export default class Location {
     this.map.fill()
     this.map.setWalls(pillars)
 
+
     this.pathfinder = new Pathfinder(this.map)
 
     this.teams = new Map()
@@ -51,7 +52,6 @@ export default class Location {
           charConfig.x, charConfig.y,
           charConfig.char,
           charColor,
-          config,
           charConfig.id,
           charConfig.name,
           team,
@@ -144,36 +144,6 @@ export default class Location {
     return blocked
   }
 
-  revealInitialMap() {
-    const activeChar = this.getActiveCharacter()
-    if (!activeChar) return
-
-    const allies = this.characters.filter(
-      char => char.teamId === activeChar.teamId
-    )
-
-    for (const ally of allies) {
-      const centerX = Math.floor(ally.x)
-      const centerY = Math.floor(ally.y)
-      const radius = ally.fovRadius
-
-      for (let dy = -radius; dy <= radius; dy++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-          const x = centerX + dx
-          const y = centerY + dy
-          const dist = Math.sqrt(dx * dx + dy * dy)
-
-          if (dist <= radius) {
-            const tile = this.map.getTile(x, y)
-            if (tile) {
-              tile.revealed = true  // Используем revealed вместо explored
-            }
-          }
-        }
-      }
-    }
-  }
-
   areAllies(character1, character2) {
     if (character1.id === character2.id) return true
     return character1.teamId === character2.teamId
@@ -257,12 +227,12 @@ export default class Location {
           {
             x: playerStart.x, y: playerStart.y, char: '@', color: '#44ffaa', id: generateId(),
             name: 'Герой', fovRadius: 12,
-            ap: { max: 12, moveCost: 1 }
+            ap: { max: 120, moveCost: 1 }
           },
           {
             x: allyStart.x, y: allyStart.y, char: '@', color: '#44ffaa', id: generateId(),
             name: 'Спутник', fovRadius: 10,
-            ap: { max: 10, moveCost: 1 }
+            ap: { max: 100, moveCost: 1 }
           }
         ]
       },

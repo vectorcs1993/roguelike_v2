@@ -40,39 +40,20 @@ export default class TileMap {
   }
 
   computeFov(originX, originY, radius) {
-    // Сначала сбрасываем visible у всех клеток
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         const tile = this.getTile(x, y)
-        if (tile) {
-          tile.visible = false
-          // ВАЖНО: revealed НЕ сбрасываем! Оно сохраняется навсегда
-        }
+        if (tile) tile.visible = false
       }
     }
 
-    // Вычисляем новую видимость
     this.fov.compute(originX | 0, originY | 0, radius)
 
-    // Те, кто стали visible - становятся ещё и revealed
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         const tile = this.getTile(x, y)
         if (tile && tile.visible) {
-          tile.revealed = true  // Помечаем как открытые навсегда
-        }
-      }
-    }
-  }
-
-  // Новый метод: сбросить всё (для регенерации уровня)
-  resetExploration() {
-    for (let y = 0; y < this.rows; y++) {
-      for (let x = 0; x < this.cols; x++) {
-        const tile = this.getTile(x, y)
-        if (tile) {
-          tile.visible = false
-          tile.revealed = false
+          tile.explored = true
         }
       }
     }
