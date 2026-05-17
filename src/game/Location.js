@@ -284,9 +284,10 @@ export default class Location {
     switch (selectedBiome) {
       case 'residential': // Жилой этаж
         biomeName = 'Жилой этаж'
-        generatorConfig.roomCount = 50
+        generatorConfig.roomCount = 20
         generatorConfig.minRoomSize = 4
         generatorConfig.maxRoomSize = 8
+        generatorConfig.roomSpacing = 1
         generatorConfig.corridorWidth = 2
         generatorConfig.crates.count = 12
         generatorConfig.crates.spawnNearWalls = true
@@ -299,7 +300,7 @@ export default class Location {
 
       case 'factory': // Фабрика
         biomeName = 'Фабрика'
-        generatorConfig.roomCount = 40
+        generatorConfig.roomCount = 25
         generatorConfig.minRoomSize = 5
         generatorConfig.maxRoomSize = 10
         generatorConfig.corridorWidth = 3
@@ -316,11 +317,11 @@ export default class Location {
 
       case 'technical': // Техпомещения
         biomeName = 'Технический этаж'
-        generatorConfig.roomCount = 35
+        generatorConfig.roomCount = 30
         generatorConfig.minRoomSize = 3
-        generatorConfig.maxRoomSize = 7
+        generatorConfig.maxRoomSize = 6
         generatorConfig.corridorWidth = 1
-        generatorConfig.roomSpacing = 2
+        generatorConfig.roomSpacing = 4
         generatorConfig.crates.count = 25
         generatorConfig.crates.spawnNearWalls = true
         generatorConfig.items.count = 35
@@ -363,8 +364,14 @@ export default class Location {
     let nextId = 1
     const generateId = () => nextId++
 
+
     // Генерируем врагов (передаем позицию игрока)
-    const enemies = generator.generateEnemies(walls, width, height, rooms, corridorCells, playerStart)
+    const enemies = generator.generateEnemies(
+      walls, width, height, rooms, corridorCells,
+      playerStart,
+      crateSet,  // занятые ящиками
+      itemSet    // занятые предметами
+    )
 
     // Формируем команду ЛИКВИДАТОРОВ (игрок + спутник)
     const playerTeamConfig = {

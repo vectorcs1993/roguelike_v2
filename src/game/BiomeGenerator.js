@@ -543,7 +543,7 @@ export default class BiomeGenerator {
   }
 
   // Генерация врагов
-  generateEnemies(walls, width, height, rooms, corridorCells, playerStart = null) {
+  generateEnemies(walls, width, height, rooms, corridorCells, playerStart = null, occupiedByCrates = new Set(), occupiedByItems = new Set()) {
     if (!this.enemyConfig.enabled) {
       console.log('Генерация врагов отключена в настройках')
       return []
@@ -569,7 +569,14 @@ export default class BiomeGenerator {
       for (let x = 2; x < width - 2; x++) {
         const key = `${x},${y}`
 
+        // НЕ на стене
         if (wallSet.has(key)) continue
+
+        // НЕ на ящике
+        if (occupiedByCrates.has(key)) continue
+
+        // НЕ на предмете
+        if (occupiedByItems.has(key)) continue
 
         // Проверяем условия спавна
         let canPlace = true
@@ -597,7 +604,7 @@ export default class BiomeGenerator {
       }
     }
 
-    console.log(`Доступно клеток для врагов: ${availableCells.length}`)
+    console.log(`Доступно клеток для врагов (без учета ящиков и предметов): ${availableCells.length}`)
 
     if (availableCells.length === 0) {
       console.warn('Нет доступных клеток для размещения врагов!')
@@ -611,15 +618,12 @@ export default class BiomeGenerator {
     let targetCount = Math.min(this.enemyConfig.count, availableCells.length)
     targetCount = Math.floor(targetCount * this.enemyConfig.difficultyMultiplier)
 
-    // Перемешиваем доступные клетки (но учитываем вес)
-    const shuffled = []
-    for (let i = 0; i < targetCount && i < availableCells.length; i++) {
-      shuffled.push(availableCells[i])
-    }
+    // Берем нужное количество клеток
+    const selectedCells = availableCells.slice(0, targetCount)
 
     // Генерируем врагов
-    for (let i = 0; i < targetCount && i < shuffled.length; i++) {
-      const { x, y } = shuffled[i]
+    for (const cell of selectedCells) {
+      const { x, y } = cell
 
       // Выбираем случайного врага с учетом весов
       const enemyType = this.selectRandomEnemy()

@@ -21,19 +21,17 @@ export default class GameObject {
   draw(ctx, x, y, ts, isVisible, isActive = false, fontFamily) {
     if (!isVisible) return
 
-    ctx.globalAlpha = isVisible ? 1 : 0.5
-    ctx.fillStyle = this.color
-    ctx.font = `${ts}px ${fontFamily}`
-
+    // Цвета только для символов
     if (isActive) {
-      ctx.shadowBlur = 8
-      ctx.shadowColor = this.color
+      ctx.fillStyle = '#ffffff'  // Белый для активного
+    } else if (this.isPlayerControlled) {
+      ctx.fillStyle = '#88ff88'  // Светло-зелёный для союзников
+    } else {
+      ctx.fillStyle = '#ff8888'  // Светло-красный для врагов
     }
 
+    ctx.font = `${ts}px ${fontFamily}`
     ctx.fillText(this.char, x + ts / 2, y + ts / 2)
-
-    ctx.shadowBlur = 0
-    ctx.globalAlpha = 1
   }
 
   updateMovement(dt, speed) {

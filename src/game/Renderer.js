@@ -1,4 +1,3 @@
-// src/game/Renderer.js
 
 export default class Renderer {
   // Константы класса
@@ -61,7 +60,7 @@ export default class Renderer {
     const ox = this.halfW - camera.x * ts
     const oy = this.halfH - camera.y * ts
 
-    // Очистка экрана - черный фон
+    // Чёрный фон
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, this.canvasW, this.canvasH)
 
@@ -217,7 +216,7 @@ export default class Renderer {
 
   drawTooltip(text) {
     const ctx = this.ctx
-    ctx.font = `12px ${this.fontFamily}`
+    ctx.font = `16px ${this.fontFamily}`
     const w = ctx.measureText(text).width + 12
     const h = 20
 

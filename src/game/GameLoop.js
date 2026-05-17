@@ -18,7 +18,6 @@ export default class GameLoop {
       this.currentLocation = initialLocation || Location.createDefault(config)
     }
 
-
     const characters = this.currentLocation.getAllCharacters()
     let activeCharacter = null
 
@@ -52,6 +51,62 @@ export default class GameLoop {
 
     // Флаг ожидания конца хода
     this.waitingForTurnEnd = false
+
+    // ========== НАСТРОЙКИ ==========
+    // Флаг отладки (true - вывод бенчмарка, false - тишина)
+    this.debugMode = false
+
+    // Ограничение FPS (100 FPS - оптимально для игр)
+    this.targetFPS = 100
+    this.frameInterval = 1000 / this.targetFPS
+    this.lastFrameTime = 0
+
+    // БЕНЧМАРК: массивы для измерения производительности
+    this.frameTimes = []
+    this.renderTimes = []
+    this.updateTimes = []
+    // ================================
+
+    // СТАРТОВЫЙ FOV ДЛЯ ВСЕХ СОЮЗНИКОВ
+    this.initializeFovForAllAllies()
+  }
+  initializeFovForAllAllies() {
+    // Сбрасываем видимость
+    for (let y = 0; y < this.currentLocation.map.rows; y++) {
+      for (let x = 0; x < this.currentLocation.map.cols; x++) {
+        const tile = this.currentLocation.map.getTile(x, y)
+        if (tile) tile.visible = false
+      }
+    }
+
+    // Находим всех союзников (игроков и тех, на кого можно переключиться)
+    const allies = this.currentLocation.getAllCharacters().filter(
+      c => c.isPlayerControlled || c.canSwitchTo
+    )
+
+    console.log(`Открываем FOV для ${allies.length} союзников:`)
+
+    // Для каждого союзника вычисляем FOV и объединяем
+    for (const ally of allies) {
+      const tileX = Math.floor(ally.x)
+      const tileY = Math.floor(ally.y)
+      console.log(`  - ${ally.name} (${tileX}, ${tileY}), радиус: ${ally.fovRadius}`)
+
+      // Вычисляем FOV для этого союзника
+      this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8)
+    }
+
+    // Для всех видимых клеток отмечаем explored
+    for (let y = 0; y < this.currentLocation.map.rows; y++) {
+      for (let x = 0; x < this.currentLocation.map.cols; x++) {
+        const tile = this.currentLocation.map.getTile(x, y)
+        if (tile && tile.visible) {
+          tile.explored = true
+        }
+      }
+    }
+
+    console.log(`Стартовый FOV открыт для всех союзников`)
   }
   regenerateLevel(biomeType = null) {
     console.log(`Regenerating level with biome: ${biomeType || 'random'}`)
@@ -81,7 +136,6 @@ export default class GameLoop {
       }
     }
 
-
     // Центрируем камеру на новом активном персонаже
     if (newActiveCharacter) {
       this.camera.setPosition(newActiveCharacter.x, newActiveCharacter.y)
@@ -100,6 +154,7 @@ export default class GameLoop {
     // Возвращаем ID активного персонажа для UI
     return newActiveCharacter?.id
   }
+
   switchCharacter(characterId) {
     const newActive = this.currentLocation.switchToCharacter(characterId)
     if (newActive) {
@@ -218,6 +273,8 @@ export default class GameLoop {
   }
 
   update(dt) {
+    const updateStart = performance.now()
+
     const click = this.input.consumeClick()
     if (click) {
       this.handleClick(click.x, click.y)
@@ -247,9 +304,17 @@ export default class GameLoop {
     }
 
     this.camera.update(dt, this.input)
+
+    const updateEnd = performance.now()
+    if (this.debugMode) {
+      this.updateTimes.push(updateEnd - updateStart)
+      if (this.updateTimes.length > 60) this.updateTimes.shift()
+    }
   }
 
   render() {
+    const renderStart = performance.now()
+
     if (!this.renderer) return
 
     this.renderer.hoverTileX = this.hoverTileX
@@ -270,9 +335,24 @@ export default class GameLoop {
       this.camera,
       this.input
     )
+
+    const renderEnd = performance.now()
+    if (this.debugMode) {
+      this.renderTimes.push(renderEnd - renderStart)
+      if (this.renderTimes.length > 60) this.renderTimes.shift()
+    }
   }
 
   gameLoop(now) {
+    // Ограничение FPS (60 FPS)
+    if (this.lastFrameTime && (now - this.lastFrameTime) < this.frameInterval) {
+      this.animationId = requestAnimationFrame((t) => this.gameLoop(t))
+      return
+    }
+
+    this.lastFrameTime = now
+    const frameStart = performance.now()
+
     const dt = this.lastTime
       ? Math.min((now - this.lastTime) * 0.001, this.config.dtCap)
       : 0.016
@@ -280,6 +360,35 @@ export default class GameLoop {
 
     this.update(dt)
     this.render()
+
+    const frameEnd = performance.now()
+
+    // Бенчмарк только если включен debugMode
+    if (this.debugMode) {
+      this.frameTimes.push(frameEnd - frameStart)
+      if (this.frameTimes.length > 60) this.frameTimes.shift()
+
+      // Логируем каждые 60 кадров
+      if (this.frameTimes.length === 60) {
+        const avgFrame = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length
+        const avgRender = this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length
+        const avgUpdate = this.updateTimes.reduce((a, b) => a + b, 0) / this.updateTimes.length
+        const fps = 1000 / avgFrame
+
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+        console.log(`📊 БЕНЧМАРК ПРОИЗВОДИТЕЛЬНОСТИ:`)
+        console.log(`   🎬 FPS: ${fps.toFixed(1)} (${avgFrame.toFixed(2)}ms/кадр)`)
+        console.log(`   🎨 Рендер: ${avgRender.toFixed(2)}ms (${((avgRender / avgFrame) * 100).toFixed(1)}%)`)
+        console.log(`   ⚙️  Update: ${avgUpdate.toFixed(2)}ms (${((avgUpdate / avgFrame) * 100).toFixed(1)}%)`)
+        console.log(`   💾 Путь в кэше: ${this.pathCache?.cache?.size || 0}/${this.pathCache?.maxSize || 0}`)
+        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+
+        // Сбрасываем для следующего замера
+        this.frameTimes = []
+        this.renderTimes = []
+        this.updateTimes = []
+      }
+    }
 
     this.animationId = requestAnimationFrame((t) => this.gameLoop(t))
   }
@@ -299,6 +408,7 @@ export default class GameLoop {
 
   start() {
     this.lastTime = performance.now()
+    this.lastFrameTime = performance.now()
     this.gameLoop(this.lastTime)
   }
 
@@ -346,7 +456,19 @@ export default class GameLoop {
         console.log('📊 Current stats:', stats)
       }
     }
+
+    // F7 - переключение режима отладки
+    if (e.code === 'F7') {
+      this.debugMode = !this.debugMode
+      console.log(`🐛 Режим отладки: ${this.debugMode ? 'ВКЛЮЧЕН' : 'ВЫКЛЮЧЕН'}`)
+      if (!this.debugMode) {
+        this.frameTimes = []
+        this.renderTimes = []
+        this.updateTimes = []
+      }
+    }
   }
+
   onKeyUp(e) { this.input.handleKeyUp(e) }
   onMouseMove(e) {
     this.input.handleMouseMove(e)
@@ -372,6 +494,7 @@ export default class GameLoop {
       this.input.endPan(e)
     }
   }
+
   updateCanvasSize() {
     const canvas = this.canvas
     const container = canvas.parentElement

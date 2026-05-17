@@ -1,22 +1,23 @@
-// src/game/Item.js
-
-import GameObject from './GameObject.js'
-
-export default class Item extends GameObject {
+export default class Item {
   constructor(x, y, itemType = 'generic') {
-    super(x, y, '$', '#aa8844')  // Золото → тусклая бронза
+    this.x = x
+    this.y = y
+    this.vx = x
+    this.vy = y
+    this.char = '$'
     this.collected = false
+    this.moving = false
     this.itemType = itemType
     this.itemName = this.getItemName()
   }
 
   getItemName() {
     const names = {
-      generic: '📦 Ржавые припасы',
-      health: '💉 Аптечка (старая)',
-      mana: '⚡ Батарея (разряженная)',
-      weapon: '🔫 Ржавый автомат',
-      armor: '🛡️ Пробитая броня'
+      generic: '📦 Припасы',
+      health: '💊 Аптечка',
+      mana: '⚡ Батарея',
+      weapon: '🔫 Оружие',
+      armor: '🛡️ Броня'
     }
     return names[this.itemType] || '📦 Предмет'
   }
@@ -29,14 +30,21 @@ export default class Item extends GameObject {
     }
   }
 
+  occupies(tileX, tileY) {
+    return Math.floor(this.x) === tileX && Math.floor(this.y) === tileY
+  }
+
   draw(ctx, x, y, ts, isVisible, fontFamily) {
     if (!isVisible || this.collected) return
 
-    ctx.globalAlpha = isVisible ? 1 : 0.4
-    ctx.fillStyle = this.color
+    ctx.fillStyle = '#aaaaaa'  // Светло-серый
     ctx.font = `${ts}px ${fontFamily}`
     ctx.fillText(this.char, x + ts / 2, y + ts / 2)
-    ctx.globalAlpha = 1
+  }
+
+  moveTo(newX, newY) {
+    this.x = newX
+    this.y = newY
   }
 
   collect() {
