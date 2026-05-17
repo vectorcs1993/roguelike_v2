@@ -1,3 +1,4 @@
+import { findNearestWalkableCell } from './PathHelper'
 
 export default class Renderer {
   // Константы класса
@@ -170,40 +171,61 @@ export default class Renderer {
       const toX = this.hoverTileX
       const toY = this.hoverTileY
 
+      // Используем общую логику из хелпера с передачей позиции активного персонажа
+      const target = findNearestWalkableCell(
+        toX,
+        toY,
+        map,
+        this._allCharacters,
+        this._activeCharacter,
+        fromX,
+        fromY
+      )
+
+      if (!target) return
+
       const blocked = this._location?.getBlockedCells(this._activeCharacter) || []
 
       let path = null
       if (this._pathCache) {
-        path = this._pathCache.get(fromX, fromY, toX, toY, blocked)
+        path = this._pathCache.get(fromX, fromY, target.x, target.y, blocked)
       }
 
       if (!path && this._pathfinder) {
-        path = this._pathfinder.find(fromX, fromY, toX, toY, blocked)
+        path = this._pathfinder.find(fromX, fromY, target.x, target.y, blocked)
         if (this._pathCache && path) {
-          this._pathCache.set(fromX, fromY, toX, toY, blocked, path)
+          this._pathCache.set(fromX, fromY, target.x, target.y, blocked, path)
         }
       }
 
       if (path && path.length > 0) {
-        ctx.fillStyle = '#444444'  // Очень темно-серый
+        ctx.fillStyle = '#444444'
 
-        for (let i = 1; i < path.length - 1; i++) {
+        // Рисуем ВСЕ точки пути, включая последнюю (но не первую - это позиция персонажа)
+        // Используем indexOf для определения последней точки
+        for (let i = 1; i < path.length; i++) {
           const p = path[i]
           const drawX = p.x * ts + ox
           const drawY = p.y * ts + oy
-          ctx.fillText('·', drawX + ts / 2, drawY + ts / 2)
+
+          // Если это последняя точка пути
+          if (i === path.length - 1) {
+            // Рисуем специальный символ для конечной точки
+            ctx.fillStyle = '#666666'
+            ctx.fillText('★', drawX + ts / 2, drawY + ts / 2)
+          } else {
+            // Обычные промежуточные точки
+            ctx.fillStyle = '#444444'
+            ctx.fillText('·', drawX + ts / 2, drawY + ts / 2)
+          }
         }
 
-        const last = path[path.length - 1]
-        const isTargetCharacter = this._allCharacters?.some(
-          c => c !== this._activeCharacter && c.occupies(last.x, last.y)
-        )
-
-        if (!isTargetCharacter) {
-          ctx.strokeStyle = '#555555'
+        // Рисуем рамку вокруг оригинальной цели (если она заблокирована)
+        if (!target.isOriginal) {
+          ctx.strokeStyle = '#ff8888'
           ctx.lineWidth = 1
           ctx.setLineDash([4, 4])
-          ctx.strokeRect(last.x * ts + ox + 4, last.y * ts + oy + 4, ts - 8, ts - 8)
+          ctx.strokeRect(toX * ts + ox + 4, toY * ts + oy + 4, ts - 8, ts - 8)
           ctx.setLineDash([])
         }
       }

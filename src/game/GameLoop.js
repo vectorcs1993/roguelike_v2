@@ -4,6 +4,7 @@ import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
 import Location from './Location.js'
+import { findNearestWalkableCell } from './PathHelper.js'
 
 export default class GameLoop {
   constructor(canvas, config, initialLocation = null, biomeType = null) {
@@ -229,36 +230,39 @@ export default class GameLoop {
     const tileX = worldX | 0
     const tileY = worldY | 0
 
-    // Проверяем, есть ли персонаж на целевой клетке - если да, игнорируем клик
-    const targetCharacter = this.currentLocation.getAllCharacters().find(
-      c => c !== activeChar && c.occupies(tileX, tileY)
-    )
-
-    if (targetCharacter) {
+    // Получаем целевую клетку используя общую логику
+    const target = this.getTargetCell(tileX, tileY, activeChar)
+    if (!target) {
+      console.log(`Нет доступных клеток рядом с (${tileX}, ${tileY})`)
       return false
     }
 
-    // Проверяем, не занята ли целевая клетка
-    const isOccupied = this.currentLocation.getAllCharacters().some(
-      c => c !== activeChar && c.occupies(tileX, tileY)
-    )
-    if (isOccupied) return false
-
+    // Находим путь
     const path = this.currentLocation.findPath(
       Math.floor(activeChar.x), Math.floor(activeChar.y),
-      tileX, tileY,
+      target.x, target.y,
       activeChar
     )
 
+    // Если путь найден - начинаем движение
     if (path && path.length > 0) {
-      // УБРАНА проверка на весь путь!
-      // Персонаж начнет идти и остановится сам, когда не хватит AP
       activeChar.setPath(path)
       return true
     }
+
     return false
   }
-
+  getTargetCell(targetX, targetY, activeChar) {
+    return findNearestWalkableCell(
+      targetX,
+      targetY,
+      this.currentLocation.map,
+      this.currentLocation.getAllCharacters(),
+      activeChar,
+      Math.floor(activeChar.x),  // добавляем позицию активного персонажа
+      Math.floor(activeChar.y)
+    )
+  }
   updateHoverTile(mouseX, mouseY) {
     if (!mouseX || !mouseY || !this.renderer) {
       this.hoverTileX = null
