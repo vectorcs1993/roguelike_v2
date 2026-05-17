@@ -1,4 +1,6 @@
-// src/game/Location.js (обновленный)
+// src/game/Location.js
+
+// src/game/Location.js (полностью обновленный)
 
 import TileMap from './TileMap.js'
 import Character from './Character.js'
@@ -9,7 +11,7 @@ import EnemyTeam from './EnemyTeam.js'
 import BiomeGenerator from './BiomeGenerator.js'
 
 export default class Location {
-  constructor(config, pillars, teamConfigs = [], itemConfigs = [], biomeName = null) {
+  constructor(config, pillars, teamConfigs = [], itemConfigs = [], biomeName = null, cratePositions = []) {
     this.config = config
     this.biomeName = biomeName || 'Неизвестная локация'
     this.name = this.biomeName
@@ -18,6 +20,10 @@ export default class Location {
     this.map.fill()
     this.map.setWalls(pillars)
 
+    // Добавляем ящики на карту
+    if (cratePositions && cratePositions.length > 0) {
+      this.map.setCrates(cratePositions)
+    }
 
     this.pathfinder = new Pathfinder(this.map)
 
@@ -38,7 +44,6 @@ export default class Location {
           console.warn(`Unknown team type: ${teamConfig.type}`)
           continue
       }
-
 
       for (const charConfig of teamConfig.characters) {
         const charColor = charConfig.color || teamConfig.color || team.color || '#ffffff'
@@ -67,7 +72,8 @@ export default class Location {
 
     this.items = []
     for (const itemConfig of itemConfigs) {
-      this.items.push(new Item(itemConfig.x, itemConfig.y))
+      const item = new Item(itemConfig.x, itemConfig.y, itemConfig.itemType || 'generic')
+      this.items.push(item)
     }
   }
 
@@ -216,33 +222,86 @@ export default class Location {
     }
   }
 
-  //  метод для создания процедурно-сгенерированной локации
-  static generateProcedural(config) {
-    const generator = new BiomeGenerator(config);
-    const { walls, width, height } = generator.generate();
+  // ПОЛНЫЙ МЕТОД ГЕНЕРАЦИИ ПРОЦЕДУРНОЙ ЛОКАЦИИ
+  static generateProcedural(config, biomeType = null) {
+    // Настройки генератора
+    const generatorConfig = {
+      // Основные параметры карты
+      roomCount: 60,
+      minRoomSize: 3,
+      maxRoomSize: 6,
+      corridorWidth: 1,
+      roomSpacing: 2,
+      maxAttempts: 500,
+      gridSize: 30,
 
-    const biomeName = '🏰 Жилой комплекс';
+      // Настройки ящиков (сундуков)
+      crates: {
+        enabled: true,              // Включена ли генерация ящиков
+        count: 15,                 // Количество ящиков
+        spawnInRoomsOnly: true,    // ТОЛЬКО в комнатах (не в коридорах)
+        spawnNearWalls: true,      // Рядом со стенами
+        minAdjacentWalls: 0,       // Минимум соседних стен (0 - можно и без стен)
+        maxAdjacentWalls: 4,       // Максимум соседних стен
+        avoidCorridors: true,      // Избегать коридоров
+        maxAttemptsPerCrate: 100   // Попыток на один ящик
+      },
 
-    // Генерируем ящики
-    const crates = generator.generateCrates(walls, width, height, 15);
+      // Настройки предметов
+      items: {
+        enabled: true,              // Включена ли генерация предметов
+        count: 20,                 // Количество предметов
+        spawnInRoomsOnly: false,   // Можно ли в комнатах
+        spawnInCorridors: false,   // Можно ли в коридорах
+        maxAttemptsPerItem: 100    // Попыток на один предмет
+      }
+    }
+
+    // Если передан biomeType, можно менять настройки
+    if (biomeType === 'forest') {
+      generatorConfig.crates.count = 20
+      generatorConfig.items.count = 25
+    } else if (biomeType === 'dungeon') {
+      generatorConfig.crates.count = 10
+      generatorConfig.items.count = 15
+      generatorConfig.crates.spawnNearWalls = true
+      generatorConfig.crates.minAdjacentWalls = 1
+    }
+
+    const generator = new BiomeGenerator(generatorConfig)
+    const { walls, width, height, rooms, corridorCells } = generator.generate()
+
+    const biomeName = biomeType === 'forest' ? '🌳 Лесная чаща' :
+      biomeType === 'dungeon' ? '🏰 Подземелье' :
+        '🏰 Жилой комплекс'
+
+    // Генерируем ящики (получаем и список ящиков, и занятые клетки)
+    const { crates, occupiedCells } = generator.generateCrates(walls, width, height, rooms, corridorCells)
+
+    // Генерируем предметы (передаем занятые ящиками клетки, чтобы не ставить на них предметы)
+    const items = generator.generateItems(walls, width, height, rooms, corridorCells, occupiedCells)
+
+    // Создаем множества для быстрой проверки занятости
+    const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
+    const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`))
+    const itemSet = new Set(items.map(i => `${i.x},${i.y}`))
+
+    // Функция проверки свободной клетки (для персонажей)
+    const isPositionFree = (x, y) => {
+      const key = `${x},${y}`
+      return !wallSet.has(key) && !crateSet.has(key) && !itemSet.has(key)
+    }
 
     // Поиск свободных позиций для персонажей
-    const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`));
-    const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`));
+    const playerStart = Location.findEmptyTile(width, height, isPositionFree)
+    const allyStart = Location.findEmptyTile(width, height, isPositionFree, [playerStart])
+    const enemyStart1 = Location.findEmptyTile(width, height, isPositionFree, [playerStart, allyStart])
+    const enemyStart2 = Location.findEmptyTile(width, height, isPositionFree, [playerStart, allyStart, enemyStart1])
 
-    const isPositionFree = (x, y) => {
-      const key = `${x},${y}`;
-      return !wallSet.has(key) && !crateSet.has(key);
-    };
+    let nextId = 1
+    const generateId = () => nextId++
 
-    const playerStart = Location.findEmptyTile(width, height, isPositionFree);
-    const allyStart = Location.findEmptyTile(width, height, isPositionFree, [playerStart]);
-    const enemyStart1 = Location.findEmptyTile(width, height, isPositionFree, [playerStart, allyStart]);
-    const enemyStart2 = Location.findEmptyTile(width, height, isPositionFree, [playerStart, allyStart, enemyStart1]);
-
-    let nextId = 1;
-    const generateId = () => nextId++;
-
+    // Формируем команды
     const teamConfigs = [
       {
         type: 'player',
@@ -280,53 +339,91 @@ export default class Location {
           }
         ]
       }
-    ];
+    ]
 
-    const occupiedPositions = [
-      ...teamConfigs[0].characters.map(c => ({ x: c.x, y: c.y })),
-      ...teamConfigs[1].characters.map(c => ({ x: c.x, y: c.y }))
-    ];
+    // Добавляем предметы в конфиг
+    const itemConfigs = items.map(item => ({
+      x: item.x,
+      y: item.y,
+      itemType: item.itemType,
+      apRestore: 2 + Math.floor(Math.random() * 8)
+    }))
 
-    const items = [];
-    for (let i = 0; i < 20; i++) {
-      const pos = Location.findEmptyTile(width, height, isPositionFree, occupiedPositions);
-      if (pos) {
-        items.push({ x: pos.x, y: pos.y, apRestore: 2 + Math.floor(Math.random() * 8) });
-        occupiedPositions.push(pos);
-      }
-    }
+    const updatedConfig = { ...config, cols: width, rows: height }
 
-    const updatedConfig = { ...config, cols: width, rows: height };
-    const location = new Location(updatedConfig, walls, teamConfigs, items, biomeName);
+    // Создаем локацию
+    const location = new Location(
+      updatedConfig,
+      walls,
+      teamConfigs,
+      itemConfigs,
+      biomeName,
+      crates
+    )
 
-    // Добавляем ящики на карту
-    location.map.setCrates(crates);
+    // Логируем результаты
+    console.log(`================== ГЕНЕРАЦИЯ ЛОКАЦИИ ==================`)
+    console.log(`📍 Локация: ${biomeName}`)
+    console.log(`🗺️  Размер: ${width} x ${height}`)
+    console.log(`📦 Комнат: ${rooms.length}`)
+    console.log(`📦 Ящиков: ${crates.length}`)
+    console.log(`💎 Предметов: ${items.length}`)
+    console.log(`🚫 Пересечений: ${crates.length + items.length - new Set([...crates.map(c => `${c[0]},${c[1]}`), ...items.map(i => `${i.x},${i.y}`)]).size}`)
+    console.log(`👤 Герой: (${playerStart.x}, ${playerStart.y})`)
+    console.log(`👥 Спутник: (${allyStart.x}, ${allyStart.y})`)
+    console.log(`👹 Гоблин: (${enemyStart1.x}, ${enemyStart1.y})`)
+    console.log(`👹 Орк: (${enemyStart2.x}, ${enemyStart2.y})`)
+    console.log(`===================================================`)
 
-    return location;
+    return location
   }
 
   static findEmptyTile(width, height, isPositionFree, occupied = []) {
-    const occupiedSet = new Set(occupied.map(o => `${o.x},${o.y}`));
+    const occupiedSet = new Set(occupied.map(o => `${o.x},${o.y}`))
 
-    // Список возможных позиций
-    const candidates = [];
+    // Собираем все возможные позиции
+    const candidates = []
     for (let y = 2; y < height - 2; y++) {
       for (let x = 2; x < width - 2; x++) {
-        const key = `${x},${y}`;
+        const key = `${x},${y}`
         if (isPositionFree(x, y) && !occupiedSet.has(key)) {
-          candidates.push({ x, y });
+          // Даем предпочтение клеткам подальше от стен
+          let wallDistance = 0
+          for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+              if (!isPositionFree(x + dx, y + dy)) wallDistance++
+            }
+          }
+          candidates.push({ x, y, wallDistance })
         }
       }
     }
 
-    if (candidates.length > 0) {
-      return candidates[Math.floor(Math.random() * candidates.length)];
+    if (candidates.length === 0) {
+      // Если нет свободных клеток, ищем хотя бы какую-нибудь
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          if (isPositionFree(x, y) && !occupiedSet.has(`${x},${y}`)) {
+            console.warn(`Использована запасная позиция (${x}, ${y})`)
+            return { x, y }
+          }
+        }
+      }
+      console.error(`НЕТ СВОБОДНЫХ ПОЗИЦИЙ! Возвращаем (10, 10)`)
+      return { x: 10, y: 10 }
     }
 
-    return { x: 10, y: 10 };
+    // Сортируем по удаленности от стен (чем дальше, тем лучше)
+    candidates.sort((a, b) => b.wallDistance - a.wallDistance)
+
+    // Берем случайную из топ-10 лучших позиций
+    const topCandidates = candidates.slice(0, Math.min(10, candidates.length))
+    const randomIndex = Math.floor(Math.random() * topCandidates.length)
+
+    return { x: topCandidates[randomIndex].x, y: topCandidates[randomIndex].y }
   }
 
-  // Старый метод createDefault оставляем для совместимости, но делаем процедурным
+  // Старый метод createDefault оставляем для совместимости
   static createDefault(config) {
     return Location.generateProcedural(config)
   }

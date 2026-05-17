@@ -1,16 +1,36 @@
 // src/game/BiomeGenerator.js
 
 export default class BiomeGenerator {
-  constructor() {
-    // Основные параметры
-    this.roomCount = 60;              // Ещё больше комнат
-    this.minRoomSize = 3;             // Минимальный размер (меньше)
-    this.maxRoomSize = 6;             // Максимальный размер
-    this.corridorWidth = 1;           // Узкие коридоры
-    this.roomSpacing = 2;             // Минимальный отступ
+  constructor(config = {}) {
+    // Основные параметры генерации карты
+    this.roomCount = config.roomCount || 60
+    this.minRoomSize = config.minRoomSize || 3
+    this.maxRoomSize = config.maxRoomSize || 6
+    this.corridorWidth = config.corridorWidth || 1
+    this.roomSpacing = config.roomSpacing || 2
+    this.maxAttempts = config.maxAttempts || 500
+    this.gridSize = config.gridSize || 30
 
-    this.maxAttempts = 500;            // Больше попыток разместить комнаты
-    this.gridSize = 30;               // Размер сетки для генерации
+    // Параметры генерации ящиков (сундуков)
+    this.crateConfig = {
+      enabled: config.crates?.enabled !== false,        // Включена ли генерация ящиков
+      count: config.crates?.count || 15,                // Количество ящиков
+      spawnInRoomsOnly: config.crates?.spawnInRoomsOnly !== false, // Только в комнатах
+      spawnNearWalls: config.crates?.spawnNearWalls !== false,     // Рядом со стенами
+      minAdjacentWalls: config.crates?.minAdjacentWalls || 1,       // Минимум соседних стен
+      maxAdjacentWalls: config.crates?.maxAdjacentWalls || 3,       // Максимум соседних стен
+      avoidCorridors: config.crates?.avoidCorridors !== false,      // Избегать коридоров
+      maxAttemptsPerCrate: config.crates?.maxAttemptsPerCrate || 100 // Попыток на один ящик
+    }
+
+    // Параметры генерации предметов
+    this.itemConfig = {
+      enabled: config.items?.enabled !== false,
+      count: config.items?.count || 20,
+      spawnInRoomsOnly: config.items?.spawnInRoomsOnly !== false,
+      spawnInCorridors: config.items?.spawnInCorridors || false,
+      maxAttemptsPerItem: config.items?.maxAttemptsPerItem || 100
+    }
   }
 
   generate() {
@@ -18,11 +38,13 @@ export default class BiomeGenerator {
     const GRID_SIZE = this.gridSize;
 
     console.log(`Генерация с отступом: ${this.roomSpacing}, попыток: ${this.maxAttempts}`);
+    console.log(`Настройки ящиков:`, this.crateConfig);
+    console.log(`Настройки предметов:`, this.itemConfig);
 
     // 1. СОЗДАЁМ СЕТКУ ДЛЯ ОТСЛЕЖИВАНИЯ ЗАНЯТЫХ КЛЕТОК
     const occupiedGrid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(false));
 
-    // 2. ГЕНЕРИРУЕМ КОМНАТЫ С АГРЕССИВНЫМ РАЗМЕЩЕНИЕМ
+    // 2. ГЕНЕРИРУЕМ КОМНАТЫ
     for (let i = 0; i < this.roomCount; i++) {
       let placed = false;
       let attempts = 0;
@@ -31,11 +53,9 @@ export default class BiomeGenerator {
         const w = this.minRoomSize + Math.floor(Math.random() * (this.maxRoomSize - this.minRoomSize + 1));
         const h = this.minRoomSize + Math.floor(Math.random() * (this.maxRoomSize - this.minRoomSize + 1));
 
-        // Расширяем область поиска
         const x = 1 + Math.floor(Math.random() * (GRID_SIZE - w - 1));
         const y = 1 + Math.floor(Math.random() * (GRID_SIZE - h - 1));
 
-        // Проверяем пересечения с учётом отступа
         let intersects = false;
         for (let dy = -this.roomSpacing; dy <= h + this.roomSpacing; dy++) {
           for (let dx = -this.roomSpacing; dx <= w + this.roomSpacing; dx++) {
@@ -52,7 +72,6 @@ export default class BiomeGenerator {
         }
 
         if (!intersects) {
-          // Помечаем все клетки комнаты как занятые
           for (let dy = 0; dy < h; dy++) {
             for (let dx = 0; dx < w; dx++) {
               const markX = x + dx;
@@ -83,7 +102,6 @@ export default class BiomeGenerator {
       maxY = Math.max(maxY, room.y + room.h);
     }
 
-    // Добавляем отступы для карты
     const padding = 3;
     const offsetX = padding - minX;
     const offsetY = padding - minY;
@@ -93,7 +111,6 @@ export default class BiomeGenerator {
       room.y += offsetY;
     }
 
-    // Обновляем границы
     minX = Infinity; minY = Infinity;
     maxX = -Infinity; maxY = -Infinity;
 
@@ -104,7 +121,6 @@ export default class BiomeGenerator {
       maxY = Math.max(maxY, room.y + room.h);
     }
 
-    // Создаем карту с минимальными отступами
     const width = maxX - minX + padding * 2;
     const height = maxY - minY + padding * 2;
     const map = Array(height).fill().map(() => Array(width).fill(true));
@@ -120,13 +136,10 @@ export default class BiomeGenerator {
       }
     }
 
-    // 5. НАХОДИМ БЛИЖАЙШИЕ КОМНАТЫ И СОЕДИНЯЕМ
+    // 5. СОЕДИНЯЕМ КОМНАТЫ КОРИДОРАМИ
     const connections = this.getRoomConnections(rooms);
-
-    // Сортируем соединения по расстоянию (сначала соединяем ближайшие)
     connections.sort((a, b) => a.dist - b.dist);
 
-    // Создаём минимальное остовное дерево для связности
     const connectedRooms = new Set();
     const finalConnections = [];
 
@@ -153,7 +166,6 @@ export default class BiomeGenerator {
         }
       }
 
-      // Добавляем дополнительные соединения для петель
       const extraCount = Math.min(Math.floor(rooms.length / 3), connections.length - finalConnections.length);
       for (let i = 0; i < extraCount && i < connections.length; i++) {
         if (!finalConnections.includes(connections[i])) {
@@ -162,20 +174,20 @@ export default class BiomeGenerator {
       }
     }
 
-    // 6. РИСУЕМ КОРИДОРЫ
+    // 6. РИСУЕМ КОРИДОРЫ И ЗАПОМИНАЕМ ИХ КЛЕТКИ
+    const corridorCells = new Set()
+
     for (const conn of finalConnections) {
       const room1 = rooms[conn.i];
       const room2 = rooms[conn.j];
 
-      // Используем ближайшие точки на стенах комнат
       const points = this.findClosestPoints(room1, room2);
       const x1 = points.x1;
       const y1 = points.y1;
       const x2 = points.x2;
       const y2 = points.y2;
 
-      // Рисуем L-образный коридор
-      // Сначала горизонтально
+      // Горизонтальная часть коридора
       const startX = Math.min(x1, x2);
       const endX = Math.max(x1, x2);
       for (let x = startX; x <= endX; x++) {
@@ -183,11 +195,12 @@ export default class BiomeGenerator {
           const y = y1 + dy - Math.floor(this.corridorWidth / 2);
           if (y >= 0 && y < height && x >= 0 && x < width) {
             map[y][x] = false;
+            corridorCells.add(`${x},${y}`)
           }
         }
       }
 
-      // Потом вертикально
+      // Вертикальная часть коридора
       const startY = Math.min(y1, y2);
       const endY = Math.max(y1, y2);
       for (let y = startY; y <= endY; y++) {
@@ -195,6 +208,7 @@ export default class BiomeGenerator {
           const x = x2 + dx - Math.floor(this.corridorWidth / 2);
           if (x >= 0 && x < width && y >= 0 && y < height) {
             map[y][x] = false;
+            corridorCells.add(`${x},${y}`)
           }
         }
       }
@@ -210,42 +224,44 @@ export default class BiomeGenerator {
       }
     }
 
-    // 8. ВЫВОДИМ ИНФОРМАЦИЮ
     console.log(`Сгенерировано ${rooms.length} комнат, соединений: ${finalConnections.length}`);
     console.log(`Размер карты: ${width} x ${height}`);
     console.log(`Процент заполнения: ${((width * height - walls.length) / (width * height) * 100).toFixed(1)}%`);
 
-    return { walls, width, height };
+    console.log(`Сгенерировано ${rooms.length} комнат, соединений: ${finalConnections.length}`);
+    console.log(`Размер карты: ${width} x ${height}`);
+    console.log(`Процент заполнения: ${((width * height - walls.length) / (width * height) * 100).toFixed(1)}%`);
+
+    return { walls, width, height, rooms, corridorCells };
   }
 
-  // Находим ближайшие точки между двумя комнатами
+  // НАХОДИМ БЛИЖАЙШИЕ ТОЧКИ МЕЖДУ КОМНАТАМИ
   findClosestPoints(room1, room2) {
     let minDist = Infinity;
     let bestPoint1 = { x: room1.x + Math.floor(room1.w / 2), y: room1.y + Math.floor(room1.h / 2) };
     let bestPoint2 = { x: room2.x + Math.floor(room2.w / 2), y: room2.y + Math.floor(room2.h / 2) };
 
-    // Проверяем все точки на границах комнат
     for (let side1 = 0; side1 < 4; side1++) {
       let points1 = [];
-      if (side1 === 0) { // верх
+      if (side1 === 0) {
         for (let x = room1.x; x <= room1.x + room1.w; x++) points1.push({ x, y: room1.y });
-      } else if (side1 === 1) { // низ
+      } else if (side1 === 1) {
         for (let x = room1.x; x <= room1.x + room1.w; x++) points1.push({ x, y: room1.y + room1.h });
-      } else if (side1 === 2) { // лево
+      } else if (side1 === 2) {
         for (let y = room1.y; y <= room1.y + room1.h; y++) points1.push({ x: room1.x, y });
-      } else { // право
+      } else {
         for (let y = room1.y; y <= room1.y + room1.h; y++) points1.push({ x: room1.x + room1.w, y });
       }
 
       for (let side2 = 0; side2 < 4; side2++) {
         let points2 = [];
-        if (side2 === 0) { // верх
+        if (side2 === 0) {
           for (let x = room2.x; x <= room2.x + room2.w; x++) points2.push({ x, y: room2.y });
-        } else if (side2 === 1) { // низ
+        } else if (side2 === 1) {
           for (let x = room2.x; x <= room2.x + room2.w; x++) points2.push({ x, y: room2.y + room2.h });
-        } else if (side2 === 2) { // лево
+        } else if (side2 === 2) {
           for (let y = room2.y; y <= room2.y + room2.h; y++) points2.push({ x: room2.x, y });
-        } else { // право
+        } else {
           for (let y = room2.y; y <= room2.y + room2.h; y++) points2.push({ x: room2.x + room2.w, y });
         }
 
@@ -273,7 +289,6 @@ export default class BiomeGenerator {
         const room1 = rooms[i];
         const room2 = rooms[j];
 
-        // Вычисляем расстояние между центрами
         const x1 = room1.x + room1.w / 2;
         const y1 = room1.y + room1.h / 2;
         const x2 = room2.x + room2.w / 2;
@@ -281,56 +296,219 @@ export default class BiomeGenerator {
 
         const dist = Math.abs(x1 - x2) + Math.abs(y1 - y2);
 
-        connections.push({
-          i: i,
-          j: j,
-          dist: dist
-        });
+        connections.push({ i, j, dist });
       }
     }
 
-    // Сортируем по расстоянию
     connections.sort((a, b) => a.dist - b.dist);
-
     return connections;
   }
 
-  // Добавляем метод генерации ящиков
-  generateCrates(walls, width, height, roomCount = 10) {
+  generateCrates(walls, width, height, rooms, corridorCells) {
+    if (!this.crateConfig.enabled) {
+      console.log('Генерация ящиков отключена в настройках')
+      return { crates: [], occupiedCells: new Set() }
+    }
+
     const crates = []
     const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
+    const occupiedCells = new Set() // Будем хранить занятые ящиками клетки
 
-    for (let i = 0; i < roomCount; i++) {
-      let attempts = 0
-      let placed = false
+    // Создаем множество клеток комнат (внутренность комнат, не включая стены)
+    const roomCells = new Set()
+    const roomWalls = new Set() // Клетки рядом со стенами комнат
 
-      while (!placed && attempts < 100) {
-        const x = 1 + Math.floor(Math.random() * (width - 2))
-        const y = 1 + Math.floor(Math.random() * (height - 2))
-        const key = `${x},${y}`
+    for (const room of rooms) {
+      // Внутренние клетки комнаты (отступаем от стен)
+      for (let y = room.y + 1; y < room.y + room.h; y++) {
+        for (let x = room.x + 1; x < room.x + room.w; x++) {
+          roomCells.add(`${x},${y}`)
+        }
+      }
 
-        // Ящик не должен быть на стене и не должен дублироваться
-        if (!wallSet.has(key) && !crates.some(c => c[0] === x && c[1] === y)) {
-          // Проверяем, что рядом есть проходы (не в тупике)
-          let adjacentWalls = 0
-          const neighbors = [
-            [x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]
-          ]
-          for (const [nx, ny] of neighbors) {
-            if (wallSet.has(`${nx},${ny}`)) adjacentWalls++
-          }
-
-          // Ящики лучше ставить рядом со стенами, но не в полном окружении
-          if (adjacentWalls >= 1 && adjacentWalls <= 3) {
-            crates.push([x, y])
-            placed = true
+      // Клетки рядом со стенами комнат (для ящиков)
+      for (let y = room.y; y <= room.y + room.h; y++) {
+        for (let x = room.x; x <= room.x + room.w; x++) {
+          // Только если клетка не является стеной
+          if (!wallSet.has(`${x},${y}`)) {
+            // Проверяем, есть ли рядом стена
+            let hasWallNearby = false
+            const neighbors = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]
+            for (const [nx, ny] of neighbors) {
+              if (wallSet.has(`${nx},${ny}`)) {
+                hasWallNearby = true
+                break
+              }
+            }
+            if (hasWallNearby) {
+              roomWalls.add(`${x},${y}`)
+            }
           }
         }
-        attempts++
       }
     }
 
-    console.log(`Сгенерировано ${crates.length} ящиков`)
-    return crates
+    console.log(`Доступно клеток в комнатах: ${roomCells.size}`)
+    console.log(`Доступно клеток у стен: ${roomWalls.size}`)
+
+    // Выбираем, где спавнить ящики
+    let availableCells = []
+
+    if (this.crateConfig.spawnInRoomsOnly) {
+      if (this.crateConfig.spawnNearWalls) {
+        availableCells = Array.from(roomWalls)
+      } else {
+        availableCells = Array.from(roomCells)
+      }
+    } else {
+      // Вся карта, кроме стен и коридоров
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          const key = `${x},${y}`
+          if (!wallSet.has(key) && !corridorCells.has(key)) {
+            if (this.crateConfig.spawnNearWalls) {
+              // Проверяем, есть ли рядом стена
+              let hasWallNearby = false
+              const neighbors = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]
+              for (const [nx, ny] of neighbors) {
+                if (wallSet.has(`${nx},${ny}`)) {
+                  hasWallNearby = true
+                  break
+                }
+              }
+              if (hasWallNearby) availableCells.push(key)
+            } else {
+              availableCells.push(key)
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`Доступно клеток для ящиков: ${availableCells.length}`)
+
+    if (availableCells.length === 0) {
+      console.warn('Нет доступных клеток для размещения ящиков!')
+      return { crates: [], occupiedCells: new Set() }
+    }
+
+    // Перемешиваем доступные клетки
+    for (let i = availableCells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+        ;[availableCells[i], availableCells[j]] = [availableCells[j], availableCells[i]]
+    }
+
+    // Размещаем ящики
+    const targetCount = Math.min(this.crateConfig.count, availableCells.length)
+
+    for (let i = 0; i < targetCount && i < availableCells.length; i++) {
+      const [x, y] = availableCells[i].split(',').map(Number)
+
+      // Дополнительная проверка на соседние стены
+      let adjacentWalls = 0
+      const neighbors = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]
+      for (const [nx, ny] of neighbors) {
+        if (wallSet.has(`${nx},${ny}`)) adjacentWalls++
+      }
+
+      // Проверяем условия по стенам
+      if (adjacentWalls >= this.crateConfig.minAdjacentWalls &&
+        adjacentWalls <= this.crateConfig.maxAdjacentWalls) {
+        crates.push([x, y])
+        occupiedCells.add(`${x},${y}`) // Запоминаем занятую клетку
+      } else if (this.crateConfig.spawnNearWalls === false) {
+        // Если не требуем стены, все равно ставим
+        crates.push([x, y])
+        occupiedCells.add(`${x},${y}`)
+      }
+    }
+
+    console.log(`Сгенерировано ${crates.length} из ${this.crateConfig.count} ящиков`)
+
+    if (crates.length === 0 && this.crateConfig.enabled) {
+      console.warn('Не удалось сгенерировать ящики! Проверьте настройки:')
+      console.warn('  spawnInRoomsOnly:', this.crateConfig.spawnInRoomsOnly)
+      console.warn('  spawnNearWalls:', this.crateConfig.spawnNearWalls)
+      console.warn('  minAdjacentWalls:', this.crateConfig.minAdjacentWalls)
+      console.warn('  maxAdjacentWalls:', this.crateConfig.maxAdjacentWalls)
+    }
+
+    return { crates, occupiedCells }
+  }
+
+  // МЕТОД ГЕНЕРАЦИИ ПРЕДМЕТОВ
+  generateItems(walls, width, height, rooms, corridorCells, occupiedByCrates = new Set()) {
+    if (!this.itemConfig.enabled) {
+      console.log('Генерация предметов отключена в настройках')
+      return []
+    }
+
+    const items = []
+    const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
+
+    // Собираем доступные клетки
+    const availableCells = []
+
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const key = `${x},${y}`
+
+        // Не на стене
+        if (wallSet.has(key)) continue
+
+        // Не на ящике (НЕ размещаем предметы на ящиках!)
+        if (occupiedByCrates.has(key)) continue
+
+        // Проверяем, можно ли ставить предмет
+        let canPlace = true
+
+        if (this.itemConfig.spawnInRoomsOnly) {
+          // Проверяем, находится ли клетка в какой-либо комнате
+          let inRoom = false
+          for (const room of rooms) {
+            if (x >= room.x && x <= room.x + room.w &&
+              y >= room.y && y <= room.y + room.h) {
+              inRoom = true
+              break
+            }
+          }
+          if (!inRoom) canPlace = false
+        }
+
+        if (this.itemConfig.spawnInCorridors === false && corridorCells.has(key)) {
+          canPlace = false
+        }
+
+        if (canPlace) {
+          availableCells.push(key)
+        }
+      }
+    }
+
+    console.log(`Доступно клеток для предметов (без учета ящиков): ${availableCells.length}`)
+
+    if (availableCells.length === 0) {
+      console.warn('Нет доступных клеток для размещения предметов!')
+      return []
+    }
+
+    // Перемешиваем
+    for (let i = availableCells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+        ;[availableCells[i], availableCells[j]] = [availableCells[j], availableCells[i]]
+    }
+
+    // Размещаем предметы
+    const targetCount = Math.min(this.itemConfig.count, availableCells.length)
+    const itemTypes = ['generic', 'health', 'mana', 'weapon', 'armor']
+
+    for (let i = 0; i < targetCount; i++) {
+      const [x, y] = availableCells[i].split(',').map(Number)
+      const randomType = itemTypes[Math.floor(Math.random() * itemTypes.length)]
+      items.push({ x, y, itemType: randomType })
+    }
+
+    console.log(`Сгенерировано ${items.length} из ${this.itemConfig.count} предметов`)
+    return items
   }
 }

@@ -2,7 +2,7 @@
 
 export default class Renderer {
   // Константы класса
-  static DEFAULT_TILE_SIZE = 32
+  static DEFAULT_TILE_SIZE = 48
   static MIN_TILE_SIZE = 12
   static DEFAULT_FONT_FAMILY = "Lucida Console, monospace"
 
@@ -209,9 +209,9 @@ export default class Renderer {
   drawTooltip(text) {
     const ctx = this.ctx
     // Используем тот же шрифт, но меньшего размера
-    ctx.font = `12px ${this.fontFamily}`
+    ctx.font = `${this.tileSize}px ${this.fontFamily}`
     const w = ctx.measureText(text).width + 16
-    const h = 24
+    const h = this.tileSize + 4
     const padding = 4
 
     let x = this.mouseScreenX + 15
