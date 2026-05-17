@@ -187,12 +187,20 @@ export default class Renderer {
           ctx.setLineDash([])
           ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
 
+          // ПОКАЗЫВАЕМ ЗВЕЗДУ ДЛЯ СОСЕДНИХ КЛЕТОК
+          if (!canStand) {
+            ctx.fillStyle = '#ff8888'
+            ctx.font = `${ts}px ${this.fontFamily}`
+            ctx.fillText('★', x + ts / 2, y + ts / 2)
+          }
+
           if (this._location) {
             const info = this._location.getTileInfo(toX, toY)
             if (info) this.drawTooltip(info.name)
           }
         }
-        return
+        // УБИРАЕМ return, чтобы не блокировать остальную отрисовку
+        // return;  // <-- УДАЛИТЬ ЭТУ СТРОКУ
       }
 
       // Для несоседних - используем новую функцию
@@ -204,7 +212,6 @@ export default class Renderer {
       );
 
       if (result && result.path && result.path.length > 0) {
-        // Сохраняем для возможного использования
         this._bestPreviewPath = result.path
         this._bestPreviewTarget = result.target
 

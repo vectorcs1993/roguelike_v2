@@ -93,7 +93,18 @@ export default class Pathfinder {
         if (n.cost > 1) {
           const adj1 = map.isWalkable(n.x, current.y)
           const adj2 = map.isWalkable(current.x, n.y)
-          if (!adj1 || !adj2) continue
+
+          // ОТЛАДКА
+          // console.log(`[PATH] Диагональ (${current.x},${current.y}) -> (${n.x},${n.y})`);
+          // console.log(`[PATH] adj1 (${n.x},${current.y}): walkable=${adj1}`);
+          // console.log(`[PATH] adj2 (${current.x},${n.y}): walkable=${adj2}`);
+
+          // Запрещаем если хотя бы одна непроходима
+          if (!adj1 || !adj2) {
+            // console.log(`[PATH] ❌ Диагональ запрещена!`);
+            continue;
+          }
+          //console.log(`[PATH] ✅ Диагональ разрешена`);
         }
 
         // Клетки с персонажами - высокий штраф
@@ -140,18 +151,15 @@ export default class Pathfinder {
 
   // МЕТОД ДЛЯ ПОИСКА ПУТИ ДО БЛИЖАЙШЕЙ ДОСТУПНОЙ КЛЕТКИ
   findPathToNearestWalkable(targetX, targetY, allCharacters, excludeCharacter, startX, startY) {
-    // Формируем список заблокированных клеток (другие персонажи)
     const blockedCells = allCharacters
       .filter(c => c !== excludeCharacter)
       .map(c => ({ x: Math.floor(c.x), y: Math.floor(c.y) }));
 
-    // Проверяем целевую клетку
     const isWalkable = this.map.isWalkable(targetX, targetY);
     const isBlocked = blockedCells.some(b => b.x === targetX && b.y === targetY);
     const canStand = isWalkable && !isBlocked;
 
     if (canStand) {
-      // Строим путь до цели
       const path = this.find(startX, startY, targetX, targetY, blockedCells);
       if (path && path.length > 0) {
         return { path, target: { x: targetX, y: targetY, isOriginal: true } };
@@ -159,7 +167,6 @@ export default class Pathfinder {
       return null;
     }
 
-    // Для недоступной цели - ищем лучшую соседнюю клетку по длине пути
     let bestPath = null;
     let bestTarget = null;
     let bestPathLength = Infinity;
@@ -173,18 +180,39 @@ export default class Pathfinder {
         const neighborBlocked = blockedCells.some(b => b.x === nx && b.y === ny);
 
         if (neighborWalkable && !neighborBlocked) {
-          // Строим путь до этой соседней клетки
+          // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: проверяем, можно ли ПРИЙТИ к этой клетке
+          // Строим путь и проверяем, не содержит ли он запрещённых диагоналей
           const path = this.find(startX, startY, nx, ny, blockedCells);
+
           if (path && path.length > 0 && path.length < bestPathLength) {
-            bestPathLength = path.length;
-            bestPath = path;
-            bestTarget = {
-              x: nx,
-              y: ny,
-              isOriginal: false,
-              originalX: targetX,
-              originalY: targetY
-            };
+            // Дополнительная проверка: убеждаемся, что путь не содержит запрещённых диагоналей
+            let hasInvalidDiagonal = false;
+            for (let i = 1; i < path.length; i++) {
+              const prev = path[i - 1];
+              const curr = path[i];
+              const isDiagonalMove = Math.abs(prev.x - curr.x) === 1 && Math.abs(prev.y - curr.y) === 1;
+
+              if (isDiagonalMove) {
+                const adj1 = this.map.isWalkable(curr.x, prev.y);
+                const adj2 = this.map.isWalkable(prev.x, curr.y);
+                if (!adj1 || !adj2) {
+                  hasInvalidDiagonal = true;
+                  break;
+                }
+              }
+            }
+
+            if (!hasInvalidDiagonal) {
+              bestPathLength = path.length;
+              bestPath = path;
+              bestTarget = {
+                x: nx,
+                y: ny,
+                isOriginal: false,
+                originalX: targetX,
+                originalY: targetY
+              };
+            }
           }
         }
       }

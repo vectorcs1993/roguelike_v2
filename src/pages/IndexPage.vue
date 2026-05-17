@@ -1,7 +1,7 @@
 <template>
   <q-page class="game-page">
     <div class="game-layout">
-      <!-- Canvas wrapper - занимает всё свободное место -->
+      <!-- Canvas wrapper -->
       <div class="canvas-wrapper">
         <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd"
           @click.prevent="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu"
@@ -15,39 +15,76 @@
         {{ locationNameValue }}
       </q-chip>
 
-      <!-- Панель персонажей внизу -->
-      <div class="characters-panel">
-        <div class="characters-header">
-          <q-icon name="groups" size="18px" />
-          <span>Отряд</span>
-          <span class="characters-count">({{ charactersList.length }})</span>
+      <!-- НИЖНЯЯ ПАНЕЛЬ УПРАВЛЕНИЯ -->
+      <div class="control-panel">
+        <!-- Верхняя часть панели с кнопками меню -->
+        <div class="panel-header">
+          <div class="menu-buttons">
+            <q-btn @click="regenerateLevel" color="orange" label="Обновить уровень" flat dense size="sm" />
+            <q-btn @click="revealFullMap" color="purple" label="Открыть карту" flat dense size="sm" />
+          </div>
+          <div class="panel-title">
+            <q-icon name="dashboard" size="16px" />
+            <span>Управление</span>
+          </div>
         </div>
-        <div class="characters-container">
-          <q-card v-for="character in charactersList" :key="character.id" :class="getCharacterCardClass(character)" class="character-card"
-            :style="{ cursor: character.isSelectable ? 'pointer' : 'not-allowed' }" @click="onCharacterClick(character)" flat bordered>
-            <div class="character-card-content">
-              <div class="character-symbol">{{ character.char }}</div>
-              <div class="character-name">{{ character.name }}</div>
-              <div class="character-team">
-                <q-chip :style="{ backgroundColor: character.teamColor, color: '#ffffff' }" size="sm" class="team-chip">
-                  {{ character.teamName }}
-                </q-chip>
+
+        <!-- Основное содержимое панели: 2 колонки -->
+        <div class="panel-content">
+          <!-- ЛЕВАЯ КОЛОНКА: Список персонажей (горизонтальный) -->
+          <div class="characters-section">
+            <div class="section-header">
+              <q-icon name="groups" size="16px" />
+              <span>Отряд</span>
+              <q-badge color="grey-7" :label="`${charactersList.length}`" class="q-ml-sm" />
+            </div>
+            <div class="characters-container">
+              <div v-for="character in charactersList" :key="character.id" :class="['character-card', getCharacterCardClass(character)]"
+                @click="onCharacterClick(character)">
+                <div class="character-card-content">
+                  <div class="character-symbol">{{ character.char }}</div>
+                  <div class="character-name">{{ character.name }}</div>
+                  <div class="character-team">
+                    <q-chip :style="{ backgroundColor: character.teamColor }" size="sm" dense text-color="white" class="team-chip">
+                      {{ character.teamName }}
+                    </q-chip>
+                  </div>
+                  <div class="character-ap-section">
+                    <div class="character-ap-label">
+                      <q-icon name="bolt" size="12px" :color="getAPColor(character.apPercentage)" />
+                      <span>AP</span>
+                    </div>
+                    <div class="character-ap-value" :class="getAPColor(character.apPercentage)">
+                      {{ character.ap }}/{{ character.maxAP }}
+                    </div>
+                    <q-linear-progress :value="(character.apPercentage || 0) / 100" :color="getAPProgressColor(character.apPercentage)"
+                      class="ap-progress" track-color="grey-8" />
+                  </div>
+                </div>
               </div>
-              <div class="character-ap-section">
-                <div class="character-ap-label">
-                  <q-icon name="bolt" size="12px" :color="getAPColor(character.apPercentage)" />
-                  <span>AP</span>
-                </div>
-                <div class="character-ap-value" :class="getAPColor(character.apPercentage)">
-                  {{ character.ap }}/{{ character.maxAP }}
-                </div>
-                <q-linear-progress :value="(character.apPercentage || 0) / 100" :color="getAPProgressColor(character.apPercentage)"
-                  class="ap-progress" track-color="grey-8" />
+              <div v-if="charactersList.length === 0" class="empty-message">
+                Нет персонажей
               </div>
             </div>
-          </q-card>
-          <q-btn @click="regenerateLevel" color="orange" label="Обновить уровень" flat dense />
-          <q-btn @click="revealFullMap" color="purple" label="Открыть карту" flat dense />
+          </div>
+
+          <!-- ПРАВАЯ КОЛОНКА: Текстовая консоль -->
+          <div class="console-section">
+            <div class="section-header">
+              <q-icon name="terminal" size="16px" />
+              <span>Консоль</span>
+              <q-btn flat dense size="sm" icon="delete_sweep" @click="clearConsole" class="q-ml-auto" />
+            </div>
+            <div class="console-content" ref="consoleRef">
+              <div v-for="(log, idx) in consoleLogs" :key="idx" class="console-line" :class="log.type">
+                <span class="console-time">{{ log.time }}</span>
+                <span class="console-text">{{ log.text }}</span>
+              </div>
+              <div v-if="consoleLogs.length === 0" class="empty-message">
+                Готов к работе...
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -59,8 +96,8 @@ import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import config from 'src/game/config.json'
 import GameLoop from 'src/game/GameLoop.js'
 
-
 const canvasRef = ref(null)
+const consoleRef = ref(null)
 let game = null
 let resizeTimeout = null
 let updateInterval = null
@@ -68,8 +105,34 @@ let resizeObserver = null
 
 const charactersListData = ref([])
 const locationNameValue = ref('')
+const consoleLogs = ref([])
 
 const charactersList = computed(() => charactersListData.value)
+
+// Перехват console.log
+const originalConsoleLog = console.log
+const originalConsoleWarn = console.warn
+const originalConsoleError = console.error
+
+function addConsoleMessage(text, type = 'info') {
+  const now = new Date()
+  const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
+  consoleLogs.value.push({ time, text: String(text), type })
+
+  if (consoleLogs.value.length > 100) {
+    consoleLogs.value.shift()
+  }
+
+  nextTick(() => {
+    if (consoleRef.value) {
+      consoleRef.value.scrollTop = consoleRef.value.scrollHeight
+    }
+  })
+}
+
+function clearConsole() {
+  consoleLogs.value = []
+}
 
 function getCharacterCardClass(character) {
   if (character.isActive && character.isSelectable) {
@@ -127,8 +190,10 @@ async function onCharacterClick(character) {
 
   if (character.isActive) {
     game.centerOnCharacter(character.id)
+    addConsoleMessage(`Центрирование на: ${character.name}`, 'info')
   } else {
     game.switchCharacter(character.id)
+    addConsoleMessage(`Переключение на: ${character.name}`, 'success')
   }
 
   await updateCharactersList()
@@ -136,11 +201,13 @@ async function onCharacterClick(character) {
 
 function regenerateLevel() {
   if (!game) return
+  addConsoleMessage('🔄 Перегенерация уровня...', 'warning')
   game.regenerateLevel()
   setTimeout(() => {
     if (game) {
       game.centerOnActiveCharacter()
       updateCharactersList()
+      addConsoleMessage('✅ Уровень обновлён', 'success')
     }
   }, 100)
 }
@@ -157,6 +224,7 @@ function revealFullMap() {
       }
     }
   }
+  addConsoleMessage('🗺️ Карта полностью открыта', 'info')
 }
 
 function onCanvasClick(e) {
@@ -170,8 +238,6 @@ function resizeCanvas() {
 
   const dpr = Math.min(window.devicePixelRatio || 1, config.dprCap)
   const rect = wrapper.getBoundingClientRect()
-
-  // console.log('Resize canvas:', rect.width, rect.height)
 
   if (rect.width <= 0 || rect.height <= 0) return
 
@@ -209,19 +275,29 @@ function onMouseDown(e) { game?.onMouseDown(e) }
 function onMouseUp(e) { game?.onMouseUp(e) }
 
 onMounted(() => {
+  // Перехват консоли игры
+  console.log = (...args) => {
+    originalConsoleLog.apply(console, args)
+    addConsoleMessage(args.join(' '), 'info')
+  }
+  console.warn = (...args) => {
+    originalConsoleWarn.apply(console, args)
+    addConsoleMessage(args.join(' '), 'warning')
+  }
+  console.error = (...args) => {
+    originalConsoleError.apply(console, args)
+    addConsoleMessage(args.join(' '), 'error')
+  }
+
   game = new GameLoop(canvasRef.value, config)
 
-  // Принудительно устанавливаем высоту после монтирования
   nextTick(() => {
     resizeCanvas()
-
-    // Повторный вызов через небольшую задержку
     setTimeout(() => {
       resizeCanvas()
     }, 100)
   })
 
-  // Наблюдатель за изменением размера wrapper
   const wrapper = document.querySelector('.canvas-wrapper')
   if (wrapper) {
     resizeObserver = new ResizeObserver(() => {
@@ -237,12 +313,19 @@ onMounted(() => {
   game.start()
   updateCharactersList()
 
+  addConsoleMessage('🎮 Игра запущена', 'success')
+  addConsoleMessage(`📍 Локация: ${locationNameValue.value || 'генерация...'}`, 'info')
+
   updateInterval = setInterval(() => {
     updateCharactersList()
   }, 100)
 })
 
 onUnmounted(() => {
+  console.log = originalConsoleLog
+  console.warn = originalConsoleWarn
+  console.error = originalConsoleError
+
   game?.stop()
   clearTimeout(resizeTimeout)
   if (updateInterval) clearInterval(updateInterval)
@@ -254,22 +337,14 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-/* Важно: заставляем q-page занимать всю высоту */
 .game-page {
   width: 100%;
   height: 100vh !important;
   overflow: hidden;
-  background: #1a1a2e;
+  background: #0a0a0f;
   position: relative;
 }
 
-/* Обертка для Quasar */
 :deep(.q-page) {
   min-height: 100vh !important;
   height: 100vh !important;
@@ -283,7 +358,6 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* Canvas wrapper - занимает всё свободное место */
 .canvas-wrapper {
   flex: 1 1 auto;
   position: relative;
@@ -302,40 +376,93 @@ onUnmounted(() => {
   cursor: default;
 }
 
-/* Панель персонажей - фиксированной высоты */
-.characters-panel {
+.location-name {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 20;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+  font-size: 12px;
+}
+
+/* ПАНЕЛЬ УПРАВЛЕНИЯ */
+.control-panel {
   height: 230px;
-  background: rgba(0, 0, 0, 0.95);
-  backdrop-filter: blur(8px);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(10, 10, 15, 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
+}
+
+.menu-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #888;
+  font-size: 12px;
+}
+
+.panel-content {
+  flex: 1;
+  display: flex;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  min-height: 0;
   overflow: hidden;
 }
 
-.characters-header {
-  padding: 8px 16px;
-  font-size: 14px;
-  font-weight: bold;
-  color: #fff;
-  background: rgba(255, 255, 255, 0.05);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+/* Левая колонка - персонажи (горизонтальный скролл) */
+.characters-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.3);
+  min-width: 0;
+}
+
+/* Правая колонка - консоль */
+.console-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.3);
+  min-width: 0;
+}
+
+.section-header {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  color: #aaa;
   flex-shrink: 0;
 }
 
-.characters-count {
-  font-size: 12px;
-  color: #888;
-  font-weight: normal;
-}
-
+/* Горизонтальный контейнер для карточек */
 .characters-container {
   flex: 1;
-  padding: 10px 16px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: row;
   gap: 12px;
@@ -344,26 +471,21 @@ onUnmounted(() => {
   align-items: center;
 }
 
-/* Стили скролла */
-.characters-container::-webkit-scrollbar {
-  height: 4px;
-}
-
-.characters-container::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.characters-container::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 2px;
-}
-
-/* Карточка персонажа - вертикальная */
+/* Карточка персонажа - вертикальная, фиксированная ширина */
 .character-card {
   min-width: 120px;
   width: 120px;
   flex-shrink: 0;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.character-card:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .character-card-content {
@@ -375,8 +497,9 @@ onUnmounted(() => {
 }
 
 .character-symbol {
-  font-size: 40px;
+  font-size: 36px;
   line-height: 1;
+  font-family: monospace;
 }
 
 .character-name {
@@ -384,6 +507,7 @@ onUnmounted(() => {
   font-weight: bold;
   text-align: center;
   word-break: break-word;
+  color: #ddd;
 }
 
 .character-team {
@@ -416,7 +540,7 @@ onUnmounted(() => {
 }
 
 .character-ap-value {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: bold;
   text-align: center;
 }
@@ -431,7 +555,7 @@ onUnmounted(() => {
 .active-character-card {
   background: rgba(68, 170, 255, 0.25) !important;
   border: 2px solid #44aaff !important;
-  box-shadow: 0 0 8px rgba(68, 170, 255, 0.5) !important;
+  box-shadow: 0 0 8px rgba(68, 170, 255, 0.3) !important;
 }
 
 .friendly-character-card {
@@ -439,38 +563,113 @@ onUnmounted(() => {
   border: 1px solid rgba(68, 170, 255, 0.4) !important;
 }
 
-.friendly-character-card:hover {
-  background: rgba(68, 170, 255, 0.2) !important;
-  transform: translateY(-2px);
-}
-
 .enemy-character-card {
   background: rgba(255, 68, 68, 0.1) !important;
   border: 1px solid rgba(255, 68, 68, 0.4) !important;
 }
 
-.location-name {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  z-index: 20;
-  pointer-events: none;
-  backdrop-filter: blur(4px);
+/* Консоль */
+.console-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+  font-size: 11px;
+}
+
+.console-line {
+  padding: 3px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  display: flex;
+  gap: 10px;
+  font-family: monospace;
+}
+
+.console-line.info {
+  color: #aaa;
+}
+
+.console-line.success {
+  color: #5f5;
+}
+
+.console-line.warning {
+  color: #fa0;
+}
+
+.console-line.error {
+  color: #f55;
+}
+
+.console-time {
+  color: #666;
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.console-text {
+  flex: 1;
+  word-break: break-word;
+}
+
+.empty-message {
+  color: #555;
+  text-align: center;
+  padding: 20px;
   font-size: 12px;
 }
 
-.debug-buttons {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 20;
-  display: flex;
-  gap: 8px;
+/* Стили скролла */
+.characters-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+.characters-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.characters-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.console-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.console-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.console-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+/* Текстовые цвета */
+.text-red {
+  color: #f55;
+}
+
+.text-orange {
+  color: #fa0;
+}
+
+.text-yellow {
+  color: #ff5;
+}
+
+.text-green {
+  color: #5f5;
+}
+
+.text-grey {
+  color: #888;
 }
 
 @media (max-width: 768px) {
-  .characters-panel {
-    height: 160px;
+  .control-panel {
+    height: 200px;
   }
 
   .character-card {
@@ -479,10 +678,14 @@ onUnmounted(() => {
   }
 
   .character-symbol {
-    font-size: 32px;
+    font-size: 28px;
   }
 
   .character-name {
+    font-size: 10px;
+  }
+
+  .console-content {
     font-size: 10px;
   }
 }
