@@ -184,7 +184,23 @@ export default class Renderer {
 
         if (this._location) {
           const info = this._location.getTileInfo(this.hoverTileX, this.hoverTileY)
-          if (info) this.drawTooltip(info.name)
+          if (info) {
+            // Формируем расширенный тултип на основе типа объекта
+            let tooltipText = info.name
+
+            // Добавляем дополнительную информацию для разных типов
+            if (info.type === 'character') {
+              if (info.isActive) tooltipText += ' ⭐'
+              tooltipText += ` | AP: ${info.currentAP}/${info.maxAP}`
+            } else if (info.type === 'tile') {
+              if (!info.isWalkable) tooltipText += ' 🚫'
+              if (info.blocksSight) tooltipText += ' 👁️'
+            } else if (info.type === 'unknown') {
+              // Ничего не добавляем
+            }
+
+            this.drawTooltip(tooltipText)
+          }
         }
       }
     }
@@ -194,22 +210,34 @@ export default class Renderer {
     const ctx = this.ctx
     // Используем тот же шрифт, но меньшего размера
     ctx.font = `12px ${this.fontFamily}`
-    const w = ctx.measureText(text).width + 12
-    const h = 20
+    const w = ctx.measureText(text).width + 16
+    const h = 24
+    const padding = 4
 
     let x = this.mouseScreenX + 15
-    let y = this.mouseScreenY - 25
-    if (x + w > this.canvasW) x = this.mouseScreenX - w - 5
-    if (y < 0) y = this.mouseScreenY + 10
+    let y = this.mouseScreenY - 30
+    if (x + w > this.canvasW) x = this.mouseScreenX - w - 10
+    if (y < 0) y = this.mouseScreenY + 15
 
-    ctx.fillStyle = 'rgba(0,0,0,0.85)'
+    // Рисуем фон с прозрачностью
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'
+    ctx.shadowBlur = 0
     ctx.fillRect(x, y, w, h)
+
+    // Рисуем рамку
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'
+    ctx.lineWidth = 1
+    ctx.strokeRect(x, y, w, h)
+
+    // Рисуем текст
     ctx.fillStyle = '#ffffff'
     ctx.textAlign = 'left'
-    ctx.fillText(text, x + 6, y + h / 2)
+    ctx.textBaseline = 'middle'
+    ctx.fillText(text, x + padding, y + h / 2)
 
     // Возвращаем настройки обратно
     ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
     ctx.font = `${this.tileSize}px ${this.fontFamily}`
   }
 }

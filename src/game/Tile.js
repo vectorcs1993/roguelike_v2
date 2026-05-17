@@ -7,6 +7,13 @@ export default class Tile {
     this.visible = false
     this.explored = false
 
+    // Флаги проходимости и видимости
+    this._isWalkable = config.isWalkable !== undefined ? config.isWalkable : (type === 0)
+    this._blocksSight = config.blocksSight !== undefined ? config.blocksSight : (type === 1)
+
+    // Имя для тултипа
+    this.name = config.name || this.getDefaultName()
+
     // Настройки цвета
     this.visibleColor = config.visibleColor || '#8888aa'
     this.exploredColor = config.exploredColor || '#666688'
@@ -14,8 +21,24 @@ export default class Tile {
     this.bgExploredColor = config.bgExploredColor || '#1a1a2a'
   }
 
-  get isWalkable() { return this.type === 0 }
-  get isWall() { return this.type === 1 }
+  getDefaultName() {
+    if (this.isWalkable) return '📍 Пол'
+    if (this.blocksSight) return '🧱 Стена'
+    return '📦 Препятствие'
+  }
+
+  getTooltipInfo() {
+    return {
+      name: this.name,
+      type: 'tile',
+      isWalkable: this.isWalkable,
+      blocksSight: this.blocksSight
+    }
+  }
+
+  get isWalkable() { return this._isWalkable }
+  get isWall() { return !this._isWalkable }
+  get blocksSight() { return this._blocksSight }
 
   draw(ctx, x, y, ts, isVisible, isExplored, fontFamily) {
     if (!isVisible && !isExplored) return

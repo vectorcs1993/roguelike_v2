@@ -1,3 +1,5 @@
+// src/game/Pathfinder.js
+
 export default class Pathfinder {
   constructor(map) {
     this.map = map
@@ -75,7 +77,7 @@ export default class Pathfinder {
         const nKey = key(n.x, n.y)
         if (closedSet.has(nKey)) continue
 
-        // Стены нельзя проходить
+        // Используем isWalkable для проверки проходимости
         if (!map.isWalkable(n.x, n.y)) continue
 
         // Проверка среза углов для диагонального движения

@@ -167,31 +167,46 @@ export default class Location {
   getTileInfo(tileX, tileY) {
     const tile = this.map.getTile(tileX, tileY)
 
-    if (tile && tile.isWall) {
-      return { type: 'wall', name: '🧱 Стена', pos: { tileX, tileY } }
-    }
-
-    if (tile && tile.visible) {
-      for (const item of this.items) {
-        if (!item.collected && item.x === tileX && item.y === tileY) {
-          return { type: 'item', name: '📦 Припасы', pos: { tileX, tileY } }
-        }
+    // Если клетка не видна
+    if (!tile || (!tile.visible && !tile.explored)) {
+      return {
+        type: 'unknown',
+        name: '🌑 Туман войны',
+        description: 'Неисследованная область'
       }
+    }
 
-      for (const character of this.characters) {
-        if (character.occupies(tileX, tileY)) {
-          return { type: 'character', name: character.name, pos: { tileX, tileY } }
-        }
+    // Если клетка видна или исследована
+    // Сначала проверяем персонажей (приоритет выше)
+    for (const character of this.characters) {
+      if (character.occupies(tileX, tileY) && this.isCharacterVisibleForActive(character)) {
+        return character.getTooltipInfo()
       }
-
-      return { type: 'floor', name: `📍 Позиция (${tileX}, ${tileY})`, pos: { tileX, tileY } }
     }
 
-    if (tile && tile.explored) {
-      return { type: 'explored', name: '🌫️ Открытая область', pos: { tileX, tileY } }
+    // Затем проверяем предметы
+    for (const item of this.items) {
+      if (!item.collected && item.x === tileX && item.y === tileY && tile.visible) {
+        return item.getTooltipInfo()
+      }
     }
 
-    return { type: 'unknown', name: '🌑 Туман войны', pos: { tileX, tileY } }
+    // Возвращаем информацию о тайле
+    if (tile) {
+      const tileInfo = tile.getTooltipInfo()
+      tileInfo.pos = { x: tileX, y: tileY }
+      if (!tile.visible && tile.explored) {
+        tileInfo.name += ' (Исследовано)'
+        tileInfo.explored = true
+      }
+      return tileInfo
+    }
+
+    return {
+      type: 'unknown',
+      name: '❓ Неизвестно',
+      description: 'Невозможно определить'
+    }
   }
 
   reset() {
@@ -208,11 +223,22 @@ export default class Location {
 
     const biomeName = '🏰 Жилой комплекс';
 
+    // Генерируем ящики
+    const crates = generator.generateCrates(walls, width, height, 15);
+
     // Поиск свободных позиций для персонажей
-    const playerStart = this.findEmptyTileInRoom(walls, width, height);
-    const allyStart = this.findEmptyTileInRoom(walls, width, height, [playerStart]);
-    const enemyStart1 = this.findEmptyTileInRoom(walls, width, height, [playerStart, allyStart]);
-    const enemyStart2 = this.findEmptyTileInRoom(walls, width, height, [playerStart, allyStart, enemyStart1]);
+    const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`));
+    const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`));
+
+    const isPositionFree = (x, y) => {
+      const key = `${x},${y}`;
+      return !wallSet.has(key) && !crateSet.has(key);
+    };
+
+    const playerStart = Location.findEmptyTile(width, height, isPositionFree);
+    const allyStart = Location.findEmptyTile(width, height, isPositionFree, [playerStart]);
+    const enemyStart1 = Location.findEmptyTile(width, height, isPositionFree, [playerStart, allyStart]);
+    const enemyStart2 = Location.findEmptyTile(width, height, isPositionFree, [playerStart, allyStart, enemyStart1]);
 
     let nextId = 1;
     const generateId = () => nextId++;
@@ -263,7 +289,7 @@ export default class Location {
 
     const items = [];
     for (let i = 0; i < 20; i++) {
-      const pos = this.findEmptyTileInRoom(walls, width, height, occupiedPositions);
+      const pos = Location.findEmptyTile(width, height, isPositionFree, occupiedPositions);
       if (pos) {
         items.push({ x: pos.x, y: pos.y, apRestore: 2 + Math.floor(Math.random() * 8) });
         occupiedPositions.push(pos);
@@ -272,40 +298,29 @@ export default class Location {
 
     const updatedConfig = { ...config, cols: width, rows: height };
     const location = new Location(updatedConfig, walls, teamConfigs, items, biomeName);
+
+    // Добавляем ящики на карту
+    location.map.setCrates(crates);
+
     return location;
   }
 
-  static findEmptyTileInRoom(walls, cols, rows, occupied = []) {
+  static findEmptyTile(width, height, isPositionFree, occupied = []) {
     const occupiedSet = new Set(occupied.map(o => `${o.x},${o.y}`));
-    const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`));
 
-    // Ищем внутри комнат (вдали от стен)
-    for (let y = 3; y < rows - 3; y++) {
-      for (let x = 3; x < cols - 3; x++) {
+    // Список возможных позиций
+    const candidates = [];
+    for (let y = 2; y < height - 2; y++) {
+      for (let x = 2; x < width - 2; x++) {
         const key = `${x},${y}`;
-        if (!wallSet.has(key) && !occupiedSet.has(key)) {
-          // Проверяем, что это внутри комнаты (рядом есть стены)
-          let wallCount = 0;
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              if (wallSet.has(`${x + dx},${y + dy}`)) wallCount++;
-            }
-          }
-          if (wallCount > 0 && wallCount < 8) {
-            return { x, y };
-          }
+        if (isPositionFree(x, y) && !occupiedSet.has(key)) {
+          candidates.push({ x, y });
         }
       }
     }
 
-    // Fallback: любая свободная клетка
-    for (let y = 2; y < rows - 2; y++) {
-      for (let x = 2; x < cols - 2; x++) {
-        const key = `${x},${y}`;
-        if (!wallSet.has(key) && !occupiedSet.has(key)) {
-          return { x, y };
-        }
-      }
+    if (candidates.length > 0) {
+      return candidates[Math.floor(Math.random() * candidates.length)];
     }
 
     return { x: 10, y: 10 };

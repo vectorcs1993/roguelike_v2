@@ -1,3 +1,5 @@
+// src/game/Fov.js
+
 export default class Fov {
   constructor(map) {
     this.map = map
@@ -50,17 +52,17 @@ export default class Fov {
         const worldX = originX + world.x
         const worldY = originY + world.y
 
-        // 🔥 КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: ВСЕ клетки в радиусе получают visible
+        // КЛЮЧЕВОЕ: проверка на радиус - КРУГ, а не ромб
         if (dx * dx + dy * dy < radius * radius) {
           const tile = map.getTile(worldX, worldY)
           if (tile) {
-            tile.visible = true  // Теперь и стены тоже!
+            tile.visible = true
           }
         }
 
         if (blocked) {
           const tile = map.getTile(worldX, worldY)
-          if (tile && tile.isWall) {
+          if (tile && tile.blocksSight) {
             nextStartSlope = rightSlope
           } else {
             blocked = false
@@ -68,7 +70,7 @@ export default class Fov {
           }
         } else {
           const tile = map.getTile(worldX, worldY)
-          if (tile && tile.isWall && i < radius) {
+          if (tile && tile.blocksSight && i < radius) {
             blocked = true
             this._cast(originX, originY, i + 1, startSlope, leftSlope, radius, transform)
             nextStartSlope = rightSlope

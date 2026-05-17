@@ -144,4 +144,23 @@ export default class Character extends GameObject {
   getAPDisplay() {
     return `${this.currentAP}/${this.maxAP} AP`
   }
+
+  getTooltipInfo() {
+    const apInfo = this.isActive ? ` (Активен)` : ` (${this.currentAP}/${this.maxAP} AP)`
+    let teamInfo = ''
+    if (this.team) {
+      teamInfo = this.team.isPlayerControlled ? ' 🤝 Союзник' : ' 👹 Враг'
+    }
+
+    return {
+      name: this.name + teamInfo + apInfo,
+      type: 'character',
+      id: this.id,
+      isActive: this.isActive,
+      isPlayerControlled: this.isPlayerControlled,
+      currentAP: this.currentAP,
+      maxAP: this.maxAP,
+      team: this.team?.name
+    }
+  }
 }

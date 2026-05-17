@@ -9,8 +9,7 @@ export default class BiomeGenerator {
     this.corridorWidth = 1;           // Узкие коридоры
     this.roomSpacing = 2;             // Минимальный отступ
 
-    // Новые параметры для плотности
-    this.maxAttempts = 2000;            // Больше попыток разместить комнаты
+    this.maxAttempts = 500;            // Больше попыток разместить комнаты
     this.gridSize = 30;               // Размер сетки для генерации
   }
 
@@ -294,5 +293,44 @@ export default class BiomeGenerator {
     connections.sort((a, b) => a.dist - b.dist);
 
     return connections;
+  }
+
+  // Добавляем метод генерации ящиков
+  generateCrates(walls, width, height, roomCount = 10) {
+    const crates = []
+    const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
+
+    for (let i = 0; i < roomCount; i++) {
+      let attempts = 0
+      let placed = false
+
+      while (!placed && attempts < 100) {
+        const x = 1 + Math.floor(Math.random() * (width - 2))
+        const y = 1 + Math.floor(Math.random() * (height - 2))
+        const key = `${x},${y}`
+
+        // Ящик не должен быть на стене и не должен дублироваться
+        if (!wallSet.has(key) && !crates.some(c => c[0] === x && c[1] === y)) {
+          // Проверяем, что рядом есть проходы (не в тупике)
+          let adjacentWalls = 0
+          const neighbors = [
+            [x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]
+          ]
+          for (const [nx, ny] of neighbors) {
+            if (wallSet.has(`${nx},${ny}`)) adjacentWalls++
+          }
+
+          // Ящики лучше ставить рядом со стенами, но не в полном окружении
+          if (adjacentWalls >= 1 && adjacentWalls <= 3) {
+            crates.push([x, y])
+            placed = true
+          }
+        }
+        attempts++
+      }
+    }
+
+    console.log(`Сгенерировано ${crates.length} ящиков`)
+    return crates
   }
 }

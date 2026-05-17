@@ -2,6 +2,7 @@
 
 import Floor from './Floor.js'
 import Wall from './Wall.js'
+import Crate from './Crate.js'
 import Fov from './Fov.js'
 
 export default class TileMap {
@@ -29,6 +30,19 @@ export default class TileMap {
     }
   }
 
+  // Новый метод для установки ящиков
+  setCrates(cratePositions) {
+    for (const [x, y] of cratePositions) {
+      if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
+        const tile = this.getTile(x, y)
+        // Можно ставить ящик только на пол
+        if (tile && tile.isWalkable) {
+          this.grid[y][x] = new Crate()
+        }
+      }
+    }
+  }
+
   getTile(x, y) {
     if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return null
     return this.grid[y][x]
@@ -37,6 +51,11 @@ export default class TileMap {
   isWalkable(x, y) {
     const tile = this.getTile(x, y)
     return tile ? tile.isWalkable : false
+  }
+
+  blocksSight(x, y) {
+    const tile = this.getTile(x, y)
+    return tile ? tile.blocksSight : true
   }
 
   computeFov(originX, originY, radius) {
