@@ -5,7 +5,8 @@ import GameObject from './GameObject.js'
 export default class Character extends GameObject {
   constructor(x, y, char, color, config, id = null, name = null, team = null, fovRadius = 8, apConfig = {}) {
     super(x, y, char, color)
-    this.id = id || `char_${Date.now()}_${Math.random()}`
+    // Если id уже число - используем его, иначе генерируем числовой
+    this.id = (typeof id === 'number') ? id : (id ? parseInt(id) || Date.now() : Date.now())
     this.name = name || 'Персонаж'
     this.team = team
     this.isActive = false
@@ -17,13 +18,13 @@ export default class Character extends GameObject {
     this.followingPath = false
     this.fovRadius = fovRadius
 
-    // Система очков действий - берем из конфига
+    // Система очков действий
     this.maxAP = apConfig.maxAP || 12
-    this.currentAP = this.maxAP // Начинаем с максимальных AP
+    this.currentAP = this.maxAP
+    // Одна стоимость для всех направлений
     this.moveAPCost = apConfig.moveAPCost !== undefined ? apConfig.moveAPCost : 1
-    this.moveAPCostDiagonal = apConfig.moveAPCostDiagonal !== undefined ? apConfig.moveAPCostDiagonal : 1
 
-    console.log(`${this.name}: AP=${this.maxAP}, cost=${this.moveAPCost}`)
+    console.log(`${this.name} (ID: ${this.id}): AP=${this.maxAP}, cost=${this.moveAPCost}`)
   }
 
   get teamId() { return this.team?.id || 'none' }
@@ -45,6 +46,12 @@ export default class Character extends GameObject {
     return false
   }
 
+  restoreFullAP() {
+    this.currentAP = this.maxAP
+    console.log(`${this.name} восстановил все AP! Теперь: ${this.currentAP}/${this.maxAP}`)
+  }
+
+
   setPath(path) {
     if (!path || path.length <= 1) {
       this.followingPath = false
@@ -61,10 +68,8 @@ export default class Character extends GameObject {
   }
 
   moveTo(newX, newY) {
-    const dx = Math.abs(newX - this.fromX)
-    const dy = Math.abs(newY - this.fromY)
-    const isDiagonal = dx === 1 && dy === 1
-    const apCost = isDiagonal ? this.moveAPCostDiagonal : this.moveAPCost
+    // Стоимость одинаковая для всех направлений
+    const apCost = this.moveAPCost
 
     if (!this.canAffordAP(apCost)) {
       console.log(`${this.name}: Недостаточно AP! Нужно ${apCost}, есть ${this.currentAP}`)
@@ -86,10 +91,8 @@ export default class Character extends GameObject {
 
     const next = this.path[0] // Всегда берем первую точку
 
-    const dx = Math.abs(next.x - Math.floor(this.x))
-    const dy = Math.abs(next.y - Math.floor(this.y))
-    const isDiagonal = dx === 1 && dy === 1
-    const apCost = isDiagonal ? this.moveAPCostDiagonal : this.moveAPCost
+    // Стоимость одинаковая для всех направлений
+    const apCost = this.moveAPCost
 
     if (!this.canAffordAP(apCost)) {
       console.log(`${this.name}: Закончились AP! Остановка.`)

@@ -41,8 +41,10 @@ export default class GameLoop {
   }
 
   switchCharacter(characterId) {
+    // characterId теперь может быть числом
     const newActive = this.currentLocation.switchToCharacter(characterId)
     if (newActive) {
+      newActive.restoreFullAP()
       this.camera.setPosition(newActive.x, newActive.y)
 
       setTimeout(() => {

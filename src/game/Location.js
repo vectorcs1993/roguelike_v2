@@ -88,15 +88,19 @@ export default class Location {
   }
 
   switchToCharacter(characterId) {
-    const character = this.characters.find(c => c.id === characterId)
+    // Сравниваем с учетом типа (число/строка)
+    const character = this.characters.find(c => String(c.id) === String(characterId))
 
     if (!character || !character.canSwitchTo) {
-      console.warn(`Cannot switch to character: ${character?.name}`)
+      console.warn(`Cannot switch to character ID: ${characterId}`)
       return null
     }
 
     this.characters.forEach(c => c.isActive = false)
     character.isActive = true
+    character.restoreFullAP()
+
+    console.log(`Switched to: ${character.name} (ID: ${character.id})`)
     return character
   }
 
@@ -230,8 +234,6 @@ export default class Location {
     }
   }
 
-  // В статическом методе createDefault:
-
   static createDefault(config) {
     const pillars = [
       [10, 8], [10, 9], [10, 10], [30, 15], [30, 16], [30, 17],
@@ -239,6 +241,10 @@ export default class Location {
       [45, 7], [45, 8], [45, 9], [25, 20], [26, 20], [27, 20],
       [35, 10], [36, 10], [37, 10], [55, 32], [56, 32], [57, 32]
     ]
+
+    // Генератор числовых ID
+    let nextId = 1
+    const generateId = () => nextId++
 
     const teamConfigs = [
       {
@@ -248,12 +254,12 @@ export default class Location {
         color: '#44aaff',
         characters: [
           {
-            x: 30, y: 20, char: '@', color: '#44ffaa', id: 'op1',
+            x: 30, y: 20, char: '@', color: '#44ffaa', id: generateId(),
             name: 'Ликвидатор 1', fovRadius: 8,
             ap: { max: 8, moveCost: 1 }
           },
           {
-            x: 28, y: 22, char: '@', color: '#44ffaa', id: 'op2',
+            x: 28, y: 22, char: '@', color: '#44ffaa', id: generateId(),
             name: 'Ликвидатор 2', fovRadius: 10,
             ap: { max: 10, moveCost: 2 }
           }
@@ -266,13 +272,13 @@ export default class Location {
         color: '#ff4444',
         characters: [
           {
-            x: 12, y: 25, char: 'g', color: '#ff4444', id: 'creature1',
-            name: 'Гоблин', fovRadius: 5,
+            x: 12, y: 25, char: 'g', color: '#ff4444', id: generateId(),
+            name: 'Перекожник', fovRadius: 5,
             ap: { max: 12, moveCost: 1 }
           },
           {
-            x: 48, y: 30, char: 'T', color: '#ff4444', id: 'creature2',
-            name: 'Тролль', fovRadius: 6,
+            x: 48, y: 30, char: 'T', color: '#ff4444', id: generateId(),
+            name: 'Слизь', fovRadius: 6,
             ap: { max: 8, moveCost: 2 }
           }
         ]
@@ -280,7 +286,7 @@ export default class Location {
     ]
 
     const items = [
-      { x: 15, y: 10, apRestore: 5 },      // Предметы могут восстанавливать AP
+      { x: 15, y: 10, apRestore: 5 },
       { x: 40, y: 20, apRestore: 3 },
       { x: 25, y: 30, apRestore: 10 },
       { x: 50, y: 15, apRestore: 2 },

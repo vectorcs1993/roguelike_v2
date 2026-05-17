@@ -17,7 +17,7 @@
           :style="{ cursor: character.isSelectable ? 'pointer' : 'not-allowed' }" @click="onCharacterClick(character)" flat bordered>
           <div class="character-card-content">
             <div class="character-symbol">{{ character.char }}</div>
-            <div class="character-name">{{ character.name }}</div>
+            <div class="character-name">{{ character.name }} id: {{ character.id }}</div>
             <div class="character-team">
               <q-chip :style="{ backgroundColor: character.teamColor, color: '#ffffff' }" size="sm" class="team-chip">
                 {{ character.teamName }}
@@ -116,17 +116,21 @@ function updateCharactersList() {
     char: char.char,
     isActive: char.isActive,
     isSelectable: char.canSwitchTo === true,
-    teamColor: char.team?.color || '#666666',  // Берем цвет из Team
+    teamColor: char.team?.color || '#666666',
     teamName: char.team?.name || 'Без команды',
     ap: char.currentAP,
     maxAP: char.maxAP,
     apPercentage: char.getAPPercentage ? char.getAPPercentage() : (char.currentAP / char.maxAP) * 100
   }))
+
+  console.log('Characters list updated:', charactersListData.value.map(c => ({ id: c.id, name: c.name, type: typeof c.id })))
 }
 
 async function onCharacterClick(character) {
   if (!game) return
   if (!character.isSelectable) return
+
+  console.log(`Clicked on character: ${character.name} (ID: ${character.id}, Type: ${typeof character.id})`)
 
   if (character.isActive) {
     game.centerOnCharacter(character.id)
