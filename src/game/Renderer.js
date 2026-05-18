@@ -172,38 +172,37 @@ export default class Renderer {
 
       const isAdjacent = Math.abs(fromX - toX) <= 1 && Math.abs(fromY - toY) <= 1
 
-      if (isAdjacent) {
-        // Показываем рамку для соседних
-        const hoverTile = map.getTile(toX, toY)
-        if (hoverTile && hoverTile.visible) {
-          const x = toX * ts + ox
-          const y = toY * ts + oy
-          const isWalkable = map.isWalkable(toX, toY)
-          const targetCharacter = this._allCharacters?.find(c => c !== this._activeCharacter && c.occupies(toX, toY))
-          const canStand = isWalkable && !targetCharacter
+      // Проверяем, занята ли клетка
+      const isWalkable = map.isWalkable(toX, toY)
+      const targetCharacter = this._allCharacters?.find(c => c !== this._activeCharacter && c.occupies(toX, toY))
+      const isBlocked = !isWalkable || targetCharacter
+      const canStand = isWalkable && !targetCharacter
 
-          ctx.strokeStyle = canStand ? '#44ff44' : '#ff4444'
-          ctx.lineWidth = 2
-          ctx.setLineDash([])
-          ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
+      const hoverTile = map.getTile(toX, toY)
+      // Показываем превью только если клетка видима ИЛИ исследована
+      const isVisibleOrExplored = hoverTile && (hoverTile.visible || hoverTile.explored)
 
-          // ПОКАЗЫВАЕМ ЗВЕЗДУ ДЛЯ СОСЕДНИХ КЛЕТОК
-          if (!canStand) {
-            ctx.fillStyle = '#ff8888'
-            ctx.font = `${ts}px ${this.fontFamily}`
-            ctx.fillText('★', x + ts / 2, y + ts / 2)
-          }
+      if (!isVisibleOrExplored) return
 
-          if (this._location) {
-            const info = this._location.getTileInfo(toX, toY)
-            if (info) this.drawTooltip(info.name)
-          }
+      // Рисуем рамку для клетки под курсором
+      const x = toX * ts + ox
+      const y = toY * ts + oy
+
+      ctx.strokeStyle = canStand ? '#44ff44' : '#ff4444'
+      ctx.lineWidth = 2
+      ctx.setLineDash([])
+      ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
+
+      // Для соседних занятых клеток - не строим путь, просто рамка
+      if (isAdjacent && isBlocked) {
+        if (this._location) {
+          const info = this._location.getTileInfo(toX, toY)
+          if (info) this.drawTooltip(info.name)
         }
-        // УБИРАЕМ return, чтобы не блокировать остальную отрисовку
-        // return;  // <-- УДАЛИТЬ ЭТУ СТРОКУ
+        return
       }
 
-      // Для несоседних - используем новую функцию
+      // Для несоседних клеток (или соседних свободных) - строим путь
       const result = this._pathfinder.findPathToNearestWalkable(
         toX, toY,
         this._allCharacters,
@@ -215,6 +214,7 @@ export default class Renderer {
         this._bestPreviewPath = result.path
         this._bestPreviewTarget = result.target
 
+        // Рисуем путь
         ctx.fillStyle = '#444444'
         for (let i = 1; i < result.path.length; i++) {
           const p = result.path[i]
@@ -229,6 +229,7 @@ export default class Renderer {
           }
         }
 
+        // Если целевая клетка недоступна и мы идём к соседней - рисуем пунктирную рамку
         if (!result.target.isOriginal) {
           ctx.strokeStyle = '#ff8888'
           ctx.lineWidth = 1
@@ -236,6 +237,11 @@ export default class Renderer {
           ctx.strokeRect(toX * ts + ox + 4, toY * ts + oy + 4, ts - 8, ts - 8)
           ctx.setLineDash([])
         }
+      }
+
+      if (this._location) {
+        const info = this._location.getTileInfo(toX, toY)
+        if (info) this.drawTooltip(info.name)
       }
     }
     // ПОДСВЕТКА ХОВЕРА

@@ -230,7 +230,22 @@ export default class GameLoop {
     const fromX = Math.floor(activeChar.x);
     const fromY = Math.floor(activeChar.y);
 
-    // Всегда строим путь, даже для соседних клеток
+    const isAdjacent = Math.abs(fromX - tileX) <= 1 && Math.abs(fromY - tileY) <= 1;
+
+    // Проверяем, можно ли встать на клетку
+    const isWalkable = this.currentLocation.map.isWalkable(tileX, tileY);
+    const targetCharacter = this.currentLocation.getAllCharacters().find(
+      c => c !== activeChar && c.occupies(tileX, tileY)
+    );
+    const isBlocked = !isWalkable || targetCharacter;
+
+    // Если клик на соседней занятой клетке - ничего не делаем
+    if (isAdjacent && isBlocked) {
+      console.log(`${activeChar.name}: Клетка занята`);
+      return false;
+    }
+
+    // Всегда строим путь
     const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
       tileX, tileY,
       this.currentLocation.getAllCharacters(),
