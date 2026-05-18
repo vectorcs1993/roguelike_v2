@@ -235,6 +235,15 @@ export default class GameLoop {
     // Получаем объект под курсором
     const clickTarget = this.getClickTarget(tileX, tileY);
 
+    // ПОЛУЧАЕМ ТАЙЛ (для проверки стены)
+    const tile = this.currentLocation.map.getTile(tileX, tileY);
+
+    // Если клик на стене - ничего не делаем
+    if (tile && tile.constructor && tile.constructor.name === 'Wall') {
+      console.log(`${activeChar.name}: Нельзя пройти сквозь стену!`);
+      return false;
+    }
+
     // обработка предметов
     if (clickTarget && clickTarget.constructor && clickTarget.constructor.name === 'ItemTile' && !clickTarget.collected) {
       // Всегда строим путь к предмету, даже если он рядом

@@ -42,22 +42,23 @@ export default class Location {
       }
 
       for (const charConfig of teamConfig.characters) {
-        const charColor = charConfig.color || teamConfig.color || team.color || '#ffffff'
+
         const fovRadius = charConfig.fovRadius || 8
 
         const apConfig = charConfig.ap || {}
         const maxAP = apConfig.max || 12
         const moveAPCost = apConfig.moveCost !== undefined ? apConfig.moveCost : 1
 
+        const pickupAPCost = apConfig.pickupCost !== undefined ? apConfig.pickupCost : 1
+
         const character = new Character(
           charConfig.x, charConfig.y,
           charConfig.char,
-          charColor,
           charConfig.id,
           charConfig.name,
           team,
           fovRadius,
-          { maxAP, moveAPCost }
+          { maxAP, moveAPCost, pickupAPCost }
         )
         team.addCharacter(character)
         this.characters.push(character)
@@ -371,7 +372,11 @@ export default class Location {
           id: generateId(),
           name: 'Командир',
           fovRadius: 12,
-          ap: { max: 120, moveCost: 1 }
+          ap: {
+            max: 120,
+            moveCost: 1,
+            pickupAPCost: 2
+          }
         },
         {
           x: allyStart.x, y: allyStart.y,
@@ -380,7 +385,11 @@ export default class Location {
           id: generateId(),
           name: 'Спутник',
           fovRadius: 10,
-          ap: { max: 100, moveCost: 1 }
+          ap: {
+            max: 100,
+            moveCost: 2,
+            pickupAPCost: 4
+          }
         }
       ]
     }

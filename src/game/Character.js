@@ -1,13 +1,11 @@
-// src/game/Character.js
-
 import GameObject from './GameObject.js'
 
 export default class Character extends GameObject {
   // Константы класса
   static DEFAULT_PATH_SPEED = 12  // Скорость движения по умолчанию
 
-  constructor(x, y, char, color, id = null, name = null, team = null, fovRadius = 8, apConfig = {}) {
-    super(x, y, char, color)
+  constructor(x, y, char, id = null, name = null, team = null, fovRadius = 8, apConfig = {}) {
+    super(x, y, char)
     // Если id уже число - используем его, иначе генерируем числовой
     this.id = (typeof id === 'number') ? id : (id ? parseInt(id) || Date.now() : Date.now())
     this.name = name || 'Персонаж'
@@ -26,7 +24,7 @@ export default class Character extends GameObject {
     this.currentAP = this.maxAP
     // Одна стоимость для всех направлений
     this.moveAPCost = apConfig.moveAPCost !== undefined ? apConfig.moveAPCost : 1
-
+    this.pickupAPCost = apConfig.pickupAPCost !== undefined ? apConfig.pickupAPCost : 3
 
 
     console.log(`${this.name} (ID: ${this.id}): AP=${this.maxAP}, cost=${this.moveAPCost}, speed=${this.pathSpeed}`)
@@ -175,17 +173,17 @@ export default class Character extends GameObject {
 
     const tileX = Math.floor(this.x)
     const tileY = Math.floor(this.y)
+    // Стоимость одинаковая для всех направлений
+    const apCost = this.pickupAPCost
 
     if (tileX === this.target.x && tileY === this.target.y) {
       // Проверяем, хватает ли AP для подбора предмета
-      const pickupCost = 2;
-      if (!this.canAffordAP(pickupCost)) {
-        console.log(`${this.name}: Недостаточно AP для подбора предмета! Нужно ${pickupCost}, есть ${this.currentAP}`);
+      if (!this.canAffordAP(apCost)) {
+        console.log(`${this.name}: Недостаточно AP для подбора предмета! Нужно ${apCost}, есть ${this.currentAP}`);
         return false;
       }
-
       console.log(`${this.name} подобрал: ${this.target.name}`)
-      this.spendAP(pickupCost); // Тратим 2 AP
+      this.spendAP(apCost);
       this.target.collect()
       location.map.removeItemAt(tileX, tileY)
 

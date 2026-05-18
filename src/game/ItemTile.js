@@ -3,6 +3,7 @@
 import Tile from './Tile.js'
 
 export default class ItemTile extends Tile {
+
   constructor(x, y, itemType = 'generic') {
     const itemConfig = {
       name: ItemTile.getItemName(itemType),

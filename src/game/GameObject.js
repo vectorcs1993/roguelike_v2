@@ -1,11 +1,10 @@
 export default class GameObject {
-  constructor(x, y, char, color) {
+  constructor(x, y, char) {
     this.x = x
     this.y = y
     this.vx = x
     this.vy = y
     this.char = char
-    this.color = color
     this.moving = false
     this.fromX = x
     this.fromY = y

@@ -1,4 +1,3 @@
-
 export default class Renderer {
   // Константы класса
   static DEFAULT_TILE_SIZE = 48
@@ -129,6 +128,7 @@ export default class Renderer {
         ctx.fillText(item.char, drawX + ts / 2, drawY + ts / 2)
       }
     }
+
     // ПЕРСОНАЖИ - только символы
     for (const char of characters) {
       const tile = map.getTile(Math.floor(char.x), Math.floor(char.y))
@@ -172,37 +172,76 @@ export default class Renderer {
 
       const isAdjacent = Math.abs(fromX - toX) <= 1 && Math.abs(fromY - toY) <= 1
 
-      // Проверяем, занята ли клетка
-      const isWalkable = map.isWalkable(toX, toY)
-      const targetCharacter = this._allCharacters?.find(c => c !== this._activeCharacter && c.occupies(toX, toY))
-      const isBlocked = !isWalkable || targetCharacter
-      const canStand = isWalkable && !targetCharacter
+      // Проверяем, есть ли предмет на клетке
+      const itemAtTarget = this._location?.map.getItemAt(toX, toY);
+      const isItem = itemAtTarget && !itemAtTarget.collected;
 
-      const hoverTile = map.getTile(toX, toY)
-      // Показываем превью только если клетка видима ИЛИ исследована
-      const isVisibleOrExplored = hoverTile && (hoverTile.visible || hoverTile.explored)
+      // ПРОВЕРКА НА СТЕНУ
+      const tile = map.getTile(toX, toY);
+      const isWall = tile && tile.constructor && tile.constructor.name === 'Wall';
 
-      if (!isVisibleOrExplored) return
+      // Стоимость шага
+      const moveAPCost = this._activeCharacter.moveAPCost;
+      // Стоимость подъёма предметов в инвентарь
+      const pickupAPCost = this._activeCharacter.pickupAPCost;
 
-      // Рисуем рамку для клетки под курсором
-      const x = toX * ts + ox
-      const y = toY * ts + oy
+      // Если стена - показываем только рамку и тултип без пути
+      if (isWall) {
+        const x = toX * ts + ox
+        const y = toY * ts + oy
+        ctx.strokeStyle = '#ff4444'
+        ctx.lineWidth = 2
+        ctx.setLineDash([])
+        ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
 
-      ctx.strokeStyle = canStand ? '#44ff44' : '#ff4444'
-      ctx.lineWidth = 2
-      ctx.setLineDash([])
-      ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
-
-      // Для соседних занятых клеток - не строим путь, просто рамка
-      if (isAdjacent && isBlocked) {
         if (this._location) {
           const info = this._location.getTileInfo(toX, toY)
-          if (info) this.drawTooltip(info.name)
+          if (info) {
+            this.drawTooltip(`${info.name}\n🚫 Нельзя пройти`);
+          }
         }
-        return
+        return;
       }
 
-      // Для несоседних клеток (или соседних свободных) - строим путь
+      if (isAdjacent) {
+        // Показываем рамку для соседних
+        const hoverTile = map.getTile(toX, toY)
+        if (hoverTile && hoverTile.visible) {
+          const x = toX * ts + ox
+          const y = toY * ts + oy
+          const isWalkable = map.isWalkable(toX, toY)
+          const targetCharacter = this._allCharacters?.find(c => c !== this._activeCharacter && c.occupies(toX, toY))
+          const canStand = isWalkable && !targetCharacter
+
+          ctx.strokeStyle = canStand ? '#44ff44' : '#ff4444'
+          ctx.lineWidth = 2
+          ctx.setLineDash([])
+          ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
+
+          if (this._location) {
+            const info = this._location.getTileInfo(toX, toY)
+            if (info) {
+              let tooltipText = info.name;
+
+              // Добавляем информацию о стоимости
+              if (canStand) {
+                tooltipText += `\n🚶 1 шаг, ⚡ ${moveAPCost} AP`;
+                if (isItem) {
+                  tooltipText += `\n📦 Подъём: ⚡ +${pickupAPCost} AP`;
+                  tooltipText += `\n💰 Итого: ⚡ ${moveAPCost + pickupAPCost} AP`;
+                }
+              } else if (isItem && !canStand) {
+                tooltipText += `\n📦 Требуется подойти`;
+              }
+
+              this.drawTooltip(tooltipText);
+            }
+          }
+        }
+        return;
+      }
+
+      // Для несоседних клеток - строим путь
       const result = this._pathfinder.findPathToNearestWalkable(
         toX, toY,
         this._allCharacters,
@@ -237,13 +276,36 @@ export default class Renderer {
           ctx.strokeRect(toX * ts + ox + 4, toY * ts + oy + 4, ts - 8, ts - 8)
           ctx.setLineDash([])
         }
-      }
 
-      if (this._location) {
+        // Тултип с информацией о стоимости
+        if (this._location) {
+          const info = this._location.getTileInfo(toX, toY)
+          if (info) {
+            const steps = result.path.length - 1;
+            const moveCost = steps * moveAPCost;
+            let tooltipText = info.name;
+            tooltipText += `\n🚶 ${steps} шаг, ⚡ ${moveCost} AP`;
+
+            if (isItem) {
+              tooltipText += `\n📦 Подъём: ⚡ +${pickupAPCost} AP`;
+              tooltipText += `\n💰 Итого: ⚡ ${moveCost + pickupAPCost} AP`;
+            }
+
+            this.drawTooltip(tooltipText);
+          }
+        }
+      } else if (this._location) {
         const info = this._location.getTileInfo(toX, toY)
-        if (info) this.drawTooltip(info.name)
+        if (info) {
+          let tooltipText = info.name;
+          if (isItem) {
+            tooltipText += `\n📦 Требуется подход`;
+          }
+          this.drawTooltip(tooltipText);
+        }
       }
     }
+
     // ПОДСВЕТКА ХОВЕРА
     if (!input.isCameraMovingNow() && this.hoverTileX !== null) {
       const hoverTile = map.getTile(this.hoverTileX, this.hoverTileY)
@@ -265,21 +327,45 @@ export default class Renderer {
 
   drawTooltip(text) {
     const ctx = this.ctx
-    ctx.font = `16px ${this.fontFamily}`
-    const w = ctx.measureText(text).width + 12
-    const h = 20
+    ctx.font = `14px ${this.fontFamily}`
+
+    // Разбиваем текст на строки
+    const lines = text.split('\n');
+
+    // Находим самую широкую строку
+    let maxWidth = 0;
+    for (const line of lines) {
+      const w = ctx.measureText(line).width;
+      if (w > maxWidth) maxWidth = w;
+    }
+
+    const w = maxWidth + 16;
+    const lineHeight = 18;
+    const h = lines.length * lineHeight + 8;
 
     let x = this.mouseScreenX + 15
-    let y = this.mouseScreenY - 25
+    let y = this.mouseScreenY - h - 5
     if (x + w > this.canvasW) x = this.mouseScreenX - w - 5
     if (y < 0) y = this.mouseScreenY + 10
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'
     ctx.fillRect(x, y, w, h)
 
-    ctx.fillStyle = '#aaaaaa'
     ctx.textAlign = 'left'
-    ctx.fillText(text, x + 6, y + h / 2)
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Цвет для строки с итоговой стоимостью
+      if (line.includes('💰')) {
+        ctx.fillStyle = '#ffff88';
+      } else if (line.includes('📦')) {
+        ctx.fillStyle = '#88ff88';
+      } else if (line.includes('🚶')) {
+        ctx.fillStyle = '#aaaaff';
+      } else {
+        ctx.fillStyle = '#aaaaaa';
+      }
+      ctx.fillText(line, x + 6, y + lineHeight * (i + 1) - 4);
+    }
 
     ctx.textAlign = 'center'
     ctx.font = `${this.tileSize}px ${this.fontFamily}`
