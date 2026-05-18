@@ -1,4 +1,3 @@
-// src/game/Wall.js
 
 import Tile from './Tile.js'
 
@@ -11,5 +10,9 @@ export default class Wall extends Tile {
     }
 
     super(1, '#', wallConfig)
+  }
+
+  onClick() {
+    return null;
   }
 }

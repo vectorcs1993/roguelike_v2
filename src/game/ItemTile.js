@@ -6,8 +6,8 @@ export default class ItemTile extends Tile {
   constructor(x, y, itemType = 'generic') {
     const itemConfig = {
       name: ItemTile.getItemName(itemType),
-      isWalkable: true,      // По предмету можно ходить
-      blocksSight: false,    // Не блокирует обзор
+      isWalkable: true,      // По предмету можно ходить (важно для движения)
+      blocksSight: false,
       visibleColor: '#aaaaaa',
       exploredColor: '#777777'
     }
@@ -59,19 +59,37 @@ export default class ItemTile extends Tile {
   draw(ctx, x, y, ts, isVisible, isExplored, fontFamily) {
     if (this.collected) return
 
-    // Показываем предмет если он виден ИЛИ исследован
     if (!isVisible && !isExplored) return
 
-    // Цвет зависит от видимости
     let color
     if (isVisible) {
-      color = this.visibleColor  // '#aaaaaa' для видимых
+      color = this.visibleColor
     } else {
-      color = this.exploredColor // '#777777' для исследованных
+      color = this.exploredColor
     }
 
     ctx.fillStyle = color
     ctx.font = `${ts}px ${fontFamily}`
     ctx.fillText(this.char, x + ts / 2, y + ts / 2)
+  }
+
+  onClick(activeCharacter, isAdjacent, gameLoop) {
+    if (isAdjacent) {
+      // Если рядом - подбираем
+      console.log(`[Click] Подобрать предмет: ${this.name}`);
+      this.collect();
+      gameLoop.currentLocation.map.removeItemAt(this.x, this.y);
+
+      // Удаляем из массива items
+      const itemIndex = gameLoop.currentLocation.items.findIndex(i => i === this);
+      if (itemIndex !== -1) {
+        gameLoop.currentLocation.items.splice(itemIndex, 1);
+      }
+
+      return true; // Действие обработано
+    }
+
+    // Если не рядом - разрешаем движение к предмету
+    return null;
   }
 }

@@ -118,19 +118,6 @@ export default class Location {
     this.map.computeFov(centerX, centerY, radius)
   }
 
-  checkItemPickup(characterX, characterY) {
-    const collected = []
-    const item = this.map.getItemAt(characterX, characterY)
-
-    if (item && !item.collected) {
-      item.collect()
-      this.map.removeItemAt(characterX, characterY)
-      collected.push(item)
-    }
-
-    return collected
-  }
-
   findPath(fromX, fromY, toX, toY, activeCharacter = null) {
     const blocked = this.getBlockedCells(activeCharacter)
     return this.pathfinder.find(fromX, fromY, toX, toY, blocked)

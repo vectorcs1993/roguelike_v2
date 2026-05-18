@@ -232,20 +232,37 @@ export default class GameLoop {
 
     const isAdjacent = Math.abs(fromX - tileX) <= 1 && Math.abs(fromY - tileY) <= 1;
 
-    // Проверяем, можно ли встать на клетку
-    const isWalkable = this.currentLocation.map.isWalkable(tileX, tileY);
-    const targetCharacter = this.currentLocation.getAllCharacters().find(
-      c => c !== activeChar && c.occupies(tileX, tileY)
-    );
-    const isBlocked = !isWalkable || targetCharacter;
+    // Получаем объект под курсором
+    const clickTarget = this.getClickTarget(tileX, tileY);
 
-    // Если клик на соседней занятой клетке - ничего не делаем
-    if (isAdjacent && isBlocked) {
-      console.log(`${activeChar.name}: Клетка занята`);
+    // обработка предметов
+    if (clickTarget && clickTarget.constructor && clickTarget.constructor.name === 'ItemTile' && !clickTarget.collected) {
+      // Всегда строим путь к предмету, даже если он рядом
+      const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
+        tileX, tileY,
+        this.currentLocation.getAllCharacters(),
+        activeChar,
+        fromX, fromY
+      );
+      if (result && result.path && result.path.length > 0) {
+        activeChar.setPath(result.path, clickTarget);
+        return true;
+      }
       return false;
     }
 
-    // Всегда строим путь
+    // Если есть объект с методом onClick - вызываем его
+    if (clickTarget && clickTarget.onClick) {
+      const result = clickTarget.onClick(activeChar, isAdjacent, this);
+      if (result === true) {
+        return true;
+      }
+      if (result === false) {
+        return false;
+      }
+    }
+
+    // Стандартная обработка - движение (без цели)
     const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
       tileX, tileY,
       this.currentLocation.getAllCharacters(),
@@ -254,11 +271,28 @@ export default class GameLoop {
     );
 
     if (result && result.path && result.path.length > 0) {
-      activeChar.setPath(result.path);
+      activeChar.setPath(result.path, null);
       return true;
     }
 
     return false;
+  }
+
+  // Вспомогательный метод для получения цели клика
+  getClickTarget(x, y) {
+    // Сначала проверяем персонажей
+    const character = this.currentLocation.getAllCharacters().find(c => c.occupies(x, y));
+    if (character) return character;
+
+    // Затем проверяем ПРЕДМЕТЫ (ItemTile)
+    const item = this.currentLocation.map.getItemAt(x, y);
+    if (item && !item.collected) return item;
+
+    // Затем проверяем ящики и другие тайлы
+    const tile = this.currentLocation.map.getTile(x, y);
+    if (tile && tile.onClick) return tile;
+
+    return null;
   }
 
   updateHoverTile(mouseX, mouseY) {
@@ -298,11 +332,8 @@ export default class GameLoop {
         activeChar.y,
         activeChar.fovRadius
       )
-
-      const collected = this.currentLocation.checkItemPickup(Math.floor(activeChar.x), Math.floor(activeChar.y))
-      if (collected.length > 0) {
-        console.log(`${activeChar.name} собрал предметов: ${collected.length}`)
-      }
+      // Проверяем, достиг ли персонаж цели и подбираем
+      activeChar.checkAndCollectTarget(this.currentLocation);
     }
 
     this.camera.update(dt, this.input)

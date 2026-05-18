@@ -17,6 +17,7 @@ export default class Character extends GameObject {
     this.pathSpeed = Character.DEFAULT_PATH_SPEED
     this.path = []
     this.pathIndex = 0
+    this.target = null // цель движения (предмет, враг и т.д.)
     this.followingPath = false
     this.fovRadius = fovRadius
 
@@ -25,6 +26,8 @@ export default class Character extends GameObject {
     this.currentAP = this.maxAP
     // Одна стоимость для всех направлений
     this.moveAPCost = apConfig.moveAPCost !== undefined ? apConfig.moveAPCost : 1
+
+
 
     console.log(`${this.name} (ID: ${this.id}): AP=${this.maxAP}, cost=${this.moveAPCost}, speed=${this.pathSpeed}`)
   }
@@ -54,10 +57,11 @@ export default class Character extends GameObject {
   }
 
 
-  setPath(path) {
+  setPath(path, target = null) {
     if (!path || path.length <= 1) {
       this.followingPath = false
       this.path = []
+      this.target = null
       return
     }
     if (path.length > 0 && path[0].x === (this.x | 0) && path[0].y === (this.y | 0)) {
@@ -66,7 +70,8 @@ export default class Character extends GameObject {
     this.path = path
     this.pathIndex = 0
     this.followingPath = true
-    console.log(`${this.name} начал движение. AP: ${this.currentAP}/${this.maxAP}`)
+    this.target = target
+    console.log(`${this.name} начал движение к ${target ? target.name : 'цели'}. AP: ${this.currentAP}/${this.maxAP}`)
   }
 
   moveTo(newX, newY) {
@@ -86,8 +91,7 @@ export default class Character extends GameObject {
   moveAlongPath(dt, tileMap, blockers) {
     if (!this.followingPath || this.moving) return
     if (this.path.length === 0) {
-      this.followingPath = false
-      console.log(`${this.name} закончил движение. Осталось AP: ${this.currentAP}/${this.maxAP}`)
+      this.endMovement()
       return
     }
 
@@ -113,12 +117,15 @@ export default class Character extends GameObject {
       return
     }
 
-    // МГНОВЕННОЕ ПЕРЕМЕЩЕНИЕ (без анимации)
     if (this.moveTo(next.x, next.y)) {
       this.path.shift()
+      if (this.path.length === 0) {
+        this.endMovement()
+      }
     } else {
       this.followingPath = false
       this.path = []
+      this.target = null
     }
   }
 
@@ -155,5 +162,66 @@ export default class Character extends GameObject {
       maxAP: this.maxAP,
       team: this.team?.name
     }
+  }
+  endMovement() {
+    this.followingPath = false
+    this.path = []
+  }
+  checkAndCollectTarget(location) {
+    if (!this.target || this.target.collected) {
+      this.target = null
+      return false
+    }
+
+    const tileX = Math.floor(this.x)
+    const tileY = Math.floor(this.y)
+
+    if (tileX === this.target.x && tileY === this.target.y) {
+      // Проверяем, хватает ли AP для подбора предмета
+      const pickupCost = 2;
+      if (!this.canAffordAP(pickupCost)) {
+        console.log(`${this.name}: Недостаточно AP для подбора предмета! Нужно ${pickupCost}, есть ${this.currentAP}`);
+        return false;
+      }
+
+      console.log(`${this.name} подобрал: ${this.target.name}`)
+      this.spendAP(pickupCost); // Тратим 2 AP
+      this.target.collect()
+      location.map.removeItemAt(tileX, tileY)
+
+      const itemIndex = location.items.findIndex(i => i === this.target)
+      if (itemIndex !== -1) location.items.splice(itemIndex, 1)
+
+      this.target = null
+      return true
+    }
+
+    return false
+  }
+  onClick(activeCharacter, isAdjacent) {
+    // Если это враг
+    if (this.team && !this.team.isPlayerControlled) {
+      if (isAdjacent) {
+        console.log(`[Click] Атаковать врага: ${this.name}`);
+        // Здесь будет логика атаки
+        return true; // Действие обработано, движение не нужно
+      } else {
+        console.log(`[Click] Враг далеко, нужно подойти`);
+        return null; // Разрешаем движение к врагу
+      }
+    }
+
+    // Если это союзник (игрок)
+    if (this.isPlayerControlled || this.canSwitchTo) {
+      if (isAdjacent) {
+        console.log(`[Click] Лечить союзника: ${this.name}`);
+        // Здесь будет логика атаки
+        return true;
+      } else {
+        return null; // Разрешаем движение к союзнику
+      }
+    }
+
+    return null; // По умолчанию - разрешаем движение
   }
 }

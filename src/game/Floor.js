@@ -10,4 +10,8 @@ export default class Floor extends Tile {
 
     super(0, ' ', floorConfig)
   }
+
+  onClick() {
+    return null;
+  }
 }
