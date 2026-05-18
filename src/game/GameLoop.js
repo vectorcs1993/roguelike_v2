@@ -230,24 +230,7 @@ export default class GameLoop {
     const fromX = Math.floor(activeChar.x);
     const fromY = Math.floor(activeChar.y);
 
-    const isAdjacent = Math.abs(fromX - tileX) <= 1 && Math.abs(fromY - tileY) <= 1;
-
-    if (isAdjacent) {
-      const isWalkable = this.currentLocation.map.isWalkable(tileX, tileY);
-      const targetCharacter = this.currentLocation.getAllCharacters().find(
-        c => c !== activeChar && c.occupies(tileX, tileY)
-      );
-      const canStand = isWalkable && !targetCharacter;
-
-      if (canStand) {
-        if (activeChar.moveTo(tileX, tileY)) {
-          return true;
-        }
-      }
-      return false;
-    }
-
-    // Для несоседних (или для занятых соседних) - используем Pathfinder
+    // Всегда строим путь, даже для соседних клеток
     const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
       tileX, tileY,
       this.currentLocation.getAllCharacters(),
