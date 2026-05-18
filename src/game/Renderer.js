@@ -140,11 +140,11 @@ export default class Renderer {
 
         // Цвета для персонажей
         if (char === this._activeCharacter) {
-          ctx.fillStyle = '#ffffff'  // Белый для активного
+          ctx.fillStyle = '#88ff88'  // для активного
         } else if (char.isPlayerControlled) {
-          ctx.fillStyle = '#88ff88'  // Светло-зеленый для союзников
+          ctx.fillStyle = '#5272b6'  // для союзников
         } else {
-          ctx.fillStyle = '#ff8888'  // Светло-красный для врагов
+          ctx.fillStyle = '#d83232' // врагов
         }
 
         ctx.font = `${ts}px ${this.fontFamily}`
