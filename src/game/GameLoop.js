@@ -333,10 +333,19 @@ export default class GameLoop {
 
     // Проверяем, нужно ли переходить к следующему ходу
     if (this.currentLocation.shouldAdvanceTurn()) {
+      const currentChar = this.currentLocation.getActiveCharacter()
+      console.log(`[TURN] Завершение хода ${currentChar?.name} (AP: ${currentChar?.currentAP})`)
+
       const nextChar = this.currentLocation.nextTurn()
-      if (nextChar && nextChar.team && nextChar.team.isPlayerControlled) {
-        // Центрируем камеру только на персонажах игрока
-        this.centerOnCharacter(nextChar.id)
+      if (nextChar) {
+        console.log(`[TURN] Новый активный персонаж: ${nextChar.name} (${nextChar.team?.isPlayerControlled ? 'игрок' : 'враг'}), AP: ${nextChar.currentAP}/${nextChar.maxAP}`)
+
+        if (nextChar.team && nextChar.team.isPlayerControlled) {
+          // Центрируем камеру только на персонажах игрока
+          this.centerOnCharacter(nextChar.id)
+        }
+      } else {
+        console.warn('[TURN] Нет следующего персонажа в очереди!')
       }
     }
 
@@ -360,9 +369,16 @@ export default class GameLoop {
           if (ai) {
             // Обновляем ИИ врага только если у него есть ОД
             if (activeChar.currentAP > 0) {
+              console.log(`[ENEMY AI] Обновление ИИ для ${activeChar.name} (AP: ${activeChar.currentAP})`)
               ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
+            } else {
+              console.log(`[ENEMY AI] У ${activeChar.name} нет AP (${activeChar.currentAP}), пропускаем ИИ`)
             }
+          } else {
+            console.warn(`[ENEMY AI] Не найден ИИ для врага ${activeChar.name} (ID: ${activeChar.id})`)
           }
+        } else {
+          console.warn(`[ENEMY AI] Не найдена команда врагов или aiInstances для ${activeChar.name}`)
         }
 
         // Фейлсейф: если ход врага длится больше 0.5 секунд, принудительно завершаем его
