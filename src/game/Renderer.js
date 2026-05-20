@@ -218,6 +218,13 @@ export default class Renderer {
           ctx.setLineDash([])
           ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
 
+          // Рисуем звезду на соседней клетке
+          if (canStand) {
+            ctx.font = `${ts}px ${this.fontFamily}`
+            ctx.fillStyle = '#666666'
+            ctx.fillText('★', x + ts / 2, y + ts / 2)
+          }
+
           if (this._location) {
             const info = this._location.getTileInfo(toX, toY)
             if (info) {

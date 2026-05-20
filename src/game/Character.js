@@ -167,6 +167,11 @@ export default class Character extends GameObject {
     this.pathIndex = 0
     this.followingPath = false
     this.target = null
+    // Останавливаем анимацию движения
+    this.moving = false
+    this.progress = 0
+    this.vx = this.x
+    this.vy = this.y
   }
 
   getTooltipInfo() {
