@@ -86,16 +86,19 @@ export default class TileMap {
     return tile ? tile.blocksSight : true
   }
 
-  computeFov(originX, originY, radius) {
-    for (let y = 0; y < this.rows; y++) {
-      for (let x = 0; x < this.cols; x++) {
-        const tile = this.getTile(x, y)
-        if (tile) tile.visible = false
+  computeFov(originX, originY, radius, resetVisibility = true) {
+    if (resetVisibility) {
+      for (let y = 0; y < this.rows; y++) {
+        for (let x = 0; x < this.cols; x++) {
+          const tile = this.getTile(x, y)
+          if (tile) tile.visible = false
+        }
       }
     }
 
     this.fov.compute(originX | 0, originY | 0, radius)
 
+    // Mark explored for visible tiles
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         const tile = this.getTile(x, y)

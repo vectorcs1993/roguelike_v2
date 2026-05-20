@@ -69,29 +69,26 @@ export default class GameLoop {
     this.initializeFovForAllAllies()
   }
   initializeFovForAllAllies() {
-    // Сбрасываем видимость
-    for (let y = 0; y < this.currentLocation.map.rows; y++) {
-      for (let x = 0; x < this.currentLocation.map.cols; x++) {
-        const tile = this.currentLocation.map.getTile(x, y)
-        if (tile) tile.visible = false
-      }
-    }
-
     // Находим всех союзников (игроков и тех, на кого можно переключиться)
     const allies = this.currentLocation.getAllCharacters().filter(
       c => c.isPlayerControlled || c.canSwitchTo
     )
 
+    if (allies.length === 0) return
+
     // console.log(`Открываем FOV для ${allies.length} союзников:`)
 
-    // Для каждого союзника вычисляем FOV и объединяем
-    for (const ally of allies) {
+    // Для первого союзника сбрасываем видимость, для остальных - накапливаем
+    for (let i = 0; i < allies.length; i++) {
+      const ally = allies[i]
       const tileX = Math.floor(ally.x)
       const tileY = Math.floor(ally.y)
       // console.log(`  - ${ally.name} (${tileX}, ${tileY}), радиус: ${ally.fovRadius}`)
 
       // Вычисляем FOV для этого союзника
-      this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8)
+      // Для первого сбрасываем видимость, для остальных накапливаем
+      const resetVisibility = (i === 0)
+      this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8, resetVisibility)
     }
 
     // Для всех видимых клеток отмечаем explored
@@ -348,11 +345,50 @@ export default class GameLoop {
     if (activeChar) {
       activeChar.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
 
-      this.currentLocation.updateFov(
-        activeChar.x,
-        activeChar.y,
-        activeChar.fovRadius
-      )
+      // Если активный персонаж - враг, обновляем его ИИ
+      if (activeChar.team && !activeChar.team.isPlayerControlled) {
+        // Логируем начало хода врага (только один раз)
+        if (!this._lastEnemyTurnLog || this._lastEnemyTurnLog !== activeChar.id) {
+          console.log(`Ход врага: ${activeChar.name}`)
+          this._lastEnemyTurnLog = activeChar.id
+          this._enemyTurnStartTime = performance.now()
+        }
+
+        const enemyTeam = this.currentLocation.getTeam('creatures')
+        if (enemyTeam && enemyTeam.aiInstances) {
+          const ai = enemyTeam.aiInstances.get(activeChar.id)
+          if (ai) {
+            // Обновляем ИИ врага только если у него есть ОД
+            if (activeChar.currentAP > 0) {
+              ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
+            }
+          }
+        }
+
+        // Фейлсейф: если ход врага длится больше 0.5 секунд, принудительно завершаем его
+        if (this._enemyTurnStartTime && activeChar.currentAP > 0) {
+          const turnDuration = performance.now() - this._enemyTurnStartTime
+          if (turnDuration > 500) { // 0.5 секунды
+            console.warn(`Фейлсейф: ход врага ${activeChar.name} длится ${Math.round(turnDuration)}ms, принудительно завершаем`)
+            // Тратим все оставшиеся AP
+            const apToSpend = activeChar.currentAP
+            if (activeChar.spendAP) {
+              activeChar.spendAP(apToSpend)
+            } else {
+              activeChar.currentAP = 0
+            }
+            this._enemyTurnStartTime = null
+          }
+        }
+      } else {
+        // Сбрасываем лог хода врага при переходе к персонажу игрока
+        this._lastEnemyTurnLog = null
+        this._enemyTurnStartTime = null
+      }
+
+      // Вместо обновления FOV только для активного персонажа,
+      // обновляем FOV для всех союзников (персонажей игрока)
+      this.initializeFovForAllAllies()
       // Проверяем, достиг ли персонаж цели и подбираем
       activeChar.checkAndCollectTarget(this.currentLocation);
     }
@@ -524,6 +560,15 @@ export default class GameLoop {
     // Space или Enter - принудительное завершение хода
     if (e.code === 'Space' || e.code === 'Enter') {
       e.preventDefault()
+
+      // Проверяем, можно ли завершить ход (только для персонажей игрока)
+      const activeChar = this.currentLocation.getActiveCharacter()
+      if (!activeChar || !activeChar.team || !activeChar.team.isPlayerControlled) {
+        // Не позволяем игроку завершать ход врагов
+        console.log('Нельзя завершить ход врага вручную')
+        return
+      }
+
       const nextChar = this.currentLocation.endTurn()
       if (nextChar && nextChar.team && nextChar.team.isPlayerControlled) {
         this.centerOnCharacter(nextChar.id)

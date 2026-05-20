@@ -52,17 +52,10 @@ export default class EnemyTeam extends Team {
     this.aiInstances.delete(character.id)
   }
 
-  update(dt, map, allCharacters) {
-    // Обновляем ИИ для каждого врага в команде
-    for (const character of this.characters) {
-      const ai = this.aiInstances.get(character.id)
-      if (ai) {
-        // Обновляем ИИ только если у врага есть AP
-        if (character.currentAP > 0) {
-          ai.update(dt, map, allCharacters)
-        }
-      }
-    }
+  update(dt, map, allCharacters) { // eslint-disable-line no-unused-vars
+    // В упрощенной системе с очередью ходов враги действуют только в свой ход
+    // Этот метод теперь не обновляет ИИ врагов - они будут обновляться через очередь ходов
+    // Оставляем пустую реализацию для совместимости
   }
 
   getBehaviorForCharacter(character, enemyData) {

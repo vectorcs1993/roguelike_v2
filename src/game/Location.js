@@ -123,6 +123,39 @@ export default class Location {
       this.turnQueue.initialize(playerCharacters)
     }
 
+    // Упрощенная система: добавляем всех врагов в очередь с самого начала
+    // Простой способ: все персонажи, не управляемые игроком
+    const enemyCharacters = this.characters.filter(char =>
+      char.team && !char.team.isPlayerControlled
+    )
+
+    let addedCount = 0
+    for (const enemy of enemyCharacters) {
+      // Находим команду врага
+      const enemyTeam = enemy.team
+      if (enemyTeam && enemyTeam.aiInstances) {
+        const ai = enemyTeam.aiInstances.get(enemy.id)
+        if (ai) {
+          this.turnQueue.addCharacter(enemy, true)
+          addedCount++
+        } else {
+          // Если AI не найден, всё равно добавляем врага в очередь
+          this.turnQueue.addCharacter(enemy, true)
+          addedCount++
+        }
+      } else {
+        // Если команда не имеет aiInstances, всё равно добавляем
+        this.turnQueue.addCharacter(enemy, true)
+        addedCount++
+      }
+    }
+
+    if (addedCount > 0) {
+      console.log(`[Location] Добавлено ${addedCount} врагов в очередь ходов`)
+    } else {
+      console.log('[Location] Врагов для добавления в очередь не найдено')
+    }
+
     // Принудительно устанавливаем активного персонажа (первого в очереди)
     const firstCharacter = this.turnQueue.queue.length > 0 ? this.turnQueue.queue[0].character : null
     if (firstCharacter) {
@@ -174,25 +207,12 @@ export default class Location {
 
   /**
    * Обновляет очередь ходов, добавляя врагов при их обнаружении
+   * В упрощенной системе все враги уже добавлены при инициализации,
+   * но этот метод оставлен для совместимости
    */
   updateEnemiesInTurnQueue() {
-    const enemyTeam = this.teams.get('creatures')
-    if (!enemyTeam || !enemyTeam.aiInstances) {
-      return
-    }
-
-    // Получаем всех врагов
-    const enemies = this.characters.filter(char =>
-      char.team && char.team.type === 'enemy'
-    )
-
-    for (const enemy of enemies) {
-      const ai = enemyTeam.aiInstances.get(enemy.id)
-      if (ai && ai.state === 'COMBAT') {
-        // Враг в режиме боя - добавляем в очередь ходов
-        this.turnQueue.addCharacter(enemy, true)
-      }
-    }
+    // В упрощенной системе все враги уже добавлены в очередь при инициализации
+    // Этот метод теперь ничего не делает, но оставлен для совместимости
   }
 
   /**
@@ -205,15 +225,7 @@ export default class Location {
       return null
     }
 
-    // Если персонаж - враг (нет команды или команда не управляется игроком), пропускаем его ход
-    if (!nextCharacter.team || !nextCharacter.team.isPlayerControlled) {
-      // Пропускаем ход врага (тратим все AP)
-      nextCharacter.currentAP = 0
-      // Рекурсивно переходим к следующему персонажу
-      return this.nextTurn()
-    }
-
-    // Активируем следующего персонажа (только игроков)
+    // Активируем следующего персонажа (игроки и враги)
     const prevActive = this.getActiveCharacter()
     if (prevActive) {
       prevActive.currentAP = 0 // сбрасываем ОД предыдущего персонажа
@@ -261,8 +273,8 @@ export default class Location {
     return this.nextTurn()
   }
 
-  updateFov(centerX, centerY, radius) {
-    this.map.computeFov(centerX, centerY, radius)
+  updateFov(centerX, centerY, radius, resetVisibility = true) {
+    this.map.computeFov(centerX, centerY, radius, resetVisibility)
   }
 
   findPath(fromX, fromY, toX, toY, activeCharacter = null) {
@@ -303,6 +315,26 @@ export default class Location {
     return tile ? tile.visible : false
   }
 
+  isCharacterVisibleForPlayerTeam(character) {
+    // Find player team (team with isPlayerControlled = true)
+    const playerTeam = Array.from(this.teams.values()).find(team => team.isPlayerControlled)
+    if (!playerTeam) {
+      // If no player team found, fall back to tile visibility
+      const tileX = Math.floor(character.x)
+      const tileY = Math.floor(character.y)
+      const tile = this.map.getTile(tileX, tileY)
+      return tile ? tile.visible : false
+    }
+
+    // If character is on player team, always visible
+    if (character.team === playerTeam) {
+      return true
+    }
+
+    // Otherwise check if visible to player team
+    return playerTeam.isCharacterVisible(character, this.map)
+  }
+
   getTileInfo(tileX, tileY) {
     const tile = this.map.getTile(tileX, tileY)
 
@@ -315,7 +347,7 @@ export default class Location {
 
     // Сначала проверяем персонажей
     for (const character of this.characters) {
-      if (character.occupies(tileX, tileY) && this.isCharacterVisibleForActive(character)) {
+      if (character.occupies(tileX, tileY) && this.isCharacterVisibleForPlayerTeam(character)) {
         return character.getTooltipInfo()
       }
     }

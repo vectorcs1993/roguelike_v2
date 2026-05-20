@@ -63,6 +63,9 @@ export default class EnemyAI {
     // Обновляем состояние на основе окружения
     this.updatePerception(map, allCharacters)
 
+    // Запоминаем AP до выполнения действий
+    const apBefore = this.character.currentAP
+
     // Выполняем действия в зависимости от состояния
     switch (this.state) {
       case AI_STATE.IDLE:
@@ -77,6 +80,18 @@ export default class EnemyAI {
       case AI_STATE.FLEE:
         this.executeFleeBehavior(dt, map)
         break
+    }
+
+    // Если после выполнения действий AP не изменилось (враг ничего не сделал),
+    // принудительно тратим ВСЕ оставшиеся AP, чтобы завершить ход
+    if (this.character.currentAP === apBefore && this.character.currentAP > 0) {
+      // Враг пропускает ход, тратя ВСЕ оставшиеся AP
+      const apToSpend = this.character.currentAP
+      this.character.spendAP(apToSpend)
+      console.log(`${this.character.name} пропускает ход (потрачено ${apToSpend} AP)`)
+
+      // Устанавливаем небольшой кулдаун, чтобы не пропускать ход слишком часто
+      this.actionCooldown = 100 // 100ms
     }
   }
 
@@ -97,6 +112,8 @@ export default class EnemyAI {
       if (this.state !== AI_STATE.COMBAT) {
         this.state = AI_STATE.ALERT
         this.alertness = 100
+        // Лог обнаружения врага
+        console.log(`${this.character.name} обнаружил ${this.target.name}`)
       }
       return
     }
@@ -123,18 +140,21 @@ export default class EnemyAI {
   getVisibleEnemies(map, allCharacters) {
     const enemyTeam = this.character.team
     const visibleEnemies = []
+    const visionRadius = this.character.fovRadius || 8
 
     for (const char of allCharacters) {
       // Пропускаем себя и союзников
       if (char === this.character) continue
       if (char.team === enemyTeam) continue
 
-      // Проверяем видимость через тайл
-      const tileX = Math.floor(char.x)
-      const tileY = Math.floor(char.y)
-      const tile = map.getTile(tileX, tileY)
+      // Проверяем дистанцию
+      const distance = this.getDistanceTo(char)
+      if (distance > visionRadius) {
+        continue
+      }
 
-      if (tile && tile.visible) {
+      // Проверяем линию видимости
+      if (this.hasLineOfSight(char, map)) {
         visibleEnemies.push(char)
       }
     }
@@ -166,9 +186,12 @@ export default class EnemyAI {
         this.wander(dt, map, allCharacters)
         break
       case BEHAVIOR_TYPE.GUARD:
-        // Просто стоим на месте, иногда поворачиваемся
-        if (Math.random() < 0.01) {
-          // Можно добавить анимацию "осмотра"
+        // Стоим на месте, тратим ВСЕ AP чтобы завершить ход
+        if (this.character.currentAP > 0) {
+          const apToSpend = this.character.currentAP
+          this.character.spendAP(apToSpend)
+          console.log(`${this.character.name} (сторож) пропускает ход (потрачено ${apToSpend} AP)`)
+          this.actionCooldown = 200 // 200ms кулдаун
         }
         break
       case BEHAVIOR_TYPE.PATROL:
@@ -232,14 +255,19 @@ export default class EnemyAI {
     if (this.wanderCooldown > 0) return
     if (this.character.currentAP < this.character.moveAPCost) return
 
-    // Двигаемся к точке
-    this.moveTowards(currentPoint.x, currentPoint.y, map, allCharacters)
+    // Двигаемся к точке (двигаемся до самой точки)
+    this.moveTowards(currentPoint.x, currentPoint.y, map, allCharacters, 0)
   }
 
   // Поведение в режиме тревоги
   executeAlertBehavior() {
     // Быстро переходим в боевой режим
     this.state = AI_STATE.COMBAT
+    // Лог начала преследования
+    if (this.target) {
+      console.log(`${this.character.name} преследует ${this.target.name}`)
+    }
+    console.log(`[EnemyAI] ${this.character.name} перешел в состояние COMBAT`)
   }
 
   // Боевое поведение
@@ -249,16 +277,12 @@ export default class EnemyAI {
       return
     }
 
-    // Проверяем, видим ли ещё цель
-    const tileX = Math.floor(this.target.x)
-    const tileY = Math.floor(this.target.y)
-    const tile = map.getTile(tileX, tileY)
-
-    if (!tile || !tile.visible) {
+    // Проверяем, видим ли ещё цель (используем линию видимости врага)
+    if (!this.hasLineOfSight(this.target, map)) {
       // Цель скрылась
       if (this.lastKnownTargetPos) {
-        // Пытаемся дойти до последней известной позиции
-        this.moveTowards(this.lastKnownTargetPos.x, this.lastKnownTargetPos.y, map, allCharacters)
+        // Пытаемся дойти до последней известной позиции (двигаемся до самой точки)
+        this.moveTowards(this.lastKnownTargetPos.x, this.lastKnownTargetPos.y, map, allCharacters, 0)
 
         // Если достигли позиции, но врага нет, сбрасываем
         const distance = this.getDistanceToPoint(this.lastKnownTargetPos)
@@ -279,21 +303,48 @@ export default class EnemyAI {
     // Проверяем возможность атаки
     const canAttack = this.tryAttack(this.target, map)
     if (canAttack) {
-      this.actionCooldown = 500 // Небольшая пауза после атаки
+      // В состоянии COMBAT уменьшаем задержку между действиями
+      this.actionCooldown = this.state === AI_STATE.COMBAT ? 100 : 500
       return
     }
 
-    // Если не можем атаковать, двигаемся к цели
-    this.moveTowards(this.target.x, this.target.y, map, allCharacters)
+    // Если не можем атаковать, двигаемся к цели с учётом оптимальной дистанции
+    const attackRange = this.getAttackRange()
+    const distance = this.getDistanceTo(this.target)
+
+    // Определяем желаемую дистанцию остановки
+    // Для ближнего боя (attackRange = 1) используем дистанцию 1.5 чтобы разрешить диагональное соседство
+    // (евклидово расстояние для диагонали = √2 ≈ 1.414)
+    // Для дальнего боя останавливаемся на расстоянии attackRange
+    let stopDistance = attackRange > 1 ? attackRange : 1.5
+
+    // Если уже находимся на желаемой дистанции, но нет линии видимости (для дальних атак),
+    // двигаемся ближе чтобы получить обзор
+    if (attackRange > 1 && distance <= attackRange && !this.hasLineOfSight(this.target, map)) {
+      stopDistance = 1.5 // Двигаемся ближе
+    }
+
+    this.moveTowards(this.target.x, this.target.y, map, allCharacters, stopDistance)
   }
 
   // Попытка атаковать цель
   tryAttack(target, map) {
-    const distance = this.getDistanceTo(target)
     const attackRange = this.getAttackRange()
 
-    // Проверяем дистанцию
-    if (distance > attackRange) {
+    // Для ближнего боя (range = 1) используем чебышевское расстояние (максимум из dx, dy)
+    // чтобы разрешить атаки по диагонали
+    let canAttack
+    if (attackRange === 1) {
+      const dx = Math.abs(Math.floor(target.x) - Math.floor(this.character.x))
+      const dy = Math.abs(Math.floor(target.y) - Math.floor(this.character.y))
+      canAttack = Math.max(dx, dy) <= 1
+    } else {
+      // Для дальнего боя используем евклидово расстояние
+      const distance = this.getDistanceTo(target)
+      canAttack = distance <= attackRange
+    }
+
+    if (!canAttack) {
       return false
     }
 
@@ -331,20 +382,39 @@ export default class EnemyAI {
     this.state = AI_STATE.IDLE
   }
 
-  // Движение к точке
-  moveTowards(targetX, targetY, map, allCharacters) {
-    if (this.character.currentAP < this.character.moveAPCost) return
+  // Движение к точке с возможностью остановки на заданной дистанции
+  moveTowards(targetX, targetY, map, allCharacters, stopDistance = 0) {
+    if (this.character.currentAP < this.character.moveAPCost) {
+      return
+    }
 
     const fromX = Math.floor(this.character.x)
     const fromY = Math.floor(this.character.y)
     const toX = Math.floor(targetX)
     const toY = Math.floor(targetY)
 
+    // Проверяем текущую дистанцию до цели
+    const currentDistance = Math.sqrt(
+      Math.pow(targetX - this.character.x, 2) +
+      Math.pow(targetY - this.character.y, 2)
+    )
+
+    // Если уже находимся на желаемой дистанции или ближе - не двигаемся
+    if (currentDistance <= stopDistance) {
+      return
+    }
+
     // Используем поиск пути
     const pathfinder = new Pathfinder(map)
 
     // Получаем заблокированные клетки для поиска пути
-    const blocked = this.getBlockedCells(allCharacters)
+    let blocked = this.getBlockedCells(allCharacters)
+
+    // Если мы хотим остановиться на расстоянии (stopDistance > 0), исключаем целевую клетку из блокированных
+    // потому что мы не пытаемся встать на ту же клетку, а только приблизиться к ней
+    if (stopDistance > 0) {
+      blocked = blocked.filter(cell => !(cell.x === toX && cell.y === toY))
+    }
 
     // Ищем путь
     const path = pathfinder.find(fromX, fromY, toX, toY, blocked)
@@ -358,14 +428,20 @@ export default class EnemyAI {
         // Берём следующий шаг
         const canMove = this.character.moveTo(path[1].x, path[1].y, allCharacters)
         if (canMove) {
-          this.actionCooldown = 500
+          console.log(`${this.character.name}: Двигается к (${path[1].x}, ${path[1].y})`)
+          // В состоянии COMBAT уменьшаем задержку между действиями
+          this.actionCooldown = this.state === AI_STATE.COMBAT ? 100 : 500
         }
       } else {
         const canMove = this.character.moveTo(nextStep.x, nextStep.y, allCharacters)
         if (canMove) {
-          this.actionCooldown = 500
+          console.log(`${this.character.name}: Двигается к (${nextStep.x}, ${nextStep.y})`)
+          // В состоянии COMBAT уменьшаем задержку между действиями
+          this.actionCooldown = this.state === AI_STATE.COMBAT ? 100 : 500
         }
       }
+    } else {
+      console.log(`${this.character.name}: Путь не найден к (${toX}, ${toY})`)
     }
   }
 
@@ -392,11 +468,57 @@ export default class EnemyAI {
     return this.character.attackAPCost || 3
   }
 
-  hasLineOfSight() {
-    // Простая проверка линии видимости
-    // В реальной реализации нужно использовать алгоритм Брезенхэма
-    // Для простоты возвращаем true
+  hasLineOfSight(target, map) {
+    // Реализация проверки линии видимости с помощью алгоритма Брезенхэма
+    const x0 = Math.floor(this.character.x)
+    const y0 = Math.floor(this.character.y)
+    const x1 = Math.floor(target.x)
+    const y1 = Math.floor(target.y)
+
+    // Если та же клетка
+    if (x0 === x1 && y0 === y1) return true
+
+    // Получаем точки линии
+    const points = this.getLine(x0, y0, x1, y1)
+
+    // Проверяем каждую точку кроме начальной и конечной
+    for (let i = 1; i < points.length - 1; i++) {
+      const point = points[i]
+      const tile = map.getTile(point.x, point.y)
+      if (tile && tile.blocksSight) {
+        return false
+      }
+    }
+
     return true
+  }
+
+  // Алгоритм Брезенхэма для линии
+  getLine(x0, y0, x1, y1) {
+    const points = []
+    const dx = Math.abs(x1 - x0)
+    const dy = Math.abs(y1 - y0)
+    const sx = (x0 < x1) ? 1 : -1
+    const sy = (y0 < y1) ? 1 : -1
+    let err = dx - dy
+
+    while (true) {
+      points.push({ x: x0, y: y0 })
+
+      if (x0 === x1 && y0 === y1) break
+
+      const e2 = 2 * err
+      if (e2 > -dy) {
+        err -= dy
+        x0 += sx
+      }
+      if (e2 < dx) {
+        err += dx
+        y0 += sy
+      }
+    }
+
+    return points
   }
 
   getBlockedCells(allCharacters) {

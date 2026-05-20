@@ -1,10 +1,10 @@
 /**
- * Система очереди ходов по инициативе (Fallout-style)
+ * Упрощенная система очереди ходов
  * Управляет очередностью ходов персонажей и врагов
  */
 export default class TurnQueue {
   constructor() {
-    /** @type {Array<{character: Object, initiative: number, isEnemy: boolean}>} */
+    /** @type {Array<{character: Object, isEnemy: boolean}>} */
     this.queue = []
     this.currentIndex = 0
     this.isCombatMode = false
@@ -40,17 +40,19 @@ export default class TurnQueue {
       return
     }
 
-    const initiative = character.initiative || 5
     this.queue.push({
       character,
-      initiative,
-      isEnemy,
-      originalInitiative: initiative // сохраняем оригинальное значение для сброса
+      isEnemy
     })
 
     // Если добавляем врага, переключаемся в режим боя
     if (isEnemy && !this.isCombatMode) {
       this.enterCombatMode()
+    }
+
+    // Только для отладки: логируем добавление врагов
+    if (isEnemy) {
+      console.log(`[TurnQueue] Добавлен враг: ${character.name}`)
     }
 
     this.sortQueue()
@@ -80,19 +82,15 @@ export default class TurnQueue {
   }
 
   /**
-   * Сортирует очередь по инициативе (по убыванию)
+   * Сортирует очередь: сначала персонажи игрока, затем враги
    */
   sortQueue() {
     this.queue.sort((a, b) => {
-      // Сначала по инициативе (больше = выше)
-      if (b.initiative !== a.initiative) {
-        return b.initiative - a.initiative
-      }
-      // При равной инициативе - персонажи игрока выше врагов
+      // Сначала персонажи игрока, затем враги
       if (a.isEnemy !== b.isEnemy) {
         return a.isEnemy ? 1 : -1
       }
-      // При равных условиях - по имени
+      // При одинаковом типе - по имени
       return a.character.name.localeCompare(b.character.name)
     })
 
@@ -172,8 +170,6 @@ export default class TurnQueue {
     // Если прошли полный круг, начинаем новый раунд
     if (this.currentIndex === 0) {
       this.round++
-      // Сбрасываем инициативу к оригинальным значениям
-      this.resetInitiatives()
     }
 
     const nextChar = this.getCurrentCharacter()
@@ -186,28 +182,6 @@ export default class TurnQueue {
     return nextChar
   }
 
-  /**
-   * Сбрасывает инициативу к оригинальным значениям в начале нового раунда
-   */
-  resetInitiatives() {
-    for (const item of this.queue) {
-      item.initiative = item.originalInitiative
-    }
-    this.sortQueue()
-  }
-
-  /**
-   * Уменьшает инициативу персонажа после выполнения действия
-   * @param {Object} character - персонаж
-   * @param {number} cost - стоимость действия в инициативе
-   */
-  spendInitiative(character, cost = 1) {
-    const item = this.queue.find(item => item.character.id === character.id)
-    if (item) {
-      item.initiative = Math.max(0, item.initiative - cost)
-      this.sortQueue()
-    }
-  }
 
   /**
    * Возвращает список всех персонажей в очереди
@@ -241,7 +215,6 @@ export default class TurnQueue {
     return {
       queue: this.queue.map(item => ({
         name: item.character.name,
-        initiative: item.initiative,
         isEnemy: item.isEnemy,
         isCurrent: this.getCurrentCharacter()?.id === item.character.id
       })),

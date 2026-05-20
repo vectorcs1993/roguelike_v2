@@ -132,7 +132,8 @@ export default class Renderer {
     // ПЕРСОНАЖИ - только символы
     for (const char of characters) {
       const tile = map.getTile(Math.floor(char.x), Math.floor(char.y))
-      const isVisible = this._location?.isCharacterVisibleForActive(char) ?? (tile && tile.visible)
+      // Используем проверку видимости для команды игрока, а не для активного персонажа
+      const isVisible = this._location?.isCharacterVisibleForPlayerTeam(char) ?? (tile && tile.visible)
 
       if (isVisible) {
         const drawX = char.vx * ts + ox
@@ -140,7 +141,12 @@ export default class Renderer {
 
         // Цвета для персонажей
         if (char === this._activeCharacter) {
-          ctx.fillStyle = '#88ff88'  // для активного
+          // Активный персонаж: зеленый только если игроком управляется
+          if (char.isPlayerControlled) {
+            ctx.fillStyle = '#88ff88'  // для активного игрока
+          } else {
+            ctx.fillStyle = '#d83232' // для активного врага (не зеленый!)
+          }
         } else if (char.isPlayerControlled) {
           ctx.fillStyle = '#5272b6'  // для союзников
         } else {
