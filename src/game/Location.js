@@ -373,7 +373,7 @@ export default class Location {
           name: 'Командир',
           fovRadius: 12,
           ap: {
-            max: 120,
+            max: 12,
             moveCost: 1,
             pickupAPCost: 2
           }
@@ -386,7 +386,7 @@ export default class Location {
           name: 'Спутник',
           fovRadius: 10,
           ap: {
-            max: 100,
+            max: 10,
             moveCost: 2,
             pickupAPCost: 4
           }
