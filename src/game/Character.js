@@ -4,7 +4,7 @@ export default class Character extends GameObject {
   // Константы класса
   static DEFAULT_PATH_SPEED = 12  // Скорость движения по умолчанию
 
-  constructor(x, y, char, id = null, name = null, team = null, fovRadius = 8, apConfig = {}) {
+  constructor(x, y, char, id = null, name = null, team = null, fovRadius = 8, apConfig = {}, combatConfig = {}) {
     super(x, y, char)
     // Если id уже число - используем его, иначе генерируем числовой
     this.id = (typeof id === 'number') ? id : (id ? parseInt(id) || Date.now() : Date.now())
@@ -25,9 +25,20 @@ export default class Character extends GameObject {
     // Одна стоимость для всех направлений
     this.moveAPCost = apConfig.moveAPCost !== undefined ? apConfig.moveAPCost : 1
     this.pickupAPCost = apConfig.pickupAPCost !== undefined ? apConfig.pickupAPCost : 3
+    this.attackAPCost = apConfig.attackAPCost !== undefined ? apConfig.attackAPCost : 3
 
+    // Боевые характеристики
+    this.hp = combatConfig.hp || 20
+    this.maxHp = combatConfig.maxHp || this.hp
+    this.armor = combatConfig.armor || 0
+    this.damageMin = combatConfig.damageMin || 1
+    this.damageMax = combatConfig.damageMax || 3
+    this.damageType = combatConfig.damageType || 'blunt'
+    this.attackRange = combatConfig.attackRange || 1
+    this.accuracy = combatConfig.accuracy || 0.7
+    this.initiative = combatConfig.initiative || 5
 
-    console.log(`${this.name} (ID: ${this.id}): AP=${this.maxAP}, cost=${this.moveAPCost}, speed=${this.pathSpeed}`)
+    console.log(`${this.name} (ID: ${this.id}): AP=${this.maxAP}, HP=${this.hp}/${this.maxHp}, damage=${this.damageMin}-${this.damageMax}`)
   }
 
   get teamId() { return this.team?.id || 'none' }
@@ -72,13 +83,22 @@ export default class Character extends GameObject {
     console.log(`${this.name} начал движение к ${target ? target.name : 'цели'}. AP: ${this.currentAP}/${this.maxAP}`)
   }
 
-  moveTo(newX, newY) {
+  moveTo(newX, newY, blockers = null) {
     // Стоимость одинаковая для всех направлений
     const apCost = this.moveAPCost
 
     if (!this.canAffordAP(apCost)) {
       console.log(`${this.name}: Недостаточно AP! Нужно ${apCost}, есть ${this.currentAP}`)
       return false
+    }
+
+    // Проверяем, не занята ли клетка другими персонажами
+    if (blockers) {
+      const occupied = blockers.some(b => b !== this && b.occupies(newX, newY))
+      if (occupied) {
+        console.log(`${this.name}: Клетка (${newX}, ${newY}) занята другим персонажем`)
+        return false
+      }
     }
 
     this.spendAP(apCost)
@@ -115,7 +135,7 @@ export default class Character extends GameObject {
       return
     }
 
-    if (this.moveTo(next.x, next.y)) {
+    if (this.moveTo(next.x, next.y, blockers)) {
       this.path.shift()
       if (this.path.length === 0) {
         this.endMovement()
@@ -195,6 +215,81 @@ export default class Character extends GameObject {
     }
 
     return false
+  }
+
+  // Атаковать цель
+  attack(target) {
+    // Проверяем, хватает ли AP для атаки
+    if (!this.canAffordAP(this.attackAPCost)) {
+      console.log(`${this.name}: Недостаточно AP для атаки! Нужно ${this.attackAPCost}, есть ${this.currentAP}`)
+      return false
+    }
+
+    // Проверяем дистанцию
+    const distance = this.getDistanceTo(target)
+    if (distance > this.attackRange) {
+      console.log(`${this.name}: Цель слишком далеко! Дистанция: ${distance}, дальность атаки: ${this.attackRange}`)
+      return false
+    }
+
+    // Проверяем точность
+    const hitRoll = Math.random()
+    if (hitRoll > this.accuracy) {
+      console.log(`${this.name} промахнулся по ${target.name}! (${hitRoll.toFixed(2)} > ${this.accuracy})`)
+      this.spendAP(this.attackAPCost) // Всё равно тратим AP на попытку
+      return false
+    }
+
+    // Вычисляем урон
+    const damage = Math.floor(Math.random() * (this.damageMax - this.damageMin + 1)) + this.damageMin
+
+    // Учитываем броню цели
+    const actualDamage = Math.max(1, damage - target.armor)
+
+    // Наносим урон
+    const success = target.takeDamage(actualDamage, this.damageType)
+
+    if (success) {
+      console.log(`${this.name} наносит ${actualDamage} урона ${target.name} (${damage} - ${target.armor} брони)`)
+      this.spendAP(this.attackAPCost)
+      return true
+    }
+
+    return false
+  }
+
+  // Получить дистанцию до цели
+  getDistanceTo(target) {
+    const dx = target.x - this.x
+    const dy = target.y - this.y
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  // Получить урон
+  takeDamage(amount, damageType) {
+    this.hp -= amount
+
+    console.log(`${this.name} получает ${amount} урона (тип: ${damageType}). Осталось HP: ${this.hp}/${this.maxHp}`)
+
+    if (this.hp <= 0) {
+      this.die()
+      return true
+    }
+
+    return true
+  }
+
+  // Смерть персонажа
+  die() {
+    console.log(`${this.name} погибает!`)
+    // Здесь можно добавить логику удаления персонажа из игры
+    // Например: this.team.removeCharacter(this)
+  }
+
+  // Восстановление здоровья
+  heal(amount) {
+    this.hp = Math.min(this.maxHp, this.hp + amount)
+    console.log(`${this.name} восстанавливает ${amount} HP. Теперь: ${this.hp}/${this.maxHp}`)
   }
   onClick(activeCharacter, isAdjacent) {
     // Если это враг
