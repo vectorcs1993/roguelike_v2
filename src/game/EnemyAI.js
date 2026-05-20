@@ -279,7 +279,7 @@ export default class EnemyAI {
     // Проверяем возможность атаки
     const canAttack = this.tryAttack(this.target, map)
     if (canAttack) {
-      this.actionCooldown = 300 // Небольшая пауза после атаки
+      this.actionCooldown = 500 // Небольшая пауза после атаки
       return
     }
 
@@ -358,12 +358,12 @@ export default class EnemyAI {
         // Берём следующий шаг
         const canMove = this.character.moveTo(path[1].x, path[1].y, allCharacters)
         if (canMove) {
-          this.actionCooldown = 200
+          this.actionCooldown = 500
         }
       } else {
         const canMove = this.character.moveTo(nextStep.x, nextStep.y, allCharacters)
         if (canMove) {
-          this.actionCooldown = 200
+          this.actionCooldown = 500
         }
       }
     }

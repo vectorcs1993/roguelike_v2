@@ -5,6 +5,7 @@ import Pathfinder from './Pathfinder.js'
 import PlayerTeam from './PlayerTeam.js'
 import EnemyTeam from './EnemyTeam.js'
 import BiomeGenerator from './BiomeGenerator.js'
+import TurnQueue from './TurnQueue.js'
 
 export default class Location {
   constructor(config, pillars, teamConfigs = [], itemConfigs = [], biomeName = null, cratePositions = []) {
@@ -25,6 +26,9 @@ export default class Location {
 
     this.teams = new Map()
     this.characters = []
+
+    // Инициализация очереди ходов
+    this.turnQueue = new TurnQueue()
 
     for (const teamConfig of teamConfigs) {
       let team
@@ -73,6 +77,9 @@ export default class Location {
       this.items.push(item)
       this.map.addItem(item)
     }
+
+    // Инициализируем очередь ходов после создания всех персонажей
+    this.initializeTurnQueue()
   }
 
   getAllCharacters() {
@@ -88,7 +95,46 @@ export default class Location {
   }
 
   getActiveCharacter() {
-    return this.characters.find(c => c.isActive) || null
+    // Используем очередь ходов для определения активного персонажа
+    const activeFromQueue = this.turnQueue.getCurrentCharacter()
+
+    if (!activeFromQueue) {
+      const fallback = this.characters.find(c => c.isActive) || null
+      return fallback
+    }
+
+    return activeFromQueue
+  }
+
+  /**
+   * Инициализирует очередь ходов
+   */
+  initializeTurnQueue() {
+    // Только персонажи, управляемые игроком (isPlayerControlled === true)
+    const playerCharacters = this.characters.filter(char =>
+      char.team && char.team.isPlayerControlled === true
+    )
+
+    if (playerCharacters.length === 0) {
+      console.warn('[Location] Нет персонажей игрока для инициализации очереди!')
+      // Не добавляем врагов в очередь - оставляем пустую очередь
+      this.turnQueue.initialize([])
+    } else {
+      this.turnQueue.initialize(playerCharacters)
+    }
+
+    // Принудительно устанавливаем активного персонажа (первого в очереди)
+    const firstCharacter = this.turnQueue.queue.length > 0 ? this.turnQueue.queue[0].character : null
+    if (firstCharacter) {
+      this.characters.forEach(c => {
+        if (c.isActive) c.clearPath()
+        c.isActive = false
+      })
+      firstCharacter.isActive = true
+      firstCharacter.restoreFullAP()
+    } else {
+      console.warn('[Location] Нет активного персонажа после инициализации очереди')
+    }
   }
 
   switchToCharacter(characterId) {
@@ -99,11 +145,19 @@ export default class Location {
       return null
     }
 
-    this.characters.forEach(c => c.isActive = false)
+    // Запрещаем переключение на врагов
+    if (character.team && !character.team.isPlayerControlled) {
+      console.warn(`Cannot switch to enemy character: ${character.name}`)
+      return null
+    }
+
+    this.characters.forEach(c => {
+      if (c.isActive) c.clearPath()
+      c.isActive = false
+    })
     character.isActive = true
     character.restoreFullAP()
 
-    console.log(`Switched to: ${character.name} (ID: ${character.id})`)
     return character
   }
 
@@ -113,6 +167,98 @@ export default class Location {
         team.update(dt, this.map, this.characters)
       }
     }
+
+    // Проверяем врагов и добавляем их в очередь ходов при обнаружении
+    this.updateEnemiesInTurnQueue()
+  }
+
+  /**
+   * Обновляет очередь ходов, добавляя врагов при их обнаружении
+   */
+  updateEnemiesInTurnQueue() {
+    const enemyTeam = this.teams.get('creatures')
+    if (!enemyTeam || !enemyTeam.aiInstances) {
+      return
+    }
+
+    // Получаем всех врагов
+    const enemies = this.characters.filter(char =>
+      char.team && char.team.type === 'enemy'
+    )
+
+    for (const enemy of enemies) {
+      const ai = enemyTeam.aiInstances.get(enemy.id)
+      if (ai && ai.state === 'COMBAT') {
+        // Враг в режиме боя - добавляем в очередь ходов
+        this.turnQueue.addCharacter(enemy, true)
+      }
+    }
+  }
+
+  /**
+   * Переходит к следующему ходу в очереди
+   * @returns {Object|null} следующий персонаж
+   */
+  nextTurn() {
+    const nextCharacter = this.turnQueue.next()
+    if (!nextCharacter) {
+      return null
+    }
+
+    // Если персонаж - враг (нет команды или команда не управляется игроком), пропускаем его ход
+    if (!nextCharacter.team || !nextCharacter.team.isPlayerControlled) {
+      // Пропускаем ход врага (тратим все AP)
+      nextCharacter.currentAP = 0
+      // Рекурсивно переходим к следующему персонажу
+      return this.nextTurn()
+    }
+
+    // Активируем следующего персонажа (только игроков)
+    const prevActive = this.getActiveCharacter()
+    if (prevActive) {
+      prevActive.currentAP = 0 // сбрасываем ОД предыдущего персонажа
+    }
+    this.characters.forEach(c => {
+      if (c.isActive) c.clearPath()
+      c.isActive = false
+    })
+    nextCharacter.isActive = true
+    nextCharacter.restoreFullAP() // восстанавливаем полные ОД новому активному персонажу
+
+    return nextCharacter
+  }
+
+  /**
+   * Проверяет, нужно ли переходить к следующему ходу
+   * (текущий персонаж израсходовал все AP)
+   * @returns {boolean}
+   */
+  shouldAdvanceTurn() {
+    const currentChar = this.getActiveCharacter()
+    if (!currentChar) {
+      return false
+    }
+
+    const shouldAdvance = currentChar.currentAP <= 0
+
+    // Если у текущего персонажа закончились AP, переходим к следующему
+    return shouldAdvance
+  }
+
+  /**
+   * Принудительно завершает ход текущего персонажа и переходит к следующему
+   * @returns {Object|null} следующий персонаж
+   */
+  endTurn() {
+    const currentChar = this.getActiveCharacter()
+    if (!currentChar) {
+      return null
+    }
+
+    // Сбрасываем оставшиеся AP у текущего персонажа
+    currentChar.currentAP = 0
+
+    return this.nextTurn()
   }
 
   updateFov(centerX, centerY, radius) {
@@ -201,6 +347,9 @@ export default class Location {
     for (const item of this.items) {
       item.collected = false
     }
+
+    // Инициализируем очередь ходов при сбросе локации
+    this.initializeTurnQueue()
   }
 
   // src/game/Location.js (полный метод generateProcedural)
@@ -443,25 +592,6 @@ export default class Location {
       biomeName,
       crates
     )
-
-    // Логируем результаты
-    console.log(`================== ГЕНЕРАЦИЯ ЛОКАЦИИ ==================`)
-    console.log(`📍 Биом: ${biomeName}`)
-    console.log(`🗺️  Размер: ${width} x ${height}`)
-    console.log(`📦 Комнат: ${rooms.length}`)
-    console.log(`📦 Ящиков: ${crates.length}`)
-    console.log(`💎 Предметов: ${items.length}`)
-    console.log(`👹 Врагов: ${enemies.length}`)
-    console.log(`👤 Командир: (${playerStart.x}, ${playerStart.y})`)
-    console.log(`👥 Спутник: (${allyStart.x}, ${allyStart.y})`)
-
-    // Статистика по врагам
-    const enemyStats = {}
-    for (const enemy of enemies) {
-      enemyStats[enemy.name] = (enemyStats[enemy.name] || 0) + 1
-    }
-    console.log(`📊 Типы врагов:`, enemyStats)
-    console.log(`===================================================`)
 
     return location
   }

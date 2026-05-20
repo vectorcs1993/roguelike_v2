@@ -25,7 +25,6 @@ export default class GameLoop {
       if (playerChar && playerChar.canSwitchTo) {
         playerChar.isActive = true
         activeCharacter = playerChar
-        console.log(`Активирован персонаж: ${playerChar.name}`)
       }
     }
 
@@ -104,16 +103,19 @@ export default class GameLoop {
         }
       }
     }
-
-    console.log(`Стартовый FOV открыт для всех союзников`)
   }
   regenerateLevel(biomeType = null) {
-    console.log(`Regenerating level with biome: ${biomeType || 'random'}`)
-
     // Сохраняем ID активного персонажа до регенерации
     const oldActiveId = this.currentLocation.getActiveCharacter()?.id
 
     this.currentLocation = Location.generateProcedural(this.config, biomeType)
+
+    // Гарантируем инициализацию очереди ходов
+    if (this.currentLocation.initializeTurnQueue) {
+      this.currentLocation.initializeTurnQueue()
+    } else {
+      console.warn('[GameLoop] Location не имеет метода initializeTurnQueue')
+    }
 
     const characters = this.currentLocation.getAllCharacters()
     let newActiveCharacter = null
@@ -131,7 +133,6 @@ export default class GameLoop {
 
       if (newActiveCharacter && newActiveCharacter.canSwitchTo) {
         newActiveCharacter.isActive = true
-        console.log(`Активирован персонаж: ${newActiveCharacter.name} (ID: ${newActiveCharacter.id})`)
       }
     }
 
@@ -159,7 +160,6 @@ export default class GameLoop {
     if (newActive) {
       newActive.restoreFullAP()
       this.camera.setPosition(newActive.x, newActive.y)
-      console.log(`Камера перецентрирована на: ${newActive.name}`)
 
       setTimeout(() => {
         const active = this.currentLocation.getActiveCharacter()
@@ -217,8 +217,12 @@ export default class GameLoop {
     const activeChar = this.currentLocation.getActiveCharacter();
     if (!activeChar) return false;
 
+    // Запрещаем управление врагами
+    if (!activeChar.team || !activeChar.team.isPlayerControlled) {
+      return false;
+    }
+
     if (activeChar.currentAP <= 0) {
-      console.log(`${activeChar.name}: Нет очков действий!`);
       return false;
     }
 
@@ -240,7 +244,6 @@ export default class GameLoop {
 
     // Если клик на стене - ничего не делаем
     if (tile && tile.constructor && tile.constructor.name === 'Wall') {
-      console.log(`${activeChar.name}: Нельзя пройти сквозь стену!`);
       return false;
     }
 
@@ -330,6 +333,15 @@ export default class GameLoop {
     }
 
     this.currentLocation.updateTeams(dt)
+
+    // Проверяем, нужно ли переходить к следующему ходу
+    if (this.currentLocation.shouldAdvanceTurn()) {
+      const nextChar = this.currentLocation.nextTurn()
+      if (nextChar && nextChar.team && nextChar.team.isPlayerControlled) {
+        // Центрируем камеру только на персонажах игрока
+        this.centerOnCharacter(nextChar.id)
+      }
+    }
 
     const activeChar = this.currentLocation.getActiveCharacter()
 
@@ -487,15 +499,14 @@ export default class GameLoop {
 
     if (e.code === 'F5') {
       if (this.pathCache) {
-        console.log('🔄 Manual cache clear...')
         this.pathCache.clear()
       }
     }
 
     if (e.code === 'F6') {
       if (this.pathCache) {
-        const stats = this.pathCache.getStats()
-        console.log('📊 Current stats:', stats)
+        // getStats() вызывается, но результат не используется
+        this.pathCache.getStats()
       }
     }
 
@@ -507,6 +518,25 @@ export default class GameLoop {
         this.frameTimes = []
         this.renderTimes = []
         this.updateTimes = []
+      }
+    }
+
+    // Space или Enter - принудительное завершение хода
+    if (e.code === 'Space' || e.code === 'Enter') {
+      e.preventDefault()
+      const nextChar = this.currentLocation.endTurn()
+      if (nextChar && nextChar.team && nextChar.team.isPlayerControlled) {
+        this.centerOnCharacter(nextChar.id)
+      }
+    }
+
+    // F8 - принудительная инициализация очереди ходов
+    if (e.code === 'F8') {
+      e.preventDefault()
+      if (this.currentLocation && this.currentLocation.initializeTurnQueue) {
+        this.currentLocation.initializeTurnQueue()
+      } else {
+        console.warn('[GameLoop] Не удалось инициализировать очередь ходов')
       }
     }
   }

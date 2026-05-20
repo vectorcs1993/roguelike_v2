@@ -62,7 +62,6 @@ export default class Character extends GameObject {
 
   restoreFullAP() {
     this.currentAP = this.maxAP
-    console.log(`${this.name} восстановил все AP! Теперь: ${this.currentAP}/${this.maxAP}`)
   }
 
 
@@ -161,6 +160,13 @@ export default class Character extends GameObject {
 
   getAPDisplay() {
     return `${this.currentAP}/${this.maxAP} AP`
+  }
+
+  clearPath() {
+    this.path = []
+    this.pathIndex = 0
+    this.followingPath = false
+    this.target = null
   }
 
   getTooltipInfo() {

@@ -66,6 +66,23 @@
                 Нет персонажей
               </div>
             </div>
+
+            <!-- Очередь ходов -->
+            <div class="turn-queue-section" v-if="turnQueueList.length > 0">
+              <div class="section-header">
+                <q-icon name="schedule" size="14px" />
+                <span>Очередь ходов</span>
+              </div>
+              <div class="turn-queue-container">
+                <div v-for="(char, idx) in turnQueueList" :key="char.id"
+                  :class="['turn-queue-item', { active: char.isActive, player: char.isPlayerControlled }]">
+                  <span class="queue-index">{{ idx + 1 }}.</span>
+                  <span class="queue-char">{{ char.char }}</span>
+                  <span class="queue-name">{{ char.name }}</span>
+                  <q-badge v-if="char.isActive" color="primary" label="активен" size="sm" />
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- ПРАВАЯ КОЛОНКА: Текстовая консоль -->
@@ -106,6 +123,7 @@ let resizeObserver = null
 const charactersListData = ref([])
 const locationNameValue = ref('')
 const consoleLogs = ref([])
+const turnQueueList = ref([])
 
 const charactersList = computed(() => charactersListData.value)
 
@@ -164,6 +182,7 @@ function updateCharactersList() {
   if (!game?.currentLocation) {
     charactersListData.value = []
     locationNameValue.value = ''
+    turnQueueList.value = []
     return
   }
 
@@ -182,18 +201,30 @@ function updateCharactersList() {
     maxAP: char.maxAP,
     apPercentage: char.getAPPercentage ? char.getAPPercentage() : (char.currentAP / char.maxAP) * 100
   }))
+
+  // Обновляем очередь ходов
+  const queue = game.currentLocation.turnQueue?.getAllCharacters() || []
+  turnQueueList.value = queue.map(char => ({
+    id: char.id,
+    name: char.name,
+    char: char.char,
+    isActive: char.isActive,
+    isPlayerControlled: char.team?.isPlayerControlled || false
+  }))
 }
 
 async function onCharacterClick(character) {
   if (!game) return
   if (!character.isSelectable) return
 
+  // Запрещаем переключение активного персонажа (только центрирование)
   if (character.isActive) {
     game.centerOnCharacter(character.id)
     addConsoleMessage(`Центрирование на: ${character.name}`, 'info')
   } else {
-    game.switchCharacter(character.id)
-    addConsoleMessage(`Переключение на: ${character.name}`, 'success')
+    // Не переключаем на другого персонажа - игрок может управлять только активным по очереди
+    addConsoleMessage(`Персонаж ${character.name} не активен (ход определяется очередью)`, 'warning')
+    return
   }
 
   await updateCharactersList()
@@ -278,15 +309,15 @@ onMounted(() => {
   // Перехват консоли игры
   console.log = (...args) => {
     originalConsoleLog.apply(console, args)
-    addConsoleMessage(args.join(' '), 'info')
+    addConsoleMessage(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' '), 'info')
   }
   console.warn = (...args) => {
     originalConsoleWarn.apply(console, args)
-    addConsoleMessage(args.join(' '), 'warning')
+    addConsoleMessage(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' '), 'warning')
   }
   console.error = (...args) => {
     originalConsoleError.apply(console, args)
-    addConsoleMessage(args.join(' '), 'error')
+    addConsoleMessage(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(' '), 'error')
   }
 
   game = new GameLoop(canvasRef.value, config)
@@ -388,7 +419,7 @@ onUnmounted(() => {
 
 /* ПАНЕЛЬ УПРАВЛЕНИЯ */
 .control-panel {
-  height: 230px;
+  height: 30vh;
   background: rgba(10, 10, 15, 0.95);
   backdrop-filter: blur(10px);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
@@ -665,6 +696,67 @@ onUnmounted(() => {
 
 .text-grey {
   color: #888;
+}
+
+/* Очередь ходов */
+.turn-queue-section {
+  margin-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 8px;
+}
+
+.turn-queue-section .section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #aaa;
+  margin-bottom: 6px;
+}
+
+.turn-queue-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.turn-queue-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  font-size: 11px;
+  color: #ccc;
+}
+
+.turn-queue-item.active {
+  background: rgba(0, 100, 255, 0.2);
+  border-left: 3px solid #4af;
+}
+
+.turn-queue-item.player {
+  color: #8cf;
+}
+
+.queue-index {
+  color: #888;
+  min-width: 16px;
+}
+
+.queue-char {
+  font-weight: bold;
+  min-width: 12px;
+}
+
+.queue-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {
