@@ -351,8 +351,17 @@ export default class GameLoop {
         logger.info(LOG_MODULES.TURN, `Новый активный персонаж: ${nextChar.name} (${isPlayer ? 'игрок' : 'враг'}), AP: ${nextChar.currentAP}/${nextChar.maxAP}`)
 
         if (isPlayer) {
-          // Центрируем камеру только на персонажах игрока
-          this.centerOnCharacter(nextChar.id)
+          // Проверяем, сколько персонажей под управлением игрока
+          const playerCharacters = this.currentLocation.getAllCharacters().filter(c => c.team?.isPlayerControlled)
+          const shouldCenterCamera = playerCharacters.length > 1
+
+          if (shouldCenterCamera) {
+            // Центрируем камеру на персонажах игрока только если их больше одного
+            this.centerOnCharacter(nextChar.id)
+            logger.info(LOG_MODULES.TURN, `Камера центрирована на игроке ${nextChar.name} (игроков: ${playerCharacters.length})`)
+          } else {
+            logger.info(LOG_MODULES.TURN, `Камера не центрируется на игроке ${nextChar.name} (только один игрок)`)
+          }
         }
 
         // Логируем начало хода врага с помощью специального метода
@@ -360,13 +369,8 @@ export default class GameLoop {
           logger.enemyTurnStart(nextChar.name, nextChar.currentAP)
           this._lastEnemyTurnLog = nextChar.id
 
-          // Центрируем камеру на враге, только если он виден игроку
-          if (this.currentLocation.isCharacterVisibleForPlayerTeam(nextChar)) {
-            this.centerOnActiveCharacter()
-            logger.info(LOG_MODULES.TURN, `Камера центрирована на враге ${nextChar.name} (виден игроку)`)
-          } else {
-            logger.info(LOG_MODULES.TURN, `Враг ${nextChar.name} не виден игроку, камера не центрируется`)
-          }
+          // Камера НЕ переключается на врагов во время их хода (по требованию пользователя)
+          logger.info(LOG_MODULES.TURN, `Камера не переключается на врага ${nextChar.name} (отключено)`)
         }
       } else {
         logger.warn(LOG_MODULES.TURN, 'Нет следующего персонажа в очереди!')
@@ -395,10 +399,11 @@ export default class GameLoop {
             if (activeChar.currentAP > 0) {
               logger.debug(LOG_MODULES.AI, `Обновление ИИ для ${activeChar.name} (AP: ${activeChar.currentAP})`)
               ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
-              // Центрируем камеру на враге после каждого действия, только если он виден игроку
-              if (this.currentLocation.isCharacterVisibleForPlayerTeam(activeChar)) {
-                this.centerOnActiveCharacter()
-              }
+              // Камера НЕ переключается на врагов во время их хода (по требованию пользователя)
+              // Ранее было: if (this.currentLocation.isCharacterVisibleForPlayerTeam(activeChar)) {
+              //   this.centerOnActiveCharacter()
+              //   this._cameraSwitchedToEnemyDuringTurn = true
+              // }
             } else {
               logger.debug(LOG_MODULES.AI, `У ${activeChar.name} нет AP (${activeChar.currentAP}), пропускаем ИИ`)
             }

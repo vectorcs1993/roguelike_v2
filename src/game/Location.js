@@ -582,7 +582,7 @@ export default class Location {
 
     // Поиск свободных позиций для игрока и спутника
     const playerStart = Location.findEmptyTile(width, height, isPositionFree)
-    // const allyStart = Location.findEmptyTile(width, height, isPositionFree, [playerStart])
+    const allyStart = Location.findEmptyTile(width, height, isPositionFree, [playerStart])
 
     let nextId = 1
     const generateId = () => nextId++
@@ -616,19 +616,19 @@ export default class Location {
             pickupAPCost: 2
           }
         },
-        // {
-        //   x: allyStart.x, y: allyStart.y,
-        //   char: '@',
-        //   color: '#44ffaa',
-        //   id: generateId(),
-        //   name: 'Спутник',
-        //   fovRadius: 10,
-        //   ap: {
-        //     max: 10,
-        //     moveCost: 2,
-        //     pickupAPCost: 4
-        //   }
-        // }
+        {
+          x: allyStart.x, y: allyStart.y,
+          char: '@',
+          color: '#44ffaa',
+          id: generateId(),
+          name: 'Спутник',
+          fovRadius: 10,
+          ap: {
+            max: 10,
+            moveCost: 2,
+            pickupAPCost: 4
+          }
+        }
       ]
     }
 
