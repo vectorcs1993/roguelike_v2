@@ -170,7 +170,7 @@ export default class Renderer {
     }
 
     // ПРЕВЬЮ ПУТИ
-    if (!input.isCameraMovingNow() && this.hoverTileX !== null && this._activeCharacter && !this._activeCharacter.followingPath) {
+    if (!input.isCameraMovingNow() && this.hoverTileX !== null && this._activeCharacter && this._activeCharacter.isPlayerControlled && !this._activeCharacter.followingPath) {
       const fromX = this._activeCharacter.x | 0
       const fromY = this._activeCharacter.y | 0
       const toX = this.hoverTileX

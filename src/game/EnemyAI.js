@@ -22,10 +22,14 @@ export default class EnemyAI {
     this.wanderRadius = config.wanderRadius || 5
     this.homePosition = { x: character.x, y: character.y }
 
-    // Внутренние таймеры
+    // Внутренние таймеры (оставлены для совместимости, но не используются)
     this.actionCooldown = 0
     this.wanderCooldown = 0
     this.actionDelay = 0 // Задержка между действиями (мс)
+
+    // Счётчик кадров для замедления видимых врагов
+    this.frameCounter = 0
+    this.framesPerAction = 10 // один шаг каждые 10 кадров (~160 мс при 60 FPS)
 
     // Данные врага из EnemyData (для будущего использования)
     this.enemyData = config.enemyData || {}
@@ -45,11 +49,23 @@ export default class EnemyAI {
     // Определяем, виден ли враг игроку
     const isVisible = this.isVisibleToPlayer(map)
 
-    // Пока есть AP, пытаемся выполнять действия
-    while (this.character.currentAP > 0) {
-      let actionPerformed = false
+    // Если враг видимый, используем счётчик кадров для замедления
+    if (isVisible) {
+      // Если персонаж всё ещё движется, ждём завершения анимации
+      if (this.character.moving) {
+        logger.trace(LOG_MODULES.AI, `${this.character.name}: всё ещё движется, ждём`)
+        return
+      }
 
-      // Выполняем действия в зависимости от состояния
+      this.frameCounter++
+      if (this.frameCounter < this.framesPerAction) {
+        // Ещё не время действовать
+        return
+      }
+      // Сбрасываем счётчик и выполняем одно действие
+      this.frameCounter = 0
+
+      let actionPerformed = false
       switch (this.state) {
         case AI_STATE.IDLE:
           logger.debug(LOG_MODULES.AI, `${this.character.name}: состояние IDLE, вызываем executeIdleBehavior`)
@@ -73,14 +89,37 @@ export default class EnemyAI {
         const apToSpend = this.character.currentAP
         this.character.spendAP(apToSpend)
         logger.info(LOG_MODULES.AI, `${this.character.name} не может выполнить действие, пропускает ход, тратит ${apToSpend} AP`)
-        return
+      }
+      // Если действие выполнено, выходим (один шаг за этот кадр)
+      return
+    }
+
+    // Невидимый враг — обрабатываем все действия за один кадр
+    while (this.character.currentAP > 0) {
+      let actionPerformed = false
+
+      switch (this.state) {
+        case AI_STATE.IDLE:
+          actionPerformed = this.executeIdleBehavior(dt, map, allCharacters)
+          break
+        case AI_STATE.ALERT:
+          actionPerformed = this.executeAlertBehavior(dt, map)
+          break
+        case AI_STATE.COMBAT:
+          actionPerformed = this.executeCombatBehavior(dt, map, allCharacters)
+          break
+        case AI_STATE.FLEE:
+          actionPerformed = this.executeFleeBehavior(dt, map)
+          break
       }
 
-      // Если враг видимый, выходим после одного действия, чтобы игрок видел движение по шагам
-      if (isVisible) {
-        break
+      if (!actionPerformed) {
+        const apToSpend = this.character.currentAP
+        this.character.spendAP(apToSpend)
+        logger.info(LOG_MODULES.AI, `${this.character.name} не может выполнить действие, пропускает ход, тратит ${apToSpend} AP`)
+        return
       }
-      // Иначе продолжаем цикл (невидимые враги обрабатываются полностью за один кадр)
+      // Продолжаем цикл, пока есть AP
     }
   }
 
