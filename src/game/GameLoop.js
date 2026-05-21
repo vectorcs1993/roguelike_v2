@@ -330,7 +330,15 @@ export default class GameLoop {
       this.updateHoverTile(this.input.mouseX, this.input.mouseY)
     }
 
-    this.currentLocation.updateTeams(dt)
+    // Обновляем команды и проверяем условие завершения игры
+    const isGameOver = this.currentLocation.updateTeams(dt)
+
+    // Если игра окончена, перезагружаем локацию
+    if (isGameOver) {
+      console.log('[GameLoop] Обнаружено завершение игры! Перезагрузка локации...')
+      this.reloadLocation()
+      return // Пропускаем остальную логику обновления на этом кадре
+    }
 
     // Проверяем, нужно ли переходить к следующему ходу
     if (this.currentLocation.shouldAdvanceTurn()) {
@@ -351,8 +359,14 @@ export default class GameLoop {
         if (!isPlayer) {
           logger.enemyTurnStart(nextChar.name, nextChar.currentAP)
           this._lastEnemyTurnLog = nextChar.id
-          // Центрируем камеру на враге, чтобы игрок видел его ход
-          this.centerOnActiveCharacter()
+
+          // Центрируем камеру на враге, только если он виден игроку
+          if (this.currentLocation.isCharacterVisibleForPlayerTeam(nextChar)) {
+            this.centerOnActiveCharacter()
+            logger.info(LOG_MODULES.TURN, `Камера центрирована на враге ${nextChar.name} (виден игроку)`)
+          } else {
+            logger.info(LOG_MODULES.TURN, `Враг ${nextChar.name} не виден игроку, камера не центрируется`)
+          }
         }
       } else {
         logger.warn(LOG_MODULES.TURN, 'Нет следующего персонажа в очереди!')
@@ -381,8 +395,10 @@ export default class GameLoop {
             if (activeChar.currentAP > 0) {
               logger.debug(LOG_MODULES.AI, `Обновление ИИ для ${activeChar.name} (AP: ${activeChar.currentAP})`)
               ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
-              // Центрируем камеру на враге после каждого действия
-              this.centerOnActiveCharacter()
+              // Центрируем камеру на враге после каждого действия, только если он виден игроку
+              if (this.currentLocation.isCharacterVisibleForPlayerTeam(activeChar)) {
+                this.centerOnActiveCharacter()
+              }
             } else {
               logger.debug(LOG_MODULES.AI, `У ${activeChar.name} нет AP (${activeChar.currentAP}), пропускаем ИИ`)
             }
@@ -649,5 +665,42 @@ export default class GameLoop {
     if (rect.width > 0 && rect.height > 0 && this.renderer) {
       this.renderer.resize(rect.width, rect.height, this.renderer.dpr)
     }
+  }
+
+  /**
+   * Перезагружает локацию (начать заново после смерти)
+   */
+  reloadLocation() {
+    console.log('[GameLoop] Перезагрузка локации...')
+
+    // Сохраняем тип биома текущей локации
+    const biomeType = this.currentLocation?.biomeName || 'forest'
+
+    // Создаем новую процедурную локацию
+    this.currentLocation = Location.generateProcedural(this.config, biomeType)
+
+    // Находим активного персонажа (первого игрока)
+    const characters = this.currentLocation.getAllCharacters()
+    let activeCharacter = null
+
+    if (characters.length > 0) {
+      const playerChar = characters.find(c => c.canSwitchTo === true) || characters[0]
+      if (playerChar && playerChar.canSwitchTo) {
+        playerChar.isActive = true
+        activeCharacter = playerChar
+      }
+    }
+
+    // Обновляем камеру
+    if (activeCharacter) {
+      this.camera = new Camera(activeCharacter.x, activeCharacter.y, this.config.cameraSpeed)
+    } else {
+      this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, this.config.cameraSpeed)
+    }
+
+    // Инициализируем FOV для всех союзников
+    this.initializeFovForAllAllies()
+
+    console.log('[GameLoop] Локация перезагружена!')
   }
 }

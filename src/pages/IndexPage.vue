@@ -60,6 +60,18 @@
                     <q-linear-progress :value="(character.apPercentage || 0) / 100" :color="getAPProgressColor(character.apPercentage)"
                       class="ap-progress" track-color="grey-8" />
                   </div>
+
+                  <div class="character-hp-section">
+                    <div class="character-hp-label">
+                      <q-icon name="favorite" size="12px" :color="getHPColor(character.hpPercentage)" />
+                      <span>HP</span>
+                    </div>
+                    <div class="character-hp-value" :class="getHPColor(character.hpPercentage)">
+                      {{ character.hp }}/{{ character.maxHp }}
+                    </div>
+                    <q-linear-progress :value="(character.hpPercentage || 0) / 100" :color="getHPProgressColor(character.hpPercentage)"
+                      class="hp-progress" track-color="grey-8" />
+                  </div>
                 </div>
               </div>
               <div v-if="charactersList.length === 0" class="empty-message">
@@ -68,7 +80,7 @@
             </div>
 
             <!-- Очередь ходов -->
-            <div class="turn-queue-section" v-if="turnQueueList.length > 0">
+            <!-- <div class="turn-queue-section" v-if="turnQueueList.length > 0">
               <div class="section-header">
                 <q-icon name="schedule" size="14px" />
                 <span>Очередь ходов</span>
@@ -82,7 +94,7 @@
                   <q-badge v-if="char.isActive" color="primary" label="активен" size="sm" />
                 </div>
               </div>
-            </div>
+            </div> -->
           </div>
 
           <!-- ПРАВАЯ КОЛОНКА: Текстовая консоль -->
@@ -178,6 +190,22 @@ function getAPProgressColor(percentage) {
   return 'green'
 }
 
+function getHPColor(percentage) {
+  if (!percentage && percentage !== 0) return 'text-grey'
+  if (percentage < 25) return 'text-red'
+  if (percentage < 50) return 'text-orange'
+  if (percentage < 75) return 'text-yellow'
+  return 'text-green'
+}
+
+function getHPProgressColor(percentage) {
+  if (!percentage && percentage !== 0) return 'grey'
+  if (percentage < 25) return 'red'
+  if (percentage < 50) return 'orange'
+  if (percentage < 75) return 'yellow'
+  return 'green'
+}
+
 function updateCharactersList() {
   if (!game?.currentLocation) {
     charactersListData.value = []
@@ -199,7 +227,10 @@ function updateCharactersList() {
     teamName: char.team?.name || 'Без команды',
     ap: char.currentAP,
     maxAP: char.maxAP,
-    apPercentage: char.getAPPercentage ? char.getAPPercentage() : (char.currentAP / char.maxAP) * 100
+    apPercentage: char.getAPPercentage ? char.getAPPercentage() : (char.currentAP / char.maxAP) * 100,
+    hp: char.hp || 0,
+    maxHp: char.maxHp || char.hp || 0,
+    hpPercentage: char.hp && char.maxHp ? (char.hp / char.maxHp) * 100 : 100
   }))
 
   // Обновляем очередь ходов
@@ -577,6 +608,35 @@ onUnmounted(() => {
 }
 
 .ap-progress {
+  width: 100%;
+  height: 3px;
+  margin-top: 4px;
+}
+
+.character-hp-section {
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.character-hp-label {
+  font-size: 9px;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  justify-content: center;
+  margin-bottom: 2px;
+}
+
+.character-hp-value {
+  font-size: 11px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.hp-progress {
   width: 100%;
   height: 3px;
   margin-top: 4px;

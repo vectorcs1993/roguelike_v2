@@ -203,6 +203,63 @@ export default class Location {
 
     // Проверяем врагов и добавляем их в очередь ходов при обнаружении
     this.updateEnemiesInTurnQueue()
+
+    // Удаляем мертвых персонажей и проверяем условие завершения игры
+    return this.removeDeadCharacters()
+  }
+
+  /**
+   * Удаляет мертвых персонажей из игры
+   * Удаляет из: массива characters, команды, очереди ходов
+   * @returns {boolean} true если все игроки мертвы (игра окончена)
+   */
+  removeDeadCharacters() {
+    const deadCharacters = this.characters.filter(char => char.isDead)
+
+    if (deadCharacters.length === 0) {
+      return this.checkGameOver()
+    }
+
+    console.log(`[Location] Удаляем ${deadCharacters.length} мертвых персонажей`)
+
+    for (const deadChar of deadCharacters) {
+      // Удаляем из команды
+      if (deadChar.team) {
+        deadChar.team.removeCharacter(deadChar)
+      }
+
+      // Удаляем из очереди ходов
+      this.turnQueue.removeCharacter(deadChar)
+
+      // Удаляем из массива characters
+      const index = this.characters.indexOf(deadChar)
+      if (index !== -1) {
+        this.characters.splice(index, 1)
+      }
+
+      console.log(`[Location] Удален мертвый персонаж: ${deadChar.name}`)
+    }
+
+    // Проверяем условие завершения игры
+    return this.checkGameOver()
+  }
+
+  /**
+   * Проверяет условие завершения игры
+   * @returns {boolean} true если все игроки мертвы (игра окончена)
+   */
+  checkGameOver() {
+    // Находим всех персонажей игрока (управляемых игроком)
+    const playerCharacters = this.characters.filter(char =>
+      char.team && char.team.isPlayerControlled === true
+    )
+
+    if (playerCharacters.length === 0) {
+      console.log('[Location] ИГРА ОКОНЧЕНА: Все персонажи игрока мертвы!')
+      return true
+    }
+
+    return false
   }
 
   /**

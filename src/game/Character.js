@@ -11,6 +11,7 @@ export default class Character extends GameObject {
     this.name = name || 'Персонаж'
     this.team = team
     this.isActive = false
+    this.isDead = false
     this.moveTimer = 0
     this.pathSpeed = Character.DEFAULT_PATH_SPEED
     this.path = []
@@ -181,14 +182,18 @@ export default class Character extends GameObject {
       teamInfo = this.team.isPlayerControlled ? ' 🤝 Союзник' : ' 👹 Враг'
     }
 
+    const hpInfo = ` ❤️ ${this.hp}/${this.maxHp} HP`
+
     return {
-      name: this.name + teamInfo + apInfo,
+      name: this.name + teamInfo + apInfo + hpInfo,
       type: 'character',
       id: this.id,
       isActive: this.isActive,
       isPlayerControlled: this.isPlayerControlled,
       currentAP: this.currentAP,
       maxAP: this.maxAP,
+      hp: this.hp,
+      maxHp: this.maxHp,
       team: this.team?.name
     }
   }
@@ -301,6 +306,8 @@ export default class Character extends GameObject {
   // Смерть персонажа
   die() {
     console.log(`${this.name} погибает!`)
+    this.isDead = true
+    this.isActive = false
     // Здесь можно добавить логику удаления персонажа из игры
     // Например: this.team.removeCharacter(this)
   }
@@ -314,11 +321,21 @@ export default class Character extends GameObject {
     // Если это враг
     if (this.team && !this.team.isPlayerControlled) {
       if (isAdjacent) {
-        console.log(`[Click] Атаковать врага: ${this.name}`);
-        // Здесь будет логика атаки
+        console.log(`[Click] Атаковать врага: ${this.name} (HP: ${this.hp}/${this.maxHp})`);
+        // Выполняем атаку
+        const attackResult = activeCharacter.attack(this);
+        if (attackResult) {
+          console.log(`[Бой] Успешная атака! ${activeCharacter.name} → ${this.name}`);
+          // Проверяем, не умер ли враг
+          if (this.isDead) {
+            console.log(`[Бой] Враг ${this.name} повержен!`);
+          }
+        } else {
+          console.log(`[Бой] Атака не удалась.`);
+        }
         return true; // Действие обработано, движение не нужно
       } else {
-        console.log(`[Click] Враг далеко, нужно подойти`);
+        console.log(`[Click] Враг далеко, нужно подойти (дистанция > 1)`);
         return null; // Разрешаем движение к врагу
       }
     }
@@ -327,7 +344,7 @@ export default class Character extends GameObject {
     if (this.isPlayerControlled || this.canSwitchTo) {
       if (isAdjacent) {
         console.log(`[Click] Лечить союзника: ${this.name}`);
-        // Здесь будет логика атаки
+        // Здесь будет логика лечения
         return true;
       } else {
         return null; // Разрешаем движение к союзнику

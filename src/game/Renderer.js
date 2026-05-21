@@ -239,9 +239,26 @@ export default class Renderer {
               // Добавляем информацию о стоимости
               if (canStand) {
                 tooltipText += `\n🚶 1 шаг, ⚡ ${moveAPCost} AP`;
+
+                // Для предметов добавляем стоимость подъема
                 if (isItem) {
                   tooltipText += `\n📦 Подъём: ⚡ +${pickupAPCost} AP`;
                   tooltipText += `\n💰 Итого: ⚡ ${moveAPCost + pickupAPCost} AP`;
+                }
+
+                // Для врагов добавляем стоимость атаки
+                if (info.type === 'character' && !info.isPlayerControlled && this._activeCharacter) {
+                  const attackCost = this._activeCharacter.attackAPCost || 3;
+                  tooltipText += `\n⚔️ Атака: ⚡ +${attackCost} AP`;
+
+                  // Добавляем статус доступности атаки
+                  if (this._activeCharacter.currentAP >= attackCost) {
+                    tooltipText += ` (доступно)`;
+                  } else {
+                    tooltipText += ` (недостаточно AP)`;
+                  }
+
+                  tooltipText += `\n💰 Итого: ⚡ ${moveAPCost + attackCost} AP`;
                 }
               } else if (isItem && !canStand) {
                 tooltipText += `\n📦 Требуется подойти`;
@@ -304,6 +321,21 @@ export default class Renderer {
               tooltipText += `\n💰 Итого: ⚡ ${moveCost + pickupAPCost} AP`;
             }
 
+            // Добавляем стоимость атаки для врагов
+            if (info.type === 'character' && !info.isPlayerControlled && this._activeCharacter) {
+              const attackCost = this._activeCharacter.attackAPCost || 3;
+              tooltipText += `\n⚔️ Атака: ⚡ +${attackCost} AP`;
+
+              // Добавляем статус доступности атаки
+              if (this._activeCharacter.currentAP >= attackCost) {
+                tooltipText += ` (доступно)`;
+              } else {
+                tooltipText += ` (недостаточно AP)`;
+              }
+
+              tooltipText += `\n💰 Итого: ⚡ ${moveCost + attackCost} AP`;
+            }
+
             this.drawTooltip(tooltipText);
           }
         }
@@ -313,6 +345,11 @@ export default class Renderer {
           let tooltipText = info.name;
           if (isItem) {
             tooltipText += `\n📦 Требуется подход`;
+          }
+          // Добавляем стоимость атаки для врагов
+          if (info.type === 'character' && !info.isPlayerControlled && this._activeCharacter) {
+            const attackCost = this._activeCharacter.attackAPCost || 3;
+            tooltipText += `\n⚔️ Атака: ⚡ +${attackCost} AP`;
           }
           this.drawTooltip(tooltipText);
         }
@@ -332,7 +369,33 @@ export default class Renderer {
 
         if (this._location) {
           const info = this._location.getTileInfo(this.hoverTileX, this.hoverTileY)
-          if (info) this.drawTooltip(info.name)
+          if (info) {
+            let tooltipText = info.name
+
+            // Добавляем стоимость атаки для врагов, если активный персонаж может атаковать
+            if (info.type === 'character' && !info.isPlayerControlled && this._activeCharacter) {
+              // Проверяем, соседняя ли клетка (дистанция Чебышева <= 1)
+              const dx = Math.abs(this.hoverTileX - Math.floor(this._activeCharacter.x))
+              const dy = Math.abs(this.hoverTileY - Math.floor(this._activeCharacter.y))
+              const isAdjacent = Math.max(dx, dy) <= 1
+
+              const attackCost = this._activeCharacter.attackAPCost || 3
+              tooltipText += `\n⚔️ Атака: ⚡ +${attackCost} AP`
+
+              if (isAdjacent) {
+                // Проверяем, хватает ли AP для атаки
+                if (this._activeCharacter.currentAP >= attackCost) {
+                  tooltipText += ` (доступно)`
+                } else {
+                  tooltipText += ` (недостаточно AP)`
+                }
+              } else {
+                tooltipText += ` (нужно подойти)`
+              }
+            }
+
+            this.drawTooltip(tooltipText)
+          }
         }
       }
     }
