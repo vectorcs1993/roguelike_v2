@@ -236,10 +236,11 @@ export default class Character extends GameObject {
       return false
     }
 
-    // Проверяем дистанцию
-    const distance = this.getDistanceTo(target)
-    if (distance > this.attackRange) {
-      console.log(`${this.name}: Цель слишком далеко! Дистанция: ${distance}, дальность атаки: ${this.attackRange}`)
+    // Проверяем дистанцию (используем расстояние Чебышева для сетки)
+    const chebyshevDistance = this.getChebyshevDistanceTo(target)
+    if (chebyshevDistance > this.attackRange) {
+      const euclideanDistance = this.getDistanceTo(target)
+      console.log(`${this.name}: Цель слишком далеко! Дистанция Чебышева: ${chebyshevDistance}, Евклидова: ${euclideanDistance.toFixed(2)}, дальность атаки: ${this.attackRange}`)
       return false
     }
 
@@ -269,11 +270,18 @@ export default class Character extends GameObject {
     return false
   }
 
-  // Получить дистанцию до цели
+  // Получить дистанцию до цели (евклидова)
   getDistanceTo(target) {
     const dx = target.x - this.x
     const dy = target.y - this.y
     return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  // Получить дистанцию до цели (чебышева - максимальное расстояние по осям)
+  getChebyshevDistanceTo(target) {
+    const dx = Math.abs(target.x - this.x)
+    const dy = Math.abs(target.y - this.y)
+    return Math.max(dx, dy)
   }
 
   // Получить урон

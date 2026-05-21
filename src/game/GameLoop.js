@@ -350,6 +350,9 @@ export default class GameLoop {
         // Логируем начало хода врага с помощью специального метода
         if (!isPlayer) {
           logger.enemyTurnStart(nextChar.name, nextChar.currentAP)
+          this._lastEnemyTurnLog = nextChar.id
+          // Центрируем камеру на враге, чтобы игрок видел его ход
+          this.centerOnActiveCharacter()
         }
       } else {
         logger.warn(LOG_MODULES.TURN, 'Нет следующего персонажа в очереди!')
@@ -378,6 +381,8 @@ export default class GameLoop {
             if (activeChar.currentAP > 0) {
               logger.debug(LOG_MODULES.AI, `Обновление ИИ для ${activeChar.name} (AP: ${activeChar.currentAP})`)
               ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
+              // Центрируем камеру на враге после каждого действия
+              this.centerOnActiveCharacter()
             } else {
               logger.debug(LOG_MODULES.AI, `У ${activeChar.name} нет AP (${activeChar.currentAP}), пропускаем ИИ`)
             }
@@ -388,10 +393,10 @@ export default class GameLoop {
           logger.warn(LOG_MODULES.AI, `Не найдена команда врагов или aiInstances для ${activeChar.name}`)
         }
 
-        // Фейлсейф: если ход врага длится больше 0.5 секунд, принудительно завершаем его
+        // Фейлсейф: если ход врага длится больше 0.6 секунд, принудительно завершаем его
         if (this._enemyTurnStartTime && activeChar.currentAP > 0) {
           const turnDuration = performance.now() - this._enemyTurnStartTime
-          if (turnDuration > 500) { // 0.5 секунды
+          if (turnDuration > 600) { // 0.6 секунды
             logger.warn(LOG_MODULES.SYSTEM, `Фейлсейф: ход врага ${activeChar.name} длится ${Math.round(turnDuration)}ms, принудительно завершаем`)
             // Тратим все оставшиеся AP
             const apToSpend = activeChar.currentAP

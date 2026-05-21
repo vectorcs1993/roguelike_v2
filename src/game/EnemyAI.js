@@ -25,6 +25,7 @@ export default class EnemyAI {
     // Внутренние таймеры
     this.actionCooldown = 0
     this.wanderCooldown = 0
+    this.actionDelay = 0 // Задержка между действиями (мс)
 
     // Данные врага из EnemyData (для будущего использования)
     this.enemyData = config.enemyData || {}
@@ -32,66 +33,46 @@ export default class EnemyAI {
 
   // Обновление ИИ
   update(dt, map, allCharacters) {
-    // Обновляем таймеры (dt в миллисекундах)
-    this.actionCooldown = Math.max(0, this.actionCooldown - dt)
-    this.wanderCooldown = Math.max(0, this.wanderCooldown - dt)
-
     // Если у персонажа нет AP, ждём
     if (this.character.currentAP <= 0) {
       logger.debug(LOG_MODULES.AI, `${this.character.name}: нет AP, пропускаем`)
       return
     }
 
-    // Если на кулдауне, ждём
-    if (this.actionCooldown > 0) {
-      logger.debug(LOG_MODULES.AI, `${this.character.name}: на кулдауне (${this.actionCooldown.toFixed(1)}ms), пропускаем`)
-      return
-    }
-
     // Обновляем состояние на основе окружения
     this.updatePerception(map, allCharacters)
 
-    let actionPerformed = false
+    // Пока есть AP, пытаемся выполнять действия
+    while (this.character.currentAP > 0) {
+      let actionPerformed = false
 
-    // Выполняем действия в зависимости от состояния
-    switch (this.state) {
-      case AI_STATE.IDLE:
-        logger.debug(LOG_MODULES.AI, `${this.character.name}: состояние IDLE, вызываем executeIdleBehavior`)
-        actionPerformed = this.executeIdleBehavior(dt, map, allCharacters)
-        break
-      case AI_STATE.ALERT:
-        actionPerformed = this.executeAlertBehavior(dt, map)
-        break
-      case AI_STATE.COMBAT:
-        actionPerformed = this.executeCombatBehavior(dt, map, allCharacters)
-        break
-      case AI_STATE.FLEE:
-        actionPerformed = this.executeFleeBehavior(dt, map)
-        break
-    }
-
-    logger.debug(LOG_MODULES.AI, `${this.character.name}: actionPerformed = ${actionPerformed}`)
-
-    // Если действие не было выполнено, но AP остались, пробуем ещё раз в следующем кадре
-    // Не тратим AP сразу, даём несколько попыток
-    if (!actionPerformed && this.character.currentAP > 0) {
-      // Увеличиваем счётчик пропущенных попыток
-      if (!this._skipCounter) this._skipCounter = 0
-      this._skipCounter++
-
-      logger.debug(LOG_MODULES.AI, `${this.character.name}: пропущено попыток: ${this._skipCounter}`)
-
-      // Если несколько попыток подряд не удалось выполнить действие,
-      // тратим 1 AP чтобы не застрять
-      if (this._skipCounter >= 3) {
-        this.character.spendAP(1)
-        logger.info(LOG_MODULES.AI, `${this.character.name} не может выполнить действие, тратит 1 AP (осталось ${this.character.currentAP})`)
-        this._skipCounter = 0
-        this.actionCooldown = 50 // 50ms кулдаун
+      // Выполняем действия в зависимости от состояния
+      switch (this.state) {
+        case AI_STATE.IDLE:
+          logger.debug(LOG_MODULES.AI, `${this.character.name}: состояние IDLE, вызываем executeIdleBehavior`)
+          actionPerformed = this.executeIdleBehavior(dt, map, allCharacters)
+          break
+        case AI_STATE.ALERT:
+          actionPerformed = this.executeAlertBehavior(dt, map)
+          break
+        case AI_STATE.COMBAT:
+          actionPerformed = this.executeCombatBehavior(dt, map, allCharacters)
+          break
+        case AI_STATE.FLEE:
+          actionPerformed = this.executeFleeBehavior(dt, map)
+          break
       }
-    } else if (actionPerformed) {
-      // Сброс счётчика при успешном действии
-      this._skipCounter = 0
+
+      logger.debug(LOG_MODULES.AI, `${this.character.name}: actionPerformed = ${actionPerformed}`)
+
+      // Если действие не выполнено, тратим все оставшиеся AP и завершаем ход
+      if (!actionPerformed) {
+        const apToSpend = this.character.currentAP
+        this.character.spendAP(apToSpend)
+        logger.info(LOG_MODULES.AI, `${this.character.name} не может выполнить действие, пропускает ход, тратит ${apToSpend} AP`)
+        return
+      }
+      // Иначе продолжаем цикл (действие выполнено, AP уже потрачены внутри действия)
     }
   }
 
@@ -183,14 +164,7 @@ export default class EnemyAI {
       return false
     }
 
-    // Случайно решаем, двигаться или нет (70% chance - более активные враги)
-    const randomChance = Math.random()
-    if (randomChance > 0.7) {
-      logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: случайный шанс ${randomChance.toFixed(2)} > 0.7, пропускаем движение`)
-      return false
-    }
-
-    // Выбираем случайное направление
+    // Всегда пытаемся двигаться (без случайного пропуска)
     const directions = [
       { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
       { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
@@ -198,11 +172,12 @@ export default class EnemyAI {
       { dx: 1, dy: -1 }, { dx: -1, dy: -1 }
     ]
 
+    // Выбираем случайное направление
     const dir = directions[Math.floor(Math.random() * directions.length)]
     const newX = Math.floor(this.character.x) + dir.dx
     const newY = Math.floor(this.character.y) + dir.dy
 
-    logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: выбрано направление (${dir.dx}, ${dir.dy}), новая позиция (${newX}, ${newY})`)
+    logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: выбрано направление (${dir.dx}, ${dir.dy}), позиция (${newX}, ${newY})`)
 
     // Проверяем, можно ли пройти и не вышли ли за радиус блуждания
     const distanceFromHome = Math.sqrt(
@@ -220,7 +195,7 @@ export default class EnemyAI {
         logger.enemyMove(enemyName, this.character.x, this.character.y, newX, newY,
           this.character.moveAPCost, this.character.currentAP)
         // Устанавливаем небольшой кулдаун для предотвращения бесконечного цикла
-        this.wanderCooldown = 50 // 50ms вместо 500ms
+        this.wanderCooldown = 0 // убираем задержку для быстрого движения
         return true
       } else {
         logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: клетка (${newX}, ${newY}) занята`)
@@ -282,8 +257,25 @@ export default class EnemyAI {
     const canAttack = this.tryAttack(this.target)
     if (canAttack) {
       // В состоянии COMBAT уменьшаем задержку между действиями
-      this.actionCooldown = 10
+      this.actionCooldown = 0
       return true
+    }
+
+    // Если не можем атаковать, проверяем, может быть враг уже рядом, но AP недостаточно
+    const dx = Math.abs(Math.floor(this.target.x) - Math.floor(this.character.x))
+    const dy = Math.abs(Math.floor(this.target.y) - Math.floor(this.character.y))
+    const isAdjacent = Math.max(dx, dy) <= 1
+    const attackCost = this.getAttackCost()
+
+    if (isAdjacent && this.character.currentAP < attackCost) {
+      // Враг рядом, но не хватает AP для атаки - пропускаем ход, тратя все оставшиеся AP
+      const apToSpend = this.character.currentAP
+      if (apToSpend > 0) {
+        this.character.spendAP(apToSpend)
+        logger.info(LOG_MODULES.COMBAT, `${this.character.name} пропускает ход (рядом с целью, но недостаточно AP для атаки), тратит ${apToSpend} AP`)
+        this.actionCooldown = 0
+        return true
+      }
     }
 
     // Если не можем атаковать, двигаемся к цели
