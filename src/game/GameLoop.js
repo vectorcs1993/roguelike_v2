@@ -393,10 +393,10 @@ export default class GameLoop {
           logger.warn(LOG_MODULES.AI, `Не найдена команда врагов или aiInstances для ${activeChar.name}`)
         }
 
-        // Фейлсейф: если ход врага длится больше 0.6 секунд, принудительно завершаем его
+        // Фейлсейф: если ход врага длится больше 30 секунд, принудительно завершаем его
         if (this._enemyTurnStartTime && activeChar.currentAP > 0) {
           const turnDuration = performance.now() - this._enemyTurnStartTime
-          if (turnDuration > 600) { // 0.6 секунды
+          if (turnDuration > 30000) { // 30 секунд
             logger.warn(LOG_MODULES.SYSTEM, `Фейлсейф: ход врага ${activeChar.name} длится ${Math.round(turnDuration)}ms, принудительно завершаем`)
             // Тратим все оставшиеся AP
             const apToSpend = activeChar.currentAP

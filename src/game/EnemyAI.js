@@ -42,6 +42,9 @@ export default class EnemyAI {
     // Обновляем состояние на основе окружения
     this.updatePerception(map, allCharacters)
 
+    // Определяем, виден ли враг игроку
+    const isVisible = this.isVisibleToPlayer(map)
+
     // Пока есть AP, пытаемся выполнять действия
     while (this.character.currentAP > 0) {
       let actionPerformed = false
@@ -72,7 +75,12 @@ export default class EnemyAI {
         logger.info(LOG_MODULES.AI, `${this.character.name} не может выполнить действие, пропускает ход, тратит ${apToSpend} AP`)
         return
       }
-      // Иначе продолжаем цикл (действие выполнено, AP уже потрачены внутри действия)
+
+      // Если враг видимый, выходим после одного действия, чтобы игрок видел движение по шагам
+      if (isVisible) {
+        break
+      }
+      // Иначе продолжаем цикл (невидимые враги обрабатываются полностью за один кадр)
     }
   }
 
@@ -388,8 +396,8 @@ export default class EnemyAI {
         if (canMove) {
           logger.enemyMove(this.character.name, fromX, fromY, path[1].x, path[1].y,
             this.character.moveAPCost, this.character.currentAP)
-          // В состоянии COMBAT уменьшаем задержку между действиями
-          this.actionCooldown = this.state === AI_STATE.COMBAT ? 0 : 10 // Уменьшено: 50 -> 10, 100 -> 50
+          // Задержка устанавливается в update методе
+          this.actionCooldown = 0
           return true
         } else {
           logger.debug(LOG_MODULES.MOVEMENT, `${this.character.name}: Не может двигаться к (${path[1].x}, ${path[1].y}) - клетка занята или нет AP`)
@@ -399,8 +407,8 @@ export default class EnemyAI {
         if (canMove) {
           logger.enemyMove(this.character.name, fromX, fromY, nextStep.x, nextStep.y,
             this.character.moveAPCost, this.character.currentAP)
-          // В состоянии COMBAT уменьшаем задержку между действиями
-          this.actionCooldown = this.state === AI_STATE.COMBAT ? 0 : 10 // Уменьшено: 50 -> 10, 100 -> 50
+          // Задержка устанавливается в update методе
+          this.actionCooldown = 0
           return true
         } else {
           logger.debug(LOG_MODULES.MOVEMENT, `${this.character.name}: Не может двигаться к (${nextStep.x}, ${nextStep.y}) - клетка занята или нет AP`)
@@ -431,7 +439,8 @@ export default class EnemyAI {
           if (canMove) {
             logger.enemyMove(this.character.name, fromX, fromY, newX, newY,
               this.character.moveAPCost, this.character.currentAP)
-            this.actionCooldown = this.state === AI_STATE.COMBAT ? 0 : 10 // Уменьшено: 50 -> 10, 100 -> 50
+            // Задержка устанавливается в update методе
+            this.actionCooldown = 0
             return true
           }
         }
@@ -532,6 +541,14 @@ export default class EnemyAI {
     return blocked
   }
 
+
+  // Проверка, виден ли враг игроку (по видимости клетки)
+  isVisibleToPlayer(map) {
+    const tileX = Math.floor(this.character.x)
+    const tileY = Math.floor(this.character.y)
+    const tile = map.getTile(tileX, tileY)
+    return tile ? tile.visible : false
+  }
 
   // Сброс ИИ (при смене уровня и т.д.)
   reset() {
