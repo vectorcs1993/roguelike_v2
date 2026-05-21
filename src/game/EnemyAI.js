@@ -5,42 +5,27 @@ import Pathfinder from './Pathfinder.js'
 
 export const AI_STATE = {
   IDLE: 'idle',        // Ожидание/блуждание
-  ALERT: 'alert',      // Заметил врага, но ещё не в бою
-  COMBAT: 'combat',    // В бою
-  FLEE: 'flee'         // Бегство (если здоровье низкое)
+  COMBAT: 'combat'     // В бою (когда враг заметил персонажа игрока)
 }
 
 export const BEHAVIOR_TYPE = {
-  WANDER: 'wander',    // Случайное блуждание
-  GUARD: 'guard',      // Охрана точки
-  PATROL: 'patrol'     // Патрулирование между точками
+  WANDER: 'wander'     // Случайное блуждание (единственное поведение в упрощенной системе)
 }
 
 export default class EnemyAI {
   constructor(character, config = {}) {
     this.character = character
     this.state = AI_STATE.IDLE
-    this.behavior = config.behavior || BEHAVIOR_TYPE.WANDER
+    this.behavior = BEHAVIOR_TYPE.WANDER // Всегда блуждание в упрощенной системе
     this.target = null
-    this.lastKnownTargetPos = null
     this.wanderRadius = config.wanderRadius || 5
     this.homePosition = { x: character.x, y: character.y }
-    this.patrolPoints = config.patrolPoints || []
-    this.currentPatrolIndex = 0
-    this.alertness = 0 // 0-100, насколько насторожен
-    this.memoryDuration = config.memoryDuration || 3000 // ms помнить позицию врага
-    this.lastMemoryUpdate = 0
-
-    // Настройки для разных типов врагов
-    this.preferRanged = config.preferRanged || false
-    this.aggressiveness = config.aggressiveness || 0.8 // 0-1
-    this.cautiousness = config.cautiousness || 0.3 // 0-1
 
     // Внутренние таймеры
     this.actionCooldown = 0
     this.wanderCooldown = 0
 
-    // Данные врага из EnemyData
+    // Данные врага из EnemyData (для будущего использования)
     this.enemyData = config.enemyData || {}
   }
 
@@ -120,33 +105,20 @@ export default class EnemyAI {
     if (visibleEnemies.length > 0) {
       // Нашли врага!
       this.target = this.selectBestTarget(visibleEnemies)
-      this.lastKnownTargetPos = { x: this.target.x, y: this.target.y }
-      this.lastMemoryUpdate = Date.now()
 
       if (this.state !== AI_STATE.COMBAT) {
-        this.state = AI_STATE.ALERT
-        this.alertness = 100
+        this.state = AI_STATE.COMBAT
         // Лог обнаружения врага
-        console.log(`${this.character.name} обнаружил ${this.target.name}`)
+        console.log(`${this.character.name} обнаружил ${this.target.name} и переходит в бой`)
       }
       return
     }
 
-    // Если нет видимых врагов, но есть память о последней позиции
-    if (this.lastKnownTargetPos && Date.now() - this.lastMemoryUpdate < this.memoryDuration) {
-      // Враг не виден, но мы помним где он был
-      if (this.state === AI_STATE.COMBAT || this.state === AI_STATE.ALERT) {
-        // Продолжаем преследовать
-        return
-      }
-    } else {
-      // Время памяти истекло, забываем врага
-      if (this.state === AI_STATE.ALERT) {
-        this.state = AI_STATE.IDLE
-        this.alertness = 0
-        this.target = null
-        this.lastKnownTargetPos = null
-      }
+    // Если нет видимых врагов и мы в состоянии боя, возвращаемся в ожидание
+    if (this.state === AI_STATE.COMBAT) {
+      this.state = AI_STATE.IDLE
+      this.target = null
+      console.log(`${this.character.name} потерял врага и возвращается в ожидание`)
     }
   }
 
@@ -195,53 +167,8 @@ export default class EnemyAI {
 
   // Поведение в режиме ожидания
   executeIdleBehavior(dt, map, allCharacters) {
-    switch (this.behavior) {
-      case BEHAVIOR_TYPE.WANDER:
-        return this.wander(dt, map, allCharacters)
-      case BEHAVIOR_TYPE.GUARD:
-        // Сторожа иногда осматриваются (80% chance) или делают небольшое движение
-        if (this.character.currentAP > 0) {
-          // 80% chance осмотреться (потратить 1 AP на "осмотр")
-          if (Math.random() > 0.2 && this.character.currentAP >= 1) {
-            this.character.spendAP(1)
-            console.log(`${this.character.name} (сторож) осматривается (потрачено 1 AP)`)
-            this.actionCooldown = 0 // Убрано: 0ms вместо 10ms
-            return true
-          } else {
-            // 20% chance сделать небольшое движение (как wander, но с меньшим радиусом)
-            // Пытаемся двигаться в случайном направлении
-            const directions = [
-              { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
-              { dx: 0, dy: 1 }, { dx: 0, dy: -1 }
-            ]
-            const dir = directions[Math.floor(Math.random() * directions.length)]
-            const newX = Math.floor(this.character.x) + dir.dx
-            const newY = Math.floor(this.character.y) + dir.dy
-
-            console.log(`${this.character.name} (сторож) проверка движения: (${newX}, ${newY}), walkable=${map.isWalkable(newX, newY)}`)
-            if (map.isWalkable(newX, newY)) {
-              const canMove = this.character.moveTo(newX, newY, allCharacters)
-              console.log(`${this.character.name} (сторож) moveTo вернул ${canMove}`)
-              if (canMove) {
-                console.log(`${this.character.name} (сторож) делает шаг (потрачено 1 AP)`)
-                this.actionCooldown = 0 // Убрано: 0ms вместо 10ms
-                return true
-              }
-            }
-            // Если движение невозможно, просто тратим 1 AP на ожидание
-            this.character.spendAP(1)
-            console.log(`${this.character.name} (сторож) ожидает (потрачено 1 AP)`)
-            this.actionCooldown = 0 // Убрано: 0ms вместо 10ms
-            return true
-          }
-        }
-        console.log(`${this.character.name} (сторож) нет AP, возвращаем false`)
-        return false
-      case BEHAVIOR_TYPE.PATROL:
-        return this.patrol(dt, map, allCharacters)
-      default:
-        return false
-    }
+    // В упрощенной системе только одно поведение - блуждание
+    return this.wander(dt, map, allCharacters)
   }
 
   // Случайное блуждание
@@ -335,18 +262,6 @@ export default class EnemyAI {
     return this.moveTowards(currentPoint.x, currentPoint.y, map, allCharacters, 0)
   }
 
-  // Поведение в режиме тревоги
-  executeAlertBehavior() {
-    // Быстро переходим в боевой режим
-    this.state = AI_STATE.COMBAT
-    // Лог начала преследования
-    if (this.target) {
-      console.log(`${this.character.name} преследует ${this.target.name}`)
-    }
-    console.log(`[EnemyAI] ${this.character.name} перешел в состояние COMBAT`)
-    return false // Не выполняет действий, только меняет состояние
-  }
-
   // Боевое поведение
   executeCombatBehavior(dt, map, allCharacters) {
     if (!this.target) {
@@ -356,83 +271,40 @@ export default class EnemyAI {
 
     // Проверяем, видим ли ещё цель (используем линию видимости врага)
     if (!this.hasLineOfSight(this.target, map)) {
-      // Цель скрылась
-      if (this.lastKnownTargetPos) {
-        // Пытаемся дойти до последней известной позиции (двигаемся до самой точки)
-        const moved = this.moveTowards(this.lastKnownTargetPos.x, this.lastKnownTargetPos.y, map, allCharacters, 0)
-
-        // Если достигли позиции, но врага нет, сбрасываем
-        const distance = this.getDistanceToPoint(this.lastKnownTargetPos)
-        if (distance < 1) {
-          this.state = AI_STATE.ALERT
-          this.alertness = 50
-        }
-        return moved
-      } else {
-        this.state = AI_STATE.IDLE
-        return false
-      }
-    }
-
-    // Обновляем последнюю известную позицию
-    this.lastKnownTargetPos = { x: this.target.x, y: this.target.y }
-    this.lastMemoryUpdate = Date.now()
-
-    // Проверяем возможность атаки
-    const canAttack = this.tryAttack(this.target, map)
-    if (canAttack) {
-      // В состоянии COMBAT уменьшаем задержку между действиями
-      this.actionCooldown = this.state === AI_STATE.COMBAT ? 10 : 50 // Уменьшено: 50 -> 10, 100 -> 50
-      return true
-    }
-
-    // Если не можем атаковать, двигаемся к цели с учётом оптимальной дистанции
-    const attackRange = this.getAttackRange()
-    const distance = this.getDistanceTo(this.target)
-
-    // Определяем желаемую дистанцию остановки
-    // Для ближнего боя (attackRange = 1) используем дистанцию 1.5 чтобы разрешить диагональное соседство
-    // (евклидово расстояние для диагонали = √2 ≈ 1.414)
-    // Для дальнего боя останавливаемся на расстоянии attackRange
-    let stopDistance = attackRange > 1 ? attackRange : 1.5
-
-    // Если уже находимся на желаемой дистанции, но нет линии видимости (для дальних атак),
-    // двигаемся ближе чтобы получить обзор
-    if (attackRange > 1 && distance <= attackRange && !this.hasLineOfSight(this.target, map)) {
-      stopDistance = 1.5 // Двигаемся ближе
-    }
-
-    return this.moveTowards(this.target.x, this.target.y, map, allCharacters, stopDistance)
-  }
-
-  // Попытка атаковать цель
-  tryAttack(target, map) {
-    const attackRange = this.getAttackRange()
-    const enemyName = this.character.name || 'Unknown'
-
-    // Для ближнего боя (range = 1) используем чебышевское расстояние (максимум из dx, dy)
-    // чтобы разрешить атаки по диагонали
-    let canAttack
-    if (attackRange === 1) {
-      const dx = Math.abs(Math.floor(target.x) - Math.floor(this.character.x))
-      const dy = Math.abs(Math.floor(target.y) - Math.floor(this.character.y))
-      canAttack = Math.max(dx, dy) <= 1
-      console.log(`[COMBAT DEBUG] ${enemyName} проверка ближней атаки: dx=${dx}, dy=${dy}, canAttack=${canAttack}`)
-    } else {
-      // Для дальнего боя используем евклидово расстояние
-      const distance = this.getDistanceTo(target)
-      canAttack = distance <= attackRange
-      console.log(`[COMBAT DEBUG] ${enemyName} проверка дальней атаки: distance=${distance.toFixed(2)}, attackRange=${attackRange}, canAttack=${canAttack}`)
-    }
-
-    if (!canAttack) {
-      console.log(`[COMBAT DEBUG] ${enemyName} не может атаковать: вне радиуса`)
+      // Цель скрылась - возвращаемся в ожидание
+      this.state = AI_STATE.IDLE
+      this.target = null
+      console.log(`${this.character.name} потерял врага из виду и возвращается в ожидание`)
       return false
     }
 
-    // Проверяем линию видимости для дальних атак
-    if (attackRange > 1 && !this.hasLineOfSight(target, map)) {
-      console.log(`[COMBAT DEBUG] ${enemyName} не может атаковать: нет линии видимости`)
+    // Проверяем возможность атаки
+    const canAttack = this.tryAttack(this.target)
+    if (canAttack) {
+      // В состоянии COMBAT уменьшаем задержку между действиями
+      this.actionCooldown = 10
+      return true
+    }
+
+    // Если не можем атаковать, двигаемся к цели
+    // В упрощенной системе все враги ближнего боя, поэтому двигаемся вплотную
+    return this.moveTowards(this.target.x, this.target.y, map, allCharacters, 1.5)
+  }
+
+  // Попытка атаковать цель
+  tryAttack(target) {
+    const enemyName = this.character.name || 'Unknown'
+
+    // В упрощенной системе все враги ближнего боя (range = 1)
+    // Используем чебышевское расстояние (максимум из dx, dy) чтобы разрешить атаки по диагонали
+    const dx = Math.abs(Math.floor(target.x) - Math.floor(this.character.x))
+    const dy = Math.abs(Math.floor(target.y) - Math.floor(this.character.y))
+    const canAttack = Math.max(dx, dy) <= 1
+
+    console.log(`[COMBAT DEBUG] ${enemyName} проверка атаки: dx=${dx}, dy=${dy}, canAttack=${canAttack}`)
+
+    if (!canAttack) {
+      console.log(`[COMBAT DEBUG] ${enemyName} не может атаковать: вне радиуса`)
       return false
     }
 

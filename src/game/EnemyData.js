@@ -62,15 +62,15 @@ export const ENEMIES = {
     damageMin: 4,
     damageMax: 8,
     damageType: 'spore',
-    range: 3,
+    range: 1, // Временно изменено на ближний бой для тестирования
     initiative: 3,
     accuracy: 0.65,
     ap: { max: 10, moveCost: 1 },
     fovRadius: 8,
-    features: ['ranged', 'infection'],
+    features: ['infection'], // Убрано 'ranged' так как теперь ближний бой
     infectionChance: 0.05,
-    ignoreLos: true,
-    description: 'Дальняя атака спорами, не требует линии видимости'
+    ignoreLos: false, // Для ближнего боя линия видимости не требуется
+    description: 'Временно ближний бой для тестирования ИИ'
   },
 
   [ENEMY_TYPES.CLAWER]: {
@@ -160,14 +160,14 @@ export const ENEMIES = {
     damageMin: 0,
     damageMax: 0,
     damageType: 'none',
-    range: 999,
+    range: 1, // Временно изменено на ближний бой для тестирования
     initiative: 5,
     accuracy: 1.00,
     ap: { max: 10, moveCost: 1 },
     fovRadius: 8,
     features: ['buffAllies'],
     initiativeBonus: 2,
-    description: 'Не атакует, но воем даёт +2 инициативы всем тварям на карте'
+    description: 'Временно ближний бой для тестирования ИИ (не атакует)'
   },
 
   [ENEMY_TYPES.STICKER]: {
@@ -198,7 +198,7 @@ export const ENEMIES = {
     damageMin: 6,
     damageMax: 10,
     damageType: 'spore',
-    range: 2,
+    range: 1, // Временно изменено на ближний бой для тестирования
     initiative: 3,
     accuracy: 0.70,
     ap: { max: 10, moveCost: 1 },
@@ -206,7 +206,7 @@ export const ENEMIES = {
     features: ['leaveSpores'],
     sporeRadius: 3,
     sporeInfection: 0.10,
-    description: 'При смерти оставляет зону спор'
+    description: 'Временно ближний бой для тестирования ИИ'
   },
 
   [ENEMY_TYPES.NONHUMAN]: {

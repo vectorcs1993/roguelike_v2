@@ -30,21 +30,14 @@ export default class EnemyTeam extends Team {
       }
     }
 
-    // Определяем поведение на основе типа врага
-    const behavior = this.getBehaviorForCharacter(character, enemyData)
-
-    // Создаём ИИ для врага
+    // Создаём ИИ для врага с упрощенными параметрами
     const ai = new EnemyAI(character, {
-      behavior: behavior,
       wanderRadius: 5,
-      aggressiveness: 0.7,
-      enemyData: enemyData,
-      preferRanged: enemyData.range > 1,
-      memoryDuration: 5000 // 5 секунд помнить позицию врага
+      enemyData: enemyData
     })
 
     this.aiInstances.set(character.id, ai)
-    console.log(`Создан ИИ для ${character.name}: поведение ${behavior}`)
+    console.log(`Создан ИИ для ${character.name} (упрощенная система)`)
   }
 
   removeCharacter(character) {
@@ -58,25 +51,8 @@ export default class EnemyTeam extends Team {
     // Оставляем пустую реализацию для совместимости
   }
 
-  getBehaviorForCharacter(character, enemyData) {
-    // Определяем поведение на основе типа врага
-
-    // Враги с дальней атакой обычно охраняют позицию
-    if (enemyData.range > 1) {
-      return BEHAVIOR_TYPE.GUARD
-    }
-
-    // Быстрые враги патрулируют
-    if (enemyData.initiative >= 6) {
-      return BEHAVIOR_TYPE.PATROL
-    }
-
-    // Медленные враги блуждают
-    if (enemyData.initiative <= 2) {
-      return BEHAVIOR_TYPE.WANDER
-    }
-
-    // По умолчанию блуждание
+  getBehaviorForCharacter() {
+    // В упрощенной системе все враги используют поведение WANDER
     return BEHAVIOR_TYPE.WANDER
   }
 
