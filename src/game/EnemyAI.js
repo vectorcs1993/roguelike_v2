@@ -2,6 +2,7 @@
 // Система ИИ для врагов
 
 import Pathfinder from './Pathfinder.js'
+import { logger, LOG_MODULES } from './Logger.js'
 
 export const AI_STATE = {
   IDLE: 'idle',        // Ожидание/блуждание
@@ -37,13 +38,13 @@ export default class EnemyAI {
 
     // Если у персонажа нет AP, ждём
     if (this.character.currentAP <= 0) {
-      console.log(`${this.character.name}: нет AP, пропускаем`)
+      logger.debug(LOG_MODULES.AI, `${this.character.name}: нет AP, пропускаем`)
       return
     }
 
     // Если на кулдауне, ждём
     if (this.actionCooldown > 0) {
-      console.log(`${this.character.name}: на кулдауне (${this.actionCooldown.toFixed(1)}ms), пропускаем`)
+      logger.debug(LOG_MODULES.AI, `${this.character.name}: на кулдауне (${this.actionCooldown.toFixed(1)}ms), пропускаем`)
       return
     }
 
@@ -55,7 +56,7 @@ export default class EnemyAI {
     // Выполняем действия в зависимости от состояния
     switch (this.state) {
       case AI_STATE.IDLE:
-        console.log(`${this.character.name}: состояние IDLE, вызываем executeIdleBehavior`)
+        logger.debug(LOG_MODULES.AI, `${this.character.name}: состояние IDLE, вызываем executeIdleBehavior`)
         actionPerformed = this.executeIdleBehavior(dt, map, allCharacters)
         break
       case AI_STATE.ALERT:
@@ -69,7 +70,7 @@ export default class EnemyAI {
         break
     }
 
-    console.log(`${this.character.name}: actionPerformed = ${actionPerformed}`)
+    logger.debug(LOG_MODULES.AI, `${this.character.name}: actionPerformed = ${actionPerformed}`)
 
     // Если действие не было выполнено, но AP остались, пробуем ещё раз в следующем кадре
     // Не тратим AP сразу, даём несколько попыток
@@ -78,13 +79,13 @@ export default class EnemyAI {
       if (!this._skipCounter) this._skipCounter = 0
       this._skipCounter++
 
-      console.log(`${this.character.name}: пропущено попыток: ${this._skipCounter}`)
+      logger.debug(LOG_MODULES.AI, `${this.character.name}: пропущено попыток: ${this._skipCounter}`)
 
       // Если несколько попыток подряд не удалось выполнить действие,
       // тратим 1 AP чтобы не застрять
       if (this._skipCounter >= 3) {
         this.character.spendAP(1)
-        console.log(`${this.character.name} не может выполнить действие, тратит 1 AP (осталось ${this.character.currentAP})`)
+        logger.info(LOG_MODULES.AI, `${this.character.name} не может выполнить действие, тратит 1 AP (осталось ${this.character.currentAP})`)
         this._skipCounter = 0
         this.actionCooldown = 50 // 50ms кулдаун
       }
@@ -109,7 +110,8 @@ export default class EnemyAI {
       if (this.state !== AI_STATE.COMBAT) {
         this.state = AI_STATE.COMBAT
         // Лог обнаружения врага
-        console.log(`${this.character.name} обнаружил ${this.target.name} и переходит в бой`)
+        logger.enemyDetection(this.character.name, this.target.name, this.getDistanceTo(this.target))
+        logger.enemyStateChange(this.character.name, AI_STATE.IDLE, AI_STATE.COMBAT, 'обнаружение врага')
       }
       return
     }
@@ -118,7 +120,7 @@ export default class EnemyAI {
     if (this.state === AI_STATE.COMBAT) {
       this.state = AI_STATE.IDLE
       this.target = null
-      console.log(`${this.character.name} потерял врага и возвращается в ожидание`)
+      logger.enemyStateChange(this.character.name, AI_STATE.COMBAT, AI_STATE.IDLE, 'потеря врага')
     }
   }
 
@@ -177,14 +179,14 @@ export default class EnemyAI {
 
     // Проверка AP
     if (this.character.currentAP < this.character.moveAPCost) {
-      console.log(`[WANDER DEBUG] ${enemyName}: AP недостаточно (${this.character.currentAP} < ${this.character.moveAPCost}), возвращаем false`)
+      logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: AP недостаточно (${this.character.currentAP} < ${this.character.moveAPCost})`)
       return false
     }
 
     // Случайно решаем, двигаться или нет (70% chance - более активные враги)
     const randomChance = Math.random()
     if (randomChance > 0.7) {
-      console.log(`[WANDER DEBUG] ${enemyName}: случайный шанс ${randomChance.toFixed(2)} > 0.7, пропускаем движение`)
+      logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: случайный шанс ${randomChance.toFixed(2)} > 0.7, пропускаем движение`)
       return false
     }
 
@@ -200,7 +202,7 @@ export default class EnemyAI {
     const newX = Math.floor(this.character.x) + dir.dx
     const newY = Math.floor(this.character.y) + dir.dy
 
-    console.log(`[WANDER DEBUG] ${enemyName}: текущая позиция (${Math.floor(this.character.x)}, ${Math.floor(this.character.y)}), выбрано направление (${dir.dx}, ${dir.dy}), новая позиция (${newX}, ${newY})`)
+    logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: выбрано направление (${dir.dx}, ${dir.dy}), новая позиция (${newX}, ${newY})`)
 
     // Проверяем, можно ли пройти и не вышли ли за радиус блуждания
     const distanceFromHome = Math.sqrt(
@@ -208,33 +210,31 @@ export default class EnemyAI {
       Math.pow(newY - this.homePosition.y, 2)
     )
 
-    console.log(`[WANDER DEBUG] ${enemyName}: homePosition = (${this.homePosition.x}, ${this.homePosition.y}), wanderRadius = ${this.wanderRadius}, distanceFromHome = ${distanceFromHome.toFixed(2)}`)
-
     const isWalkable = map.isWalkable(newX, newY)
-    console.log(`[WANDER DEBUG] ${enemyName}: map.isWalkable(${newX}, ${newY}) = ${isWalkable}`)
 
     if (distanceFromHome <= this.wanderRadius && isWalkable) {
       // Проверяем, не занята ли клетка другим персонажем
-      console.log(`[WANDER DEBUG] ${enemyName}: клетка в радиусе и проходима, пытаемся moveTo`)
       const canMove = this.character.moveTo(newX, newY, allCharacters)
       if (canMove) {
-        console.log(`[WANDER DEBUG] ${enemyName}: moveTo успешно`)
+        // Логируем успешное движение
+        logger.enemyMove(enemyName, this.character.x, this.character.y, newX, newY,
+          this.character.moveAPCost, this.character.currentAP)
         // Устанавливаем небольшой кулдаун для предотвращения бесконечного цикла
         this.wanderCooldown = 50 // 50ms вместо 500ms
         return true
       } else {
-        console.log(`[WANDER DEBUG] ${enemyName}: moveTo вернул false (клетка занята или другая проблема)`)
+        logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: клетка (${newX}, ${newY}) занята`)
       }
     } else {
       if (distanceFromHome > this.wanderRadius) {
-        console.log(`[WANDER DEBUG] ${enemyName}: distanceFromHome (${distanceFromHome.toFixed(2)}) > wanderRadius (${this.wanderRadius})`)
+        logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: вне радиуса блуждания (${distanceFromHome.toFixed(2)} > ${this.wanderRadius})`)
       }
       if (!isWalkable) {
-        console.log(`[WANDER DEBUG] ${enemyName}: клетка (${newX}, ${newY}) не проходима`)
+        logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: клетка (${newX}, ${newY}) не проходима`)
       }
     }
 
-    console.log(`[WANDER DEBUG] ${enemyName}: все проверки не прошли, возвращаем false`)
+    logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: движение не удалось`)
     return false
   }
 
@@ -274,7 +274,7 @@ export default class EnemyAI {
       // Цель скрылась - возвращаемся в ожидание
       this.state = AI_STATE.IDLE
       this.target = null
-      console.log(`${this.character.name} потерял врага из виду и возвращается в ожидание`)
+      logger.enemyStateChange(this.character.name, AI_STATE.COMBAT, AI_STATE.IDLE, 'потеря видимости цели')
       return false
     }
 
@@ -301,21 +301,21 @@ export default class EnemyAI {
     const dy = Math.abs(Math.floor(target.y) - Math.floor(this.character.y))
     const canAttack = Math.max(dx, dy) <= 1
 
-    console.log(`[COMBAT DEBUG] ${enemyName} проверка атаки: dx=${dx}, dy=${dy}, canAttack=${canAttack}`)
+    logger.debug(LOG_MODULES.COMBAT, `${enemyName} проверка атаки: dx=${dx}, dy=${dy}, canAttack=${canAttack}`)
 
     if (!canAttack) {
-      console.log(`[COMBAT DEBUG] ${enemyName} не может атаковать: вне радиуса`)
+      logger.debug(LOG_MODULES.COMBAT, `${enemyName} не может атаковать: вне радиуса`)
       return false
     }
 
     // Проверяем, хватает ли AP для атаки
     const attackCost = this.getAttackCost()
     if (!this.character.canAffordAP(attackCost)) {
-      console.log(`[COMBAT DEBUG] ${enemyName} не может атаковать: недостаточно AP (нужно ${attackCost}, есть ${this.character.currentAP})`)
+      logger.debug(LOG_MODULES.COMBAT, `${enemyName} не может атаковать: недостаточно AP (нужно ${attackCost}, есть ${this.character.currentAP})`)
       return false
     }
 
-    console.log(`[COMBAT DEBUG] ${enemyName} пытается атаковать ${target.name}`)
+    logger.debug(LOG_MODULES.COMBAT, `${enemyName} пытается атаковать ${target.name}`)
     // Выполняем атаку
     return this.performAttack(target)
   }
@@ -326,10 +326,14 @@ export default class EnemyAI {
     const success = this.character.attack(target)
 
     if (success) {
-      console.log(`${this.character.name} успешно атаковал ${target.name}!`)
+      // Получаем урон из атаки (предполагаем, что attack возвращает урон или мы можем получить его из цели)
+      const damage = target.lastDamageTaken || 0
+      logger.enemyAttack(this.character.name, target.name, damage, true, this.character.currentAP)
       return true
     }
 
+    // Если атака не удалась (промах)
+    logger.enemyAttack(this.character.name, target.name, 0, false, this.character.currentAP)
     return false
   }
 
@@ -343,7 +347,7 @@ export default class EnemyAI {
   // Движение к точке с возможностью остановки на заданной дистанции
   moveTowards(targetX, targetY, map, allCharacters, stopDistance = 0) {
     if (this.character.currentAP < this.character.moveAPCost) {
-      console.log(`${this.character.name}: Недостаточно AP для движения (${this.character.currentAP} < ${this.character.moveAPCost})`)
+      logger.debug(LOG_MODULES.MOVEMENT, `${this.character.name}: Недостаточно AP для движения (${this.character.currentAP} < ${this.character.moveAPCost})`)
       return false
     }
 
@@ -360,7 +364,7 @@ export default class EnemyAI {
 
     // Если уже находимся на желаемой дистанции или ближе - не двигаемся
     if (currentDistance <= stopDistance) {
-      console.log(`${this.character.name}: Уже на желаемой дистанции (${currentDistance.toFixed(2)} <= ${stopDistance})`)
+      logger.debug(LOG_MODULES.MOVEMENT, `${this.character.name}: Уже на желаемой дистанции (${currentDistance.toFixed(2)} <= ${stopDistance})`)
       return true  // Цель достигнута, действие выполнено (остаёмся на месте)
     }
 
@@ -375,7 +379,7 @@ export default class EnemyAI {
     if (stopDistance > 0) {
       const initialBlockedCount = blocked.length
       blocked = blocked.filter(cell => !(cell.x === toX && cell.y === toY))
-      console.log(`${this.character.name}: Исключена целевая клетка из заблокированных (${initialBlockedCount} -> ${blocked.length})`)
+      logger.trace(LOG_MODULES.MOVEMENT, `${this.character.name}: Исключена целевая клетка из заблокированных (${initialBlockedCount} -> ${blocked.length})`)
     }
 
     // Ищем путь
@@ -390,26 +394,28 @@ export default class EnemyAI {
         // Берём следующий шаг
         const canMove = this.character.moveTo(path[1].x, path[1].y, allCharacters)
         if (canMove) {
-          console.log(`${this.character.name}: Двигается к (${path[1].x}, ${path[1].y}) по пути длиной ${path.length}`)
+          logger.enemyMove(this.character.name, fromX, fromY, path[1].x, path[1].y,
+            this.character.moveAPCost, this.character.currentAP)
           // В состоянии COMBAT уменьшаем задержку между действиями
           this.actionCooldown = this.state === AI_STATE.COMBAT ? 0 : 10 // Уменьшено: 50 -> 10, 100 -> 50
           return true
         } else {
-          console.log(`${this.character.name}: Не может двигаться к (${path[1].x}, ${path[1].y}) - клетка занята или нет AP`)
+          logger.debug(LOG_MODULES.MOVEMENT, `${this.character.name}: Не может двигаться к (${path[1].x}, ${path[1].y}) - клетка занята или нет AP`)
         }
       } else {
         const canMove = this.character.moveTo(nextStep.x, nextStep.y, allCharacters)
         if (canMove) {
-          console.log(`${this.character.name}: Двигается к (${nextStep.x}, ${nextStep.y}) по пути длиной ${path.length}`)
+          logger.enemyMove(this.character.name, fromX, fromY, nextStep.x, nextStep.y,
+            this.character.moveAPCost, this.character.currentAP)
           // В состоянии COMBAT уменьшаем задержку между действиями
           this.actionCooldown = this.state === AI_STATE.COMBAT ? 0 : 10 // Уменьшено: 50 -> 10, 100 -> 50
           return true
         } else {
-          console.log(`${this.character.name}: Не может двигаться к (${nextStep.x}, ${nextStep.y}) - клетка занята или нет AP`)
+          logger.debug(LOG_MODULES.MOVEMENT, `${this.character.name}: Не может двигаться к (${nextStep.x}, ${nextStep.y}) - клетка занята или нет AP`)
         }
       }
     } else {
-      console.log(`${this.character.name}: Путь не найден к (${toX}, ${toY}). Пробуем простое движение по направлению.`)
+      logger.debug(LOG_MODULES.MOVEMENT, `${this.character.name}: Путь не найден к (${toX}, ${toY}). Пробуем простое движение по направлению.`)
 
       // Fallback: пытаемся двигаться в направлении цели без поиска пути
       const dx = toX - fromX
@@ -431,14 +437,15 @@ export default class EnemyAI {
         if (!occupied) {
           const canMove = this.character.moveTo(newX, newY, allCharacters)
           if (canMove) {
-            console.log(`${this.character.name}: Двигается к (${newX}, ${newY}) простым направлением`)
+            logger.enemyMove(this.character.name, fromX, fromY, newX, newY,
+              this.character.moveAPCost, this.character.currentAP)
             this.actionCooldown = this.state === AI_STATE.COMBAT ? 0 : 10 // Уменьшено: 50 -> 10, 100 -> 50
             return true
           }
         }
       }
 
-      console.log(`${this.character.name}: Не может двигаться к цели даже простым направлением`)
+      logger.debug(LOG_MODULES.MOVEMENT, `${this.character.name}: Не может двигаться к цели даже простым направлением`)
     }
 
     return false

@@ -3,6 +3,7 @@ import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
 import Location from './Location.js'
+import { logger, LOG_MODULES } from './Logger.js'
 
 export default class GameLoop {
   constructor(canvas, config, initialLocation = null, biomeType = null) {
@@ -111,7 +112,7 @@ export default class GameLoop {
     if (this.currentLocation.initializeTurnQueue) {
       this.currentLocation.initializeTurnQueue()
     } else {
-      console.warn('[GameLoop] Location не имеет метода initializeTurnQueue')
+      logger.warn(LOG_MODULES.SYSTEM, 'Location не имеет метода initializeTurnQueue')
     }
 
     const characters = this.currentLocation.getAllCharacters()
@@ -199,7 +200,7 @@ export default class GameLoop {
       // console.log(`Камера центрирована на активном персонаже: ${activeChar.name} (ID: ${activeChar.id})`)
       return true
     }
-    console.warn('Нет активного персонажа для центрирования')
+    logger.warn(LOG_MODULES.SYSTEM, 'Нет активного персонажа для центрирования')
     return false
   }
 
@@ -334,18 +335,24 @@ export default class GameLoop {
     // Проверяем, нужно ли переходить к следующему ходу
     if (this.currentLocation.shouldAdvanceTurn()) {
       const currentChar = this.currentLocation.getActiveCharacter()
-      console.log(`[TURN] Завершение хода ${currentChar?.name} (AP: ${currentChar?.currentAP})`)
+      logger.info(LOG_MODULES.TURN, `Завершение хода ${currentChar?.name} (AP: ${currentChar?.currentAP})`)
 
       const nextChar = this.currentLocation.nextTurn()
       if (nextChar) {
-        console.log(`[TURN] Новый активный персонаж: ${nextChar.name} (${nextChar.team?.isPlayerControlled ? 'игрок' : 'враг'}), AP: ${nextChar.currentAP}/${nextChar.maxAP}`)
+        const isPlayer = nextChar.team?.isPlayerControlled
+        logger.info(LOG_MODULES.TURN, `Новый активный персонаж: ${nextChar.name} (${isPlayer ? 'игрок' : 'враг'}), AP: ${nextChar.currentAP}/${nextChar.maxAP}`)
 
-        if (nextChar.team && nextChar.team.isPlayerControlled) {
+        if (isPlayer) {
           // Центрируем камеру только на персонажах игрока
           this.centerOnCharacter(nextChar.id)
         }
+
+        // Логируем начало хода врага с помощью специального метода
+        if (!isPlayer) {
+          logger.enemyTurnStart(nextChar.name, nextChar.currentAP)
+        }
       } else {
-        console.warn('[TURN] Нет следующего персонажа в очереди!')
+        logger.warn(LOG_MODULES.TURN, 'Нет следующего персонажа в очереди!')
       }
     }
 
@@ -358,7 +365,7 @@ export default class GameLoop {
       if (activeChar.team && !activeChar.team.isPlayerControlled) {
         // Логируем начало хода врага (только один раз)
         if (!this._lastEnemyTurnLog || this._lastEnemyTurnLog !== activeChar.id) {
-          console.log(`Ход врага: ${activeChar.name}`)
+          logger.enemyTurnStart(activeChar.name, activeChar.currentAP)
           this._lastEnemyTurnLog = activeChar.id
           this._enemyTurnStartTime = performance.now()
         }
@@ -369,23 +376,23 @@ export default class GameLoop {
           if (ai) {
             // Обновляем ИИ врага только если у него есть ОД
             if (activeChar.currentAP > 0) {
-              console.log(`[ENEMY AI] Обновление ИИ для ${activeChar.name} (AP: ${activeChar.currentAP})`)
+              logger.debug(LOG_MODULES.AI, `Обновление ИИ для ${activeChar.name} (AP: ${activeChar.currentAP})`)
               ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
             } else {
-              console.log(`[ENEMY AI] У ${activeChar.name} нет AP (${activeChar.currentAP}), пропускаем ИИ`)
+              logger.debug(LOG_MODULES.AI, `У ${activeChar.name} нет AP (${activeChar.currentAP}), пропускаем ИИ`)
             }
           } else {
-            console.warn(`[ENEMY AI] Не найден ИИ для врага ${activeChar.name} (ID: ${activeChar.id})`)
+            logger.warn(LOG_MODULES.AI, `Не найден ИИ для врага ${activeChar.name} (ID: ${activeChar.id})`)
           }
         } else {
-          console.warn(`[ENEMY AI] Не найдена команда врагов или aiInstances для ${activeChar.name}`)
+          logger.warn(LOG_MODULES.AI, `Не найдена команда врагов или aiInstances для ${activeChar.name}`)
         }
 
         // Фейлсейф: если ход врага длится больше 0.5 секунд, принудительно завершаем его
         if (this._enemyTurnStartTime && activeChar.currentAP > 0) {
           const turnDuration = performance.now() - this._enemyTurnStartTime
           if (turnDuration > 500) { // 0.5 секунды
-            console.warn(`Фейлсейф: ход врага ${activeChar.name} длится ${Math.round(turnDuration)}ms, принудительно завершаем`)
+            logger.warn(LOG_MODULES.SYSTEM, `Фейлсейф: ход врага ${activeChar.name} длится ${Math.round(turnDuration)}ms, принудительно завершаем`)
             // Тратим все оставшиеся AP
             const apToSpend = activeChar.currentAP
             if (activeChar.spendAP) {
@@ -481,13 +488,13 @@ export default class GameLoop {
         const avgUpdate = this.updateTimes.reduce((a, b) => a + b, 0) / this.updateTimes.length
         const fps = 1000 / avgFrame
 
-        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-        console.log(`📊 БЕНЧМАРК ПРОИЗВОДИТЕЛЬНОСТИ:`)
-        console.log(`   🎬 FPS: ${fps.toFixed(1)} (${avgFrame.toFixed(2)}ms/кадр)`)
-        console.log(`   🎨 Рендер: ${avgRender.toFixed(2)}ms (${((avgRender / avgFrame) * 100).toFixed(1)}%)`)
-        console.log(`   ⚙️  Update: ${avgUpdate.toFixed(2)}ms (${((avgUpdate / avgFrame) * 100).toFixed(1)}%)`)
-        console.log(`   💾 Путь в кэше: ${this.pathCache?.cache?.size || 0}/${this.pathCache?.maxSize || 0}`)
-        console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+        logger.debug(LOG_MODULES.SYSTEM, `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
+        logger.debug(LOG_MODULES.SYSTEM, `📊 БЕНЧМАРК ПРОИЗВОДИТЕЛЬНОСТИ:`)
+        logger.debug(LOG_MODULES.SYSTEM, `   🎬 FPS: ${fps.toFixed(1)} (${avgFrame.toFixed(2)}ms/кадр)`)
+        logger.debug(LOG_MODULES.SYSTEM, `   🎨 Рендер: ${avgRender.toFixed(2)}ms (${((avgRender / avgFrame) * 100).toFixed(1)}%)`)
+        logger.debug(LOG_MODULES.SYSTEM, `   ⚙️  Update: ${avgUpdate.toFixed(2)}ms (${((avgUpdate / avgFrame) * 100).toFixed(1)}%)`)
+        logger.debug(LOG_MODULES.SYSTEM, `   💾 Путь в кэше: ${this.pathCache?.cache?.size || 0}/${this.pathCache?.maxSize || 0}`)
+        logger.debug(LOG_MODULES.SYSTEM, `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
 
         // Сбрасываем для следующего замера
         this.frameTimes = []
@@ -565,7 +572,7 @@ export default class GameLoop {
     // F7 - переключение режима отладки
     if (e.code === 'F7') {
       this.debugMode = !this.debugMode
-      console.log(`🐛 Режим отладки: ${this.debugMode ? 'ВКЛЮЧЕН' : 'ВЫКЛЮЧЕН'}`)
+      logger.info(LOG_MODULES.SYSTEM, `Режим отладки: ${this.debugMode ? 'ВКЛЮЧЕН' : 'ВЫКЛЮЧЕН'}`)
       if (!this.debugMode) {
         this.frameTimes = []
         this.renderTimes = []
@@ -581,7 +588,7 @@ export default class GameLoop {
       const activeChar = this.currentLocation.getActiveCharacter()
       if (!activeChar || !activeChar.team || !activeChar.team.isPlayerControlled) {
         // Не позволяем игроку завершать ход врагов
-        console.log('Нельзя завершить ход врага вручную')
+        logger.info(LOG_MODULES.TURN, 'Нельзя завершить ход врага вручную')
         return
       }
 
@@ -597,7 +604,7 @@ export default class GameLoop {
       if (this.currentLocation && this.currentLocation.initializeTurnQueue) {
         this.currentLocation.initializeTurnQueue()
       } else {
-        console.warn('[GameLoop] Не удалось инициализировать очередь ходов')
+        logger.warn(LOG_MODULES.SYSTEM, 'Не удалось инициализировать очередь ходов')
       }
     }
   }

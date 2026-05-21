@@ -3,6 +3,7 @@
 import Team from './Team.js'
 import EnemyAI, { BEHAVIOR_TYPE } from './EnemyAI.js'
 import { ENEMIES } from './EnemyData.js'
+import { logger, LOG_MODULES } from './Logger.js'
 
 export default class EnemyTeam extends Team {
   constructor(config = {}) {
@@ -37,7 +38,7 @@ export default class EnemyTeam extends Team {
     })
 
     this.aiInstances.set(character.id, ai)
-    console.log(`Создан ИИ для ${character.name} (упрощенная система)`)
+    logger.debug(LOG_MODULES.AI, `Создан ИИ для ${character.name} (упрощенная система)`)
   }
 
   removeCharacter(character) {
