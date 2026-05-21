@@ -8,7 +8,7 @@ export default class PlayerTeam extends Team {
       color: config.color || '#44ff44',
       isPlayerControlled: true,
       canSwitchTo: true,
-      visibleInFog: true,
+      visibleInFog: false,
       ...config
     })
   }

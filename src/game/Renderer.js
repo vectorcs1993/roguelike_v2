@@ -320,7 +320,7 @@ export default class Renderer {
     }
 
     // ПОДСВЕТКА ХОВЕРА
-    if (!input.isCameraMovingNow() && this.hoverTileX !== null) {
+    if (!input.isCameraMovingNow() && this.hoverTileX !== null && (!this._activeCharacter || this._activeCharacter.isPlayerControlled)) {
       const hoverTile = map.getTile(this.hoverTileX, this.hoverTileY)
       if (hoverTile && hoverTile.visible) {
         const x = this.hoverTileX * ts + ox
