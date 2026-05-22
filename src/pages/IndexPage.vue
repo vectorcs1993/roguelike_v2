@@ -79,23 +79,6 @@
                 Нет персонажей
               </div>
             </div>
-
-            <!-- Очередь ходов -->
-            <!-- <div class="turn-queue-section" v-if="turnQueueList.length > 0">
-              <div class="section-header">
-                <q-icon name="schedule" size="14px" />
-                <span>Очередь ходов</span>
-              </div>
-              <div class="turn-queue-container">
-                <div v-for="(char, idx) in turnQueueList" :key="char.id"
-                  :class="['turn-queue-item', { active: char.isActive, player: char.isPlayerControlled }]">
-                  <span class="queue-index">{{ idx + 1 }}.</span>
-                  <span class="queue-char">{{ char.char }}</span>
-                  <span class="queue-name">{{ char.name }}</span>
-                  <q-badge v-if="char.isActive" color="primary" label="активен" size="sm" />
-                </div>
-              </div>
-            </div> -->
           </div>
 
           <!-- ПРАВАЯ КОЛОНКА: Текстовая консоль -->
@@ -122,7 +105,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick, shallowRef } from 'vue'
 import config from 'src/game/config.json'
 import GameLoop from 'src/game/GameLoop.js'
 
@@ -133,12 +116,30 @@ let resizeTimeout = null
 let updateInterval = null
 let resizeObserver = null
 
-const charactersListData = ref([])
+// Используем shallowRef для больших массивов
+const charactersListData = shallowRef([])
 const locationNameValue = ref('')
-const consoleLogs = ref([])
-const turnQueueList = ref([])
+const consoleLogs = shallowRef([])
+const turnQueueList = shallowRef([])
 
 const charactersList = computed(() => charactersListData.value)
+
+// Кэшируем предыдущие значения для сравнения
+let lastCharactersHash = ''
+let lastTurnQueueHash = ''
+let updatePending = false
+
+function getCharactersHash() {
+  if (!game?.currentLocation) return ''
+  const chars = game.currentLocation.getAllCharacters()
+  return chars.map(c => `${c.id}:${c.isActive}:${c.currentAP}:${c.hp}`).join('|')
+}
+
+function getTurnQueueHash() {
+  if (!game?.currentLocation?.turnQueue) return ''
+  const queue = game.currentLocation.turnQueue.getAllCharacters()
+  return queue.map(c => `${c.id}`).join(',')
+}
 
 // Перехват console.log
 const originalConsoleLog = console.log
@@ -148,11 +149,13 @@ const originalConsoleError = console.error
 function addConsoleMessage(text, type = 'info') {
   const now = new Date()
   const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
-  consoleLogs.value.push({ time, text: String(text), type })
+  const newLogs = [...consoleLogs.value, { time, text: String(text), type }]
 
-  if (consoleLogs.value.length > 100) {
-    consoleLogs.value.shift()
+  if (newLogs.length > 100) {
+    newLogs.shift()
   }
+
+  consoleLogs.value = newLogs
 
   nextTick(() => {
     if (consoleRef.value) {
@@ -209,40 +212,80 @@ function getHPProgressColor(percentage) {
 
 function updateCharactersList() {
   if (!game?.currentLocation) {
-    charactersListData.value = []
-    locationNameValue.value = ''
-    turnQueueList.value = []
+    if (charactersListData.value.length !== 0) {
+      charactersListData.value = []
+      locationNameValue.value = ''
+      turnQueueList.value = []
+    }
     return
   }
 
+  const newHash = getCharactersHash()
+  if (newHash === lastCharactersHash && updatePending) return
+
+  lastCharactersHash = newHash
   locationNameValue.value = game.currentLocation.name || 'Неизвестная локация'
   const allCharacters = game.currentLocation.getAllCharacters()
 
-  charactersListData.value = allCharacters.map(char => ({
-    id: char.id,
-    name: char.name,
-    char: char.char,
-    isActive: char.isActive,
-    isSelectable: char.canSwitchTo === true,
-    teamColor: char.team?.color || '#666666',
-    teamName: char.team?.name || 'Без команды',
-    ap: char.currentAP,
-    maxAP: char.maxAP,
-    apPercentage: char.getAPPercentage ? char.getAPPercentage() : (char.currentAP / char.maxAP) * 100,
-    hp: char.hp || 0,
-    maxHp: char.maxHp || char.hp || 0,
-    hpPercentage: char.hp && char.maxHp ? (char.hp / char.maxHp) * 100 : 100
-  }))
+  // Предварительное выделение памяти и batch обновление
+  const newList = new Array(allCharacters.length)
+  for (let i = 0; i < allCharacters.length; i++) {
+    const char = allCharacters[i]
+    const hp = char.hp || 0
+    const maxHp = char.maxHp || hp || 0
+    const hpPercentage = maxHp ? (hp / maxHp) * 100 : 100
 
-  // Обновляем очередь ходов
-  const queue = game.currentLocation.turnQueue?.getAllCharacters() || []
-  turnQueueList.value = queue.map(char => ({
-    id: char.id,
-    name: char.name,
-    char: char.char,
-    isActive: char.isActive,
-    isPlayerControlled: char.team?.isPlayerControlled || false
-  }))
+    newList[i] = {
+      id: char.id,
+      name: char.name,
+      char: char.char,
+      isActive: char.isActive,
+      isSelectable: char.canSwitchTo === true,
+      teamColor: char.team?.color || '#666666',
+      teamName: char.team?.name || 'Без команды',
+      ap: char.currentAP,
+      maxAP: char.maxAP,
+      apPercentage: char.getAPPercentage ? char.getAPPercentage() : (char.currentAP / char.maxAP) * 100,
+      hp: hp,
+      maxHp: maxHp,
+      hpPercentage: hpPercentage
+    }
+  }
+
+  charactersListData.value = newList
+
+  // Обновляем очередь только если изменилась
+  const queueHash = getTurnQueueHash()
+  if (queueHash !== lastTurnQueueHash) {
+    lastTurnQueueHash = queueHash
+    const queue = game.currentLocation.turnQueue?.getAllCharacters() || []
+    const queueList = new Array(queue.length)
+    for (let i = 0; i < queue.length; i++) {
+      const char = queue[i]
+      queueList[i] = {
+        id: char.id,
+        name: char.name,
+        char: char.char,
+        isActive: char.isActive,
+        isPlayerControlled: char.team?.isPlayerControlled || false
+      }
+    }
+    turnQueueList.value = queueList
+  }
+
+  updatePending = false
+}
+
+// Throttled update с requestAnimationFrame
+let updateScheduled = false
+function throttledUpdate() {
+  if (updateScheduled) return
+  updateScheduled = true
+  updatePending = true
+  requestAnimationFrame(() => {
+    updateCharactersList()
+    updateScheduled = false
+  })
 }
 
 async function onCharacterClick(character) {
@@ -259,7 +302,7 @@ async function onCharacterClick(character) {
     return
   }
 
-  await updateCharactersList()
+  await throttledUpdate()
 }
 
 function regenerateLevel() {
@@ -269,7 +312,7 @@ function regenerateLevel() {
   setTimeout(() => {
     if (game) {
       game.centerOnActiveCharacter()
-      updateCharactersList()
+      throttledUpdate()
       addConsoleMessage('✅ Уровень обновлён', 'success')
     }
   }, 100)
@@ -320,9 +363,18 @@ function resizeCanvas() {
   }
 }
 
+function debounce(fn, delay) {
+  let timeoutId
+  return function (...args) {
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => fn.apply(this, args), delay)
+  }
+}
+
+const debouncedResize = debounce(resizeCanvas, config.resizeDebounce)
+
 function onResize() {
-  clearTimeout(resizeTimeout)
-  resizeTimeout = setTimeout(resizeCanvas, config.resizeDebounce)
+  debouncedResize()
 }
 
 // Проброс событий
@@ -336,6 +388,8 @@ function onMouseLeave() { game?.onMouseLeave() }
 function onContextMenu(e) { game?.onContextMenu(e) }
 function onMouseDown(e) { game?.onMouseDown(e) }
 function onMouseUp(e) { game?.onMouseUp(e) }
+
+const UPDATE_INTERVAL = 250
 
 onMounted(() => {
   // Перехват консоли игры
@@ -374,14 +428,14 @@ onMounted(() => {
   window.addEventListener('keyup', onKeyUp)
 
   game.start()
-  updateCharactersList()
+  throttledUpdate()
 
   addConsoleMessage('🎮 Игра запущена', 'success')
   addConsoleMessage(`📍 Локация: ${locationNameValue.value || 'генерация...'}`, 'info')
 
   updateInterval = setInterval(() => {
-    updateCharactersList()
-  }, 100)
+    throttledUpdate()
+  }, UPDATE_INTERVAL)
 })
 
 onUnmounted(() => {
@@ -766,89 +820,5 @@ onUnmounted(() => {
 
 .text-grey {
   color: #888;
-}
-
-/* Очередь ходов */
-.turn-queue-section {
-  margin-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  padding-top: 8px;
-}
-
-.turn-queue-section .section-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #aaa;
-  margin-bottom: 6px;
-}
-
-.turn-queue-container {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.turn-queue-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
-  font-size: 11px;
-  color: #ccc;
-}
-
-.turn-queue-item.active {
-  background: rgba(0, 100, 255, 0.2);
-  border-left: 3px solid #4af;
-}
-
-.turn-queue-item.player {
-  color: #8cf;
-}
-
-.queue-index {
-  color: #888;
-  min-width: 16px;
-}
-
-.queue-char {
-  font-weight: bold;
-  min-width: 12px;
-}
-
-.queue-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (max-width: 768px) {
-  .control-panel {
-    height: 200px;
-  }
-
-  .character-card {
-    min-width: 100px;
-    width: 100px;
-  }
-
-  .character-symbol {
-    font-size: 28px;
-  }
-
-  .character-name {
-    font-size: 10px;
-  }
-
-  .console-content {
-    font-size: 10px;
-  }
 }
 </style>

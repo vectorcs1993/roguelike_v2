@@ -1,4 +1,4 @@
-// src/game/Renderer.js - ИСПРАВЛЕННЫЙ
+// src/game/Renderer.js - ОПТИМИЗИРОВАННАЯ ВЕРСИЯ
 
 export default class Renderer {
   static DEFAULT_TILE_SIZE = 48
@@ -24,6 +24,13 @@ export default class Renderer {
     this._allCharacters = null
     this.dpr = window.devicePixelRatio || 1
     this.fontFamily = Renderer.DEFAULT_FONT_FAMILY
+
+    // Кэширование для оптимизации рендера
+    this._lastCameraX = null
+    this._lastCameraY = null
+    this._lastTileSize = null
+    this._visibleBoundsCache = null
+    this._lastFrameTimestamp = 0
   }
 
   resize(canvasW, canvasH) {
@@ -52,6 +59,11 @@ export default class Renderer {
     this.ctx.font = `${this.tileSize}px ${this.fontFamily}`
     this.ctx.textAlign = 'center'
     this.ctx.textBaseline = 'middle'
+
+    // Сбрасываем кэш при ресайзе
+    this._visibleBoundsCache = null
+    this._lastCameraX = null
+    this._lastCameraY = null
   }
 
   drawTooltip(text) {
@@ -98,72 +110,104 @@ export default class Renderer {
     const ox = this.halfW - camera.x * ts
     const oy = this.halfH - camera.y * ts
 
+    // Проверяем, нужно ли пересчитывать видимую область
+    if (this._lastCameraX !== camera.x || this._lastCameraY !== camera.y || this._lastTileSize !== ts) {
+      this._lastCameraX = camera.x
+      this._lastCameraY = camera.y
+      this._lastTileSize = ts
+
+      // Вычисляем видимую область один раз
+      this._visibleBoundsCache = {
+        startX: Math.max(0, Math.floor(camera.x - this.canvasW / ts / 2) - 1),
+        startY: Math.max(0, Math.floor(camera.y - this.canvasH / ts / 2) - 1),
+        endX: Math.min(map.cols, Math.floor(camera.x + this.canvasW / ts / 2) + 2),
+        endY: Math.min(map.rows, Math.floor(camera.y + this.canvasH / ts / 2) + 2)
+      }
+    }
+
+    const { startX, startY, endX, endY } = this._visibleBoundsCache
+
     // Очистка
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, this.canvasW, this.canvasH)
-
-    // Вычисляем видимую область
-    const startX = Math.max(0, Math.floor(camera.x - this.canvasW / ts / 2) - 1)
-    const startY = Math.max(0, Math.floor(camera.y - this.canvasH / ts / 2) - 1)
-    const endX = Math.min(map.cols, startX + Math.ceil(this.canvasW / ts) + 2)
-    const endY = Math.min(map.rows, startY + Math.ceil(this.canvasH / ts) + 2)
 
     // Устанавливаем шрифт один раз для всего рендера
     ctx.font = `${ts}px ${this.fontFamily}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    // ТАЙЛЫ
+    // Оптимизация: рисуем тайлы пакетами по цветам
+    const tilesByColor = new Map()
+
     for (let y = startY; y < endY; y++) {
       for (let x = startX; x < endX; x++) {
         const tile = map.getTile(x, y)
         if (!tile) continue
         if (!tile.visible && !tile.explored) continue
 
-        const drawX = x * ts + ox
-        const drawY = y * ts + oy
-
         if (tile.char !== ' ') {
-          ctx.fillStyle = tile.visible ? '#888888' : '#333333'
-          ctx.fillText(tile.char, drawX + ts / 2, drawY + ts / 2)
+          const drawX = x * ts + ox
+          const drawY = y * ts + oy
+          const color = tile.visible ? '#888888' : '#333333'
+
+          if (!tilesByColor.has(color)) {
+            tilesByColor.set(color, [])
+          }
+          tilesByColor.get(color).push({ char: tile.char, x: drawX, y: drawY })
         }
       }
     }
 
-    // ПРЕДМЕТЫ
+    // Рисуем все тайлы одного цвета за раз
+    for (const [color, tiles] of tilesByColor) {
+      ctx.fillStyle = color
+      for (const tile of tiles) {
+        ctx.fillText(tile.char, tile.x + ts / 2, tile.y + ts / 2)
+      }
+    }
+
+    // Аналогично для предметов (группировка)
     if (this._location?.items) {
+      const itemsByColor = new Map()
       for (const item of this._location.items) {
         if (item.collected) continue
-
         const tile = map.getTile(Math.floor(item.x), Math.floor(item.y))
         const isVisible = tile && tile.visible
         const isExplored = tile && tile.explored
-
         if (isVisible || isExplored) {
           const drawX = item.x * ts + ox
           const drawY = item.y * ts + oy
-          ctx.fillStyle = isVisible ? '#aaaaaa' : '#555555'
-          ctx.fillText(item.char, drawX + ts / 2, drawY + ts / 2)
+          const color = isVisible ? '#aaaaaa' : '#555555'
+          if (!itemsByColor.has(color)) {
+            itemsByColor.set(color, [])
+          }
+          itemsByColor.get(color).push({ char: item.char, x: drawX, y: drawY })
+        }
+      }
+      for (const [color, items] of itemsByColor) {
+        ctx.fillStyle = color
+        for (const item of items) {
+          ctx.fillText(item.char, item.x + ts / 2, item.y + ts / 2)
         }
       }
     }
 
-    // ПЕРСОНАЖИ - ТОЛЬКО ВИДИМЫЕ
+    // Персонажи (их меньше, можно не группировать)
     for (const char of characters) {
       const tile = map.getTile(Math.floor(char.x), Math.floor(char.y))
       const isVisible = this._location?.isCharacterVisibleForPlayerTeam(char) ?? (tile && tile.visible)
-
       if (isVisible) {
         const drawX = char.vx * ts + ox
         const drawY = char.vy * ts + oy
-
+        let color
         if (char === this._activeCharacter) {
-          ctx.fillStyle = char.isPlayerControlled ? '#88ff88' : '#d83232'
+          color = char.isPlayerControlled ? '#88ff88' : '#d83232'
         } else if (char.isPlayerControlled) {
-          ctx.fillStyle = '#5272b6'
+          color = '#5272b6'
         } else {
-          ctx.fillStyle = '#d83232'
+          color = '#d83232'
         }
+        ctx.fillStyle = color
         ctx.fillText(char.char, drawX + ts / 2, drawY + ts / 2)
       }
     }

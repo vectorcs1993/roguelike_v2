@@ -1,4 +1,3 @@
-
 import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
@@ -44,37 +43,64 @@ export default class GameLoop {
     this.waitingForTurnEnd = false
     this.debugMode = false
 
-    // СТАБИЛЬНЫЕ НАСТРОЙКИ (60 FPS)
+    // НАСТРОЙКИ ДЛЯ 100 FPS
     this.targetFPS = 100
     this.frameInterval = 1000 / this.targetFPS
     this.lastFrameTime = 0
 
-    // Для измерения производительности
     this.frameCount = 0
     this.lastFpsUpdate = 0
-    this.currentFps = 60
+    this.currentFps = 100
 
-    this.initializeFovForAllAllies()
+    // Throttle для FOV
+    this._lastFovUpdate = 0
+    this._fovUpdateInterval = 50
+
+    this._lastRenderTime = 0
+    this._renderInterval = 1000 / 100
+
+    // Стартовый FOV
+    this.updateCombinedFov()
   }
 
-  initializeFovForAllAllies() {
+  // ОБНОВЛЯЕМ FOV ДЛЯ ВСЕХ СОЮЗНИКОВ (стены и радиус работают!)
+  updateCombinedFov() {
+    const now = Date.now()
+    if (now - this._lastFovUpdate < this._fovUpdateInterval) {
+      return
+    }
+    this._lastFovUpdate = now
+
+    // Получаем всех союзников
     const allies = this.currentLocation.getAllCharacters().filter(
       c => c.isPlayerControlled || c.canSwitchTo
     )
 
     if (allies.length === 0) return
 
-    for (let i = 0; i < allies.length; i++) {
-      const ally = allies[i]
-      const tileX = Math.floor(ally.x)
-      const tileY = Math.floor(ally.y)
-      const resetVisibility = (i === 0)
-      this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8, resetVisibility)
-    }
-
+    // Сбрасываем видимость ПЕРЕД объединением
     for (let y = 0; y < this.currentLocation.map.rows; y++) {
       for (let x = 0; x < this.currentLocation.map.cols; x++) {
         const tile = this.currentLocation.map.getTile(x, y)
+        if (tile) tile.visible = false
+      }
+    }
+
+    // Для КАЖДОГО союзника вычисляем FOV с ПРАВИЛЬНОЙ БЛОКИРОВКОЙ СТЕН
+    // Используем resetVisibility = false, чтобы НЕ сбрасывать уже добавленную видимость
+    for (const ally of allies) {
+      const tileX = Math.floor(ally.x)
+      const tileY = Math.floor(ally.y)
+      // false = не сбрасывать visible, а ДОБАВЛЯТЬ новую видимость
+      // Стены и радиус работают внутри computeFov!
+      this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8, false)
+    }
+
+    // Отмечаем explored для всех видимых тайлов
+    const map = this.currentLocation.map
+    for (let y = 0; y < map.rows; y++) {
+      for (let x = 0; x < map.cols; x++) {
+        const tile = map.getTile(x, y)
         if (tile && tile.visible) {
           tile.explored = true
         }
@@ -115,6 +141,13 @@ export default class GameLoop {
       this.onLocationChanged()
     }
 
+    if (this.currentLocation.pathfinder) {
+      this.currentLocation.pathfinder.clearCache()
+    }
+
+    // Пересчитываем FOV для новой локации
+    this.updateCombinedFov()
+
     return newActiveCharacter?.id
   }
 
@@ -123,6 +156,7 @@ export default class GameLoop {
     if (newActive) {
       newActive.restoreFullAP()
       this.camera.setPosition(newActive.x, newActive.y)
+      this.updateCombinedFov()
     }
   }
 
@@ -223,25 +257,21 @@ export default class GameLoop {
   }
 
   update(dt) {
-    // Обработка кликов
     const click = this.input.consumeClick()
     if (click) {
       this.handleClick(click.x, click.y)
     }
 
-    // Обновление ховера
     if (this.input.mouseOnCanvas && this.renderer) {
       this.updateHoverTile(this.input.mouseX, this.input.mouseY)
     }
 
-    // Обновление игры
     const isGameOver = this.currentLocation.updateTeams(dt)
     if (isGameOver) {
       this.reloadLocation()
       return
     }
 
-    // Очередь ходов
     if (this.currentLocation.shouldAdvanceTurn()) {
       const nextChar = this.currentLocation.nextTurn()
       if (nextChar?.team?.isPlayerControlled) {
@@ -253,7 +283,6 @@ export default class GameLoop {
     if (activeChar) {
       activeChar.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
 
-      // ИИ врагов
       if (activeChar.team && !activeChar.team.isPlayerControlled && activeChar.currentAP > 0) {
         const enemyTeam = this.currentLocation.getTeam('creatures')
         const ai = enemyTeam?.aiInstances?.get(activeChar.id)
@@ -262,8 +291,8 @@ export default class GameLoop {
         }
       }
 
-      // Обновляем FOV (каждый кадр, но можно закомментировать если тормозит)
-      this.initializeFovForAllAllies()
+      // Обновляем комбинированный FOV для всех союзников
+      this.updateCombinedFov()
 
       activeChar.checkAndCollectTarget(this.currentLocation)
     }
@@ -294,7 +323,6 @@ export default class GameLoop {
   }
 
   gameLoop(now) {
-    // Ограничение FPS
     if (this.lastFrameTime && (now - this.lastFrameTime) < this.frameInterval) {
       this.animationId = requestAnimationFrame((t) => this.gameLoop(t))
       return
@@ -302,15 +330,16 @@ export default class GameLoop {
 
     this.lastFrameTime = now
 
-    // Расчет dt
-    const dt = this.lastTime ? Math.min((now - this.lastTime) * 0.001, 0.033) : 0.016
+    const dt = this.lastTime ? Math.min((now - this.lastTime) * 0.001, 0.01) : 0.01
     this.lastTime = now
 
-    // Обновление и отрисовка
     this.update(dt)
-    this.render()
 
-    // Подсчет FPS для отладки (опционально)
+    if (now - this._lastRenderTime >= this._renderInterval) {
+      this.render()
+      this._lastRenderTime = now
+    }
+
     if (this.debugMode) {
       this.frameCount++
       const nowSec = performance.now()
@@ -341,6 +370,7 @@ export default class GameLoop {
   start() {
     this.lastTime = performance.now()
     this.lastFrameTime = performance.now()
+    this._lastRenderTime = performance.now()
     this.gameLoop(this.lastTime)
   }
 
@@ -374,7 +404,6 @@ export default class GameLoop {
       }
     }
 
-    // F7 для отладки
     if (e.code === 'F7') {
       this.debugMode = !this.debugMode
       console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`)
@@ -443,6 +472,10 @@ export default class GameLoop {
       this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, this.config.cameraSpeed)
     }
 
-    this.initializeFovForAllAllies()
+    this.updateCombinedFov()
+
+    if (this.currentLocation.pathfinder) {
+      this.currentLocation.pathfinder.clearCache()
+    }
   }
 }
