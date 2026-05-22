@@ -1,3 +1,5 @@
+// src/game/Renderer.js
+
 export default class Renderer {
   // Константы класса
   static DEFAULT_TILE_SIZE = 48
@@ -53,6 +55,86 @@ export default class Renderer {
     this.ctx.textBaseline = 'middle'
   }
 
+  /**
+   * ЕДИНАЯ ФУНКЦИЯ ОТРИСОВКИ ТУЛТИПА
+   * @param {string} text - Текст тултипа (может содержать \n для переноса)
+   * @param {Object} options - Дополнительные опции
+   */
+  drawTooltip(text, options = {}) {
+    const ctx = this.ctx
+    const fontFamily = this.fontFamily
+
+    // Сохраняем текущие настройки
+    ctx.save()
+
+    // Используем меньший шрифт для тултипа
+    ctx.font = `14px ${fontFamily}`
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+
+    // Разбиваем текст на строки
+    const lines = text.split('\n');
+
+    // Находим самую широкую строку
+    let maxWidth = 0;
+    for (const line of lines) {
+      const w = ctx.measureText(line).width;
+      if (w > maxWidth) maxWidth = w;
+    }
+
+    const padding = 8
+    const w = maxWidth + padding * 2;
+    const lineHeight = 18;
+    const h = lines.length * lineHeight + padding;
+
+    // Позиционирование тултипа
+    let x = this.mouseScreenX + 15
+    let y = this.mouseScreenY - h - 5
+
+    // Корректировка, чтобы не выходил за границы экрана
+    if (x + w > this.canvasW) x = this.mouseScreenX - w - 5
+    if (y < 0) y = this.mouseScreenY + 10
+
+    // Рисуем фон тултипа
+    ctx.fillStyle = options.backgroundColor || 'rgba(0, 0, 0, 0.85)'
+    ctx.fillRect(x, y, w, h)
+
+    // Рисуем границу, если нужно
+    if (options.borderColor) {
+      ctx.strokeStyle = options.borderColor
+      ctx.lineWidth = 1
+      ctx.strokeRect(x, y, w, h)
+    }
+
+    // Рисуем текст
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Определяем цвет строки на основе содержимого
+      let color = options.defaultColor || '#aaaaaa'
+
+      if (line.includes('💰')) {
+        color = '#ffff88'  // Желтый для стоимости
+      } else if (line.includes('📦')) {
+        color = '#88ff88'  // Зеленый для предметов
+      } else if (line.includes('🚶')) {
+        color = '#aaaaff'  // Синий для движения
+      } else if (line.includes('⚔️')) {
+        color = '#ff8888'  // Красный для атаки
+      } else if (line.includes('❤️')) {
+        color = '#ff8888'  // Красный для HP
+      } else if (line.includes('⚡')) {
+        color = '#ffff88'  // Желтый для AP
+      }
+
+      ctx.fillStyle = color
+      ctx.fillText(line, x + padding, y + padding + lineHeight * i);
+    }
+
+    // Восстанавливаем настройки
+    ctx.restore()
+  }
+
   draw(map, characters, items, camera, input) {
     const ctx = this.ctx
     const ts = this.tileSize
@@ -84,12 +166,11 @@ export default class Renderer {
         const drawY = y * ts + oy
 
         if (tile.char !== ' ') {
-          // Цвет зависит от видимости
           let color
           if (tile.visible) {
-            color = '#888888'  // Серый для видимых
+            color = '#888888'
           } else if (tile.explored) {
-            color = '#333333'  // Темно-серый для исследованных
+            color = '#333333'
           } else {
             continue
           }
@@ -101,13 +182,11 @@ export default class Renderer {
       }
     }
 
-    // Предметы - видимые ИЛИ исследованные
+    // Предметы
     for (const item of this._location?.items || []) {
       if (item.collected) continue
 
       const tile = map.getTile(Math.floor(item.x), Math.floor(item.y))
-
-      // Показываем предмет если клетка видна ИЛИ исследована
       const isVisible = tile && tile.visible
       const isExplored = tile && tile.explored
 
@@ -115,42 +194,28 @@ export default class Renderer {
         const drawX = item.x * ts + ox
         const drawY = item.y * ts + oy
 
-        // Цвет для видимых и исследованных предметов
-        let color
-        if (isVisible) {
-          color = '#aaaaaa'  // Светло-серый для видимых
-        } else {
-          color = '#555555'  // Тёмно-серый для исследованных (в тумане)
-        }
-
+        let color = isVisible ? '#aaaaaa' : '#555555'
         ctx.fillStyle = color
         ctx.font = `${ts}px ${this.fontFamily}`
         ctx.fillText(item.char, drawX + ts / 2, drawY + ts / 2)
       }
     }
 
-    // ПЕРСОНАЖИ - только символы
+    // ПЕРСОНАЖИ
     for (const char of characters) {
       const tile = map.getTile(Math.floor(char.x), Math.floor(char.y))
-      // Используем проверку видимости для команды игрока, а не для активного персонажа
       const isVisible = this._location?.isCharacterVisibleForPlayerTeam(char) ?? (tile && tile.visible)
 
       if (isVisible) {
         const drawX = char.vx * ts + ox
         const drawY = char.vy * ts + oy
 
-        // Цвета для персонажей
         if (char === this._activeCharacter) {
-          // Активный персонаж: зеленый только если игроком управляется
-          if (char.isPlayerControlled) {
-            ctx.fillStyle = '#88ff88'  // для активного игрока
-          } else {
-            ctx.fillStyle = '#d83232' // для активного врага (не зеленый!)
-          }
+          ctx.fillStyle = char.isPlayerControlled ? '#88ff88' : '#d83232'
         } else if (char.isPlayerControlled) {
-          ctx.fillStyle = '#5272b6'  // для союзников
+          ctx.fillStyle = '#5272b6'
         } else {
-          ctx.fillStyle = '#d83232' // врагов
+          ctx.fillStyle = '#d83232'
         }
 
         ctx.font = `${ts}px ${this.fontFamily}`
@@ -160,7 +225,7 @@ export default class Renderer {
 
     // ПУТЬ АКТИВНОГО ПЕРСОНАЖА
     if (this._activeCharacter?.path?.length) {
-      ctx.fillStyle = '#666666'  // Темно-серый
+      ctx.fillStyle = '#666666'
       ctx.font = `${ts}px ${this.fontFamily}`
       for (const p of this._activeCharacter.path) {
         const drawX = p.x * ts + ox
@@ -169,7 +234,7 @@ export default class Renderer {
       }
     }
 
-    // ПРЕВЬЮ ПУТИ
+    // ========== ЕДИНАЯ ЛОГИКА ОТРИСОВКИ ХОВЕРА И ТУЛТИПА ==========
     if (!input.isCameraMovingNow() && this.hoverTileX !== null && this._activeCharacter && this._activeCharacter.isPlayerControlled && !this._activeCharacter.followingPath) {
       const fromX = this._activeCharacter.x | 0
       const fromY = this._activeCharacter.y | 0
@@ -177,22 +242,28 @@ export default class Renderer {
       const toY = this.hoverTileY
 
       const isAdjacent = Math.abs(fromX - toX) <= 1 && Math.abs(fromY - toY) <= 1
+      const tile = map.getTile(toX, toY)
+      const isWall = tile && tile.constructor && tile.constructor.name === 'Wall'
+      const itemAtTarget = this._location?.map.getItemAt(toX, toY)
+      const isItem = itemAtTarget && !itemAtTarget.collected
 
-      // Проверяем, есть ли предмет на клетке
-      const itemAtTarget = this._location?.map.getItemAt(toX, toY);
-      const isItem = itemAtTarget && !itemAtTarget.collected;
+      // Получаем информацию о клетке
+      const info = this._location?.getTileInfo(toX, toY)
 
-      // ПРОВЕРКА НА СТЕНУ
-      const tile = map.getTile(toX, toY);
-      const isWall = tile && tile.constructor && tile.constructor.name === 'Wall';
+      // Собираем текст тултипа
+      let tooltipLines = []
 
-      // Стоимость шага
-      const moveAPCost = this._activeCharacter.moveAPCost;
-      // Стоимость подъёма предметов в инвентарь
-      const pickupAPCost = this._activeCharacter.pickupAPCost;
+      if (info) {
+        tooltipLines.push(info.name)
+      } else {
+        tooltipLines.push('❓ Неизвестно')
+      }
 
-      // Если стена - показываем только рамку и тултип без пути
+      // Если стена - нельзя пройти
       if (isWall) {
+        tooltipLines.push('🚫 Нельзя пройти')
+
+        // Рисуем красную рамку
         const x = toX * ts + ox
         const y = toY * ts + oy
         ctx.strokeStyle = '#ff4444'
@@ -200,78 +271,77 @@ export default class Renderer {
         ctx.setLineDash([])
         ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
 
-        if (this._location) {
-          const info = this._location.getTileInfo(toX, toY)
-          if (info) {
-            this.drawTooltip(`${info.name}\n🚫 Нельзя пройти`);
-          }
-        }
-        return;
+        // Рисуем тултип
+        this.drawTooltip(tooltipLines.join('\n'), { defaultColor: '#ff8888' })
+        return
       }
 
+      // Проверяем, есть ли персонаж на клетке
+      const targetCharacter = this._allCharacters?.find(c => c !== this._activeCharacter && c.occupies(toX, toY))
+      const isEnemy = targetCharacter && !targetCharacter.isPlayerControlled
+      const isAlly = targetCharacter && targetCharacter.isPlayerControlled
+
+      // Стоимость действий
+      const moveAPCost = this._activeCharacter.moveAPCost
+      const attackAPCost = this._activeCharacter.attackAPCost || 3
+      const pickupAPCost = this._activeCharacter.pickupAPCost || 3
+
+      // Для соседних клеток
       if (isAdjacent) {
-        // Показываем рамку для соседних
-        const hoverTile = map.getTile(toX, toY)
-        if (hoverTile && hoverTile.visible) {
-          const x = toX * ts + ox
-          const y = toY * ts + oy
+        const x = toX * ts + ox
+        const y = toY * ts + oy
+
+        // Определяем цвет рамки
+        let canInteract
+        let frameColor
+
+        if (isEnemy) {
+          canInteract = this._activeCharacter.currentAP >= attackAPCost
+          frameColor = canInteract ? '#44ff44' : '#ff4444'
+          tooltipLines.push(`⚔️ ${targetCharacter.name}`)
+          tooltipLines.push(`❤️ ${targetCharacter.hp}/${targetCharacter.maxHp} HP`)
+          tooltipLines.push(`⚡ Атака: ${attackAPCost} AP`)
+          if (!canInteract) tooltipLines.push(`⚠️ Недостаточно AP!`)
+        } else if (isAlly) {
+          frameColor = '#44aaff'
+          tooltipLines.push(`🤝 ${targetCharacter.name}`)
+          tooltipLines.push(`❤️ ${targetCharacter.hp}/${targetCharacter.maxHp} HP`)
+        } else if (isItem) {
+          canInteract = this._activeCharacter.currentAP >= pickupAPCost
+          frameColor = canInteract ? '#44ff44' : '#ffaa44'
+          tooltipLines.push(`📦 ${itemAtTarget.name}`)
+          tooltipLines.push(`⚡ Подъём: ${pickupAPCost} AP`)
+          if (!canInteract) tooltipLines.push(`⚠️ Недостаточно AP!`)
+        } else {
+          // Пустая клетка
           const isWalkable = map.isWalkable(toX, toY)
-          const targetCharacter = this._allCharacters?.find(c => c !== this._activeCharacter && c.occupies(toX, toY))
-          const canStand = isWalkable && !targetCharacter
-
-          ctx.strokeStyle = canStand ? '#44ff44' : '#ff4444'
-          ctx.lineWidth = 2
-          ctx.setLineDash([])
-          ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
-
-          // Рисуем звезду на соседней клетке
-          if (canStand) {
-            ctx.font = `${ts}px ${this.fontFamily}`
-            ctx.fillStyle = '#666666'
-            ctx.fillText('★', x + ts / 2, y + ts / 2)
-          }
-
-          if (this._location) {
-            const info = this._location.getTileInfo(toX, toY)
-            if (info) {
-              let tooltipText = info.name;
-
-              // Добавляем информацию о стоимости
-              if (canStand) {
-                tooltipText += `\n🚶 1 шаг, ⚡ ${moveAPCost} AP`;
-
-                // Для предметов добавляем стоимость подъема
-                if (isItem) {
-                  tooltipText += `\n📦 Подъём: ⚡ +${pickupAPCost} AP`;
-                  tooltipText += `\n💰 Итого: ⚡ ${moveAPCost + pickupAPCost} AP`;
-                }
-
-                // Для врагов добавляем стоимость атаки
-                if (info.type === 'character' && !info.isPlayerControlled && this._activeCharacter) {
-                  const attackCost = this._activeCharacter.attackAPCost || 3;
-                  tooltipText += `\n⚔️ Атака: ⚡ +${attackCost} AP`;
-
-                  // Добавляем статус доступности атаки
-                  if (this._activeCharacter.currentAP >= attackCost) {
-                    tooltipText += ` (доступно)`;
-                  } else {
-                    tooltipText += ` (недостаточно AP)`;
-                  }
-
-                  tooltipText += `\n💰 Итого: ⚡ ${moveAPCost + attackCost} AP`;
-                }
-              } else if (isItem && !canStand) {
-                tooltipText += `\n📦 Требуется подойти`;
-              }
-
-              this.drawTooltip(tooltipText);
-            }
+          frameColor = isWalkable ? '#44ff44' : '#ff4444'
+          if (isWalkable) {
+            tooltipLines.push(`🚶 Шаг: ${moveAPCost} AP`)
+          } else {
+            tooltipLines.push(`🚫 Нельзя пройти`)
           }
         }
-        return;
+
+        // Рисуем рамку
+        ctx.strokeStyle = frameColor
+        ctx.lineWidth = 2
+        ctx.setLineDash([])
+        ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
+
+        // Рисуем звезду на пустой клетке
+        if (!targetCharacter && !isItem && map.isWalkable(toX, toY)) {
+          ctx.font = `${ts}px ${this.fontFamily}`
+          ctx.fillStyle = '#666666'
+          ctx.fillText('★', x + ts / 2, y + ts / 2)
+        }
+
+        // Рисуем тултип
+        this.drawTooltip(tooltipLines.join('\n'))
+        return
       }
 
-      // Для несоседних клеток - строим путь
+      // Для НЕсоседних клеток - строим путь
       const result = this._pathfinder.findPathToNearestWalkable(
         toX, toY,
         this._allCharacters,
@@ -282,6 +352,34 @@ export default class Renderer {
       if (result && result.path && result.path.length > 0) {
         this._bestPreviewPath = result.path
         this._bestPreviewTarget = result.target
+
+        const steps = result.path.length - 1
+        const totalMoveCost = steps * moveAPCost
+
+        // Добавляем информацию о пути
+        tooltipLines.push(`🚶 ${steps} шаг${steps !== 1 ? 'а' : ''}, ${totalMoveCost} AP`)
+
+        // Добавляем информацию о взаимодействии
+        if (isEnemy) {
+          const totalCost = totalMoveCost + attackAPCost
+          tooltipLines.push(`⚔️ Атака: +${attackAPCost} AP`)
+          tooltipLines.push(`💰 Итого: ${totalCost} AP`)
+          if (this._activeCharacter.currentAP < totalCost) {
+            tooltipLines.push(`⚠️ Недостаточно AP!`)
+          }
+        } else if (isItem) {
+          const totalCost = totalMoveCost + pickupAPCost
+          tooltipLines.push(`📦 Подъём: +${pickupAPCost} AP`)
+          tooltipLines.push(`💰 Итого: ${totalCost} AP`)
+          if (this._activeCharacter.currentAP < totalCost) {
+            tooltipLines.push(`⚠️ Недостаточно AP!`)
+          }
+        } else {
+          tooltipLines.push(`💰 Итого: ${totalMoveCost} AP`)
+          if (this._activeCharacter.currentAP < totalMoveCost) {
+            tooltipLines.push(`⚠️ Недостаточно AP!`)
+          }
+        }
 
         // Рисуем путь
         ctx.fillStyle = '#444444'
@@ -298,7 +396,7 @@ export default class Renderer {
           }
         }
 
-        // Если целевая клетка недоступна и мы идём к соседней - рисуем пунктирную рамку
+        // Если целевая клетка недоступна - рисуем пунктирную рамку
         if (!result.target.isOriginal) {
           ctx.strokeStyle = '#ff8888'
           ctx.lineWidth = 1
@@ -307,57 +405,30 @@ export default class Renderer {
           ctx.setLineDash([])
         }
 
-        // Тултип с информацией о стоимости
-        if (this._location) {
-          const info = this._location.getTileInfo(toX, toY)
-          if (info) {
-            const steps = result.path.length - 1;
-            const moveCost = steps * moveAPCost;
-            let tooltipText = info.name;
-            tooltipText += `\n🚶 ${steps} шаг, ⚡ ${moveCost} AP`;
-
-            if (isItem) {
-              tooltipText += `\n📦 Подъём: ⚡ +${pickupAPCost} AP`;
-              tooltipText += `\n💰 Итого: ⚡ ${moveCost + pickupAPCost} AP`;
-            }
-
-            // Добавляем стоимость атаки для врагов
-            if (info.type === 'character' && !info.isPlayerControlled && this._activeCharacter) {
-              const attackCost = this._activeCharacter.attackAPCost || 3;
-              tooltipText += `\n⚔️ Атака: ⚡ +${attackCost} AP`;
-
-              // Добавляем статус доступности атаки
-              if (this._activeCharacter.currentAP >= attackCost) {
-                tooltipText += ` (доступно)`;
-              } else {
-                tooltipText += ` (недостаточно AP)`;
-              }
-
-              tooltipText += `\n💰 Итого: ⚡ ${moveCost + attackCost} AP`;
-            }
-
-            this.drawTooltip(tooltipText);
-          }
-        }
-      } else if (this._location) {
-        const info = this._location.getTileInfo(toX, toY)
-        if (info) {
-          let tooltipText = info.name;
-          if (isItem) {
-            tooltipText += `\n📦 Требуется подход`;
-          }
-          // Добавляем стоимость атаки для врагов
-          if (info.type === 'character' && !info.isPlayerControlled && this._activeCharacter) {
-            const attackCost = this._activeCharacter.attackAPCost || 3;
-            tooltipText += `\n⚔️ Атака: ⚡ +${attackCost} AP`;
-          }
-          this.drawTooltip(tooltipText);
-        }
+        // Рисуем тултип
+        this.drawTooltip(tooltipLines.join('\n'))
+        return
       }
+
+      // Если путь не найден - показываем базовую информацию
+      if (info) {
+        if (isEnemy && targetCharacter) {
+          tooltipLines.push(`⚔️ ${targetCharacter.name}`)
+          tooltipLines.push(`❤️ ${targetCharacter.hp}/${targetCharacter.maxHp} HP`)
+          tooltipLines.push(`⚠️ Нет пути!`)
+        } else if (isItem) {
+          tooltipLines.push(`📦 ${itemAtTarget.name}`)
+          tooltipLines.push(`⚠️ Нет пути!`)
+        } else {
+          tooltipLines.push(`⚠️ Недоступно`)
+        }
+        this.drawTooltip(tooltipLines.join('\n'))
+      }
+      return
     }
 
-    // ПОДСВЕТКА ХОВЕРА
-    if (!input.isCameraMovingNow() && this.hoverTileX !== null && (!this._activeCharacter || this._activeCharacter.isPlayerControlled)) {
+    // ========== ХОВЕР БЕЗ АКТИВНОГО ПЕРСОНАЖА ==========
+    if (!input.isCameraMovingNow() && this.hoverTileX !== null && (!this._activeCharacter || !this._activeCharacter.isPlayerControlled)) {
       const hoverTile = map.getTile(this.hoverTileX, this.hoverTileY)
       if (hoverTile && hoverTile.visible) {
         const x = this.hoverTileX * ts + ox
@@ -371,80 +442,10 @@ export default class Renderer {
           const info = this._location.getTileInfo(this.hoverTileX, this.hoverTileY)
           if (info) {
             let tooltipText = info.name
-
-            // Добавляем стоимость атаки для врагов, если активный персонаж может атаковать
-            if (info.type === 'character' && !info.isPlayerControlled && this._activeCharacter) {
-              // Проверяем, соседняя ли клетка (дистанция Чебышева <= 1)
-              const dx = Math.abs(this.hoverTileX - Math.floor(this._activeCharacter.x))
-              const dy = Math.abs(this.hoverTileY - Math.floor(this._activeCharacter.y))
-              const isAdjacent = Math.max(dx, dy) <= 1
-
-              const attackCost = this._activeCharacter.attackAPCost || 3
-              tooltipText += `\n⚔️ Атака: ⚡ +${attackCost} AP`
-
-              if (isAdjacent) {
-                // Проверяем, хватает ли AP для атаки
-                if (this._activeCharacter.currentAP >= attackCost) {
-                  tooltipText += ` (доступно)`
-                } else {
-                  tooltipText += ` (недостаточно AP)`
-                }
-              } else {
-                tooltipText += ` (нужно подойти)`
-              }
-            }
-
             this.drawTooltip(tooltipText)
           }
         }
       }
     }
-
-  }
-
-  drawTooltip(text) {
-    const ctx = this.ctx
-    ctx.font = `14px ${this.fontFamily}`
-
-    // Разбиваем текст на строки
-    const lines = text.split('\n');
-
-    // Находим самую широкую строку
-    let maxWidth = 0;
-    for (const line of lines) {
-      const w = ctx.measureText(line).width;
-      if (w > maxWidth) maxWidth = w;
-    }
-
-    const w = maxWidth + 16;
-    const lineHeight = 18;
-    const h = lines.length * lineHeight + 8;
-
-    let x = this.mouseScreenX + 15
-    let y = this.mouseScreenY - h - 5
-    if (x + w > this.canvasW) x = this.mouseScreenX - w - 5
-    if (y < 0) y = this.mouseScreenY + 10
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'
-    ctx.fillRect(x, y, w, h)
-
-    ctx.textAlign = 'left'
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      // Цвет для строки с итоговой стоимостью
-      if (line.includes('💰')) {
-        ctx.fillStyle = '#ffff88';
-      } else if (line.includes('📦')) {
-        ctx.fillStyle = '#88ff88';
-      } else if (line.includes('🚶')) {
-        ctx.fillStyle = '#aaaaff';
-      } else {
-        ctx.fillStyle = '#aaaaaa';
-      }
-      ctx.fillText(line, x + 6, y + lineHeight * (i + 1) - 4);
-    }
-
-    ctx.textAlign = 'center'
-    ctx.font = `${this.tileSize}px ${this.fontFamily}`
   }
 }
