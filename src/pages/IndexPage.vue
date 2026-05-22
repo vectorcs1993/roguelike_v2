@@ -1,34 +1,42 @@
 <template>
   <q-page class="game-page">
     <div class="game-layout">
-      <!-- Основная область: Canvas + Консоль -->
-      <div class="main-area">
+      <!-- Основная область: Canvas + Консоль с разделителем -->
+      <q-splitter v-model="splitterModel" unit="%" vertical :limits="[10, 90]" class="main-splitter">
         <!-- Canvas область -->
-        <div class="canvas-area" ref="wrapperRef">
-          <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove"
-            @touchend.prevent="onTouchEnd" @click.prevent="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave"
-            @contextmenu.prevent="onContextMenu" @mousedown="onMouseDown" @mouseup="onMouseUp" @wheel.prevent="onWheel">
-          </canvas>
-        </div>
+        <template v-slot:before>
+          <div class="canvas-area" ref="wrapperRef">
+            <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove"
+              @touchend.prevent="onTouchEnd" @click.prevent="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave"
+              @contextmenu.prevent="onContextMenu" @mousedown="onMouseDown" @mouseup="onMouseUp" @wheel.prevent="onWheel">
+            </canvas>
+            <div class="control-buttons">
+              <q-btn @click="regenerateLevel" color="orange" icon="refresh" label="Обновить" flat dense size="sm" />
+              <q-btn @click="revealFullMap" color="purple" icon="map" label="Открыть карту" flat dense size="sm" />
+            </div>
+          </div>
+        </template>
 
         <!-- Консоль справа -->
-        <div class="console-area">
-          <div class="console-header">
-            <q-icon name="terminal" size="16px" />
-            <span>Консоль</span>
-            <q-btn flat dense size="sm" icon="delete_sweep" @click="clearConsole" class="q-ml-auto" />
-          </div>
-          <div class="console-content" ref="consoleRef">
-            <div v-for="(log, idx) in consoleLogs" :key="idx" class="console-line" :class="log.type">
-              <span class="console-time">{{ log.time }}</span>
-              <span class="console-text">{{ log.text }}</span>
+        <template v-slot:after>
+          <div class="console-area">
+            <div class="console-header">
+              <q-icon name="terminal" size="16px" />
+              <span>Консоль</span>
+              <q-btn flat dense size="sm" icon="delete_sweep" @click="clearConsole" class="q-ml-auto" />
             </div>
-            <div v-if="consoleLogs.length === 0" class="empty-message">
-              Готов к работе...
+            <div class="console-content" ref="consoleRef">
+              <div v-for="(log, idx) in consoleLogs" :key="idx" class="console-line" :class="log.type">
+                <span class="console-time">{{ log.time }}</span>
+                <span class="console-text">{{ log.text }}</span>
+              </div>
+              <div v-if="consoleLogs.length === 0" class="empty-message">
+                Готов к работе...
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        </template>
+      </q-splitter>
 
       <!-- Нижняя панель: Карточки персонажей + Кнопка завершения -->
       <div class="cards-area">
@@ -142,11 +150,6 @@
       <q-chip class="location-name" color="dark" text-color="amber" icon="place">
         {{ locationNameValue }}
       </q-chip>
-
-      <div class="control-buttons">
-        <q-btn @click="regenerateLevel" color="orange" icon="refresh" label="Обновить" flat dense size="sm" />
-        <q-btn @click="revealFullMap" color="purple" icon="map" label="Открыть карту" flat dense size="sm" />
-      </div>
     </div>
   </q-page>
 </template>
@@ -166,6 +169,7 @@ let updateInterval = null
 const charactersListData = shallowRef([])
 const locationNameValue = ref('')
 const consoleLogs = shallowRef([])
+const splitterModel = ref(75) // [canvas, console] in percentages
 const isPlayerTurn = ref(false)
 const canEndTurn = ref(false)
 
@@ -553,18 +557,18 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.main-area {
-  display: flex;
+.main-splitter {
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
 .canvas-area {
-  flex: 1;
   position: relative;
   background: #000;
   overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
 .game-canvas {
@@ -580,11 +584,12 @@ onUnmounted(() => {
 }
 
 .console-area {
-  width: 25vw;
   display: flex;
   flex-direction: column;
   background: rgba(10, 10, 15, 0.95);
   border-left: 1px solid rgba(255, 255, 255, 0.08);
+  width: 100%;
+  height: 100%;
 }
 
 .console-header {
@@ -679,8 +684,8 @@ onUnmounted(() => {
 
 .control-buttons {
   position: absolute;
-  bottom: calc(200px + 12px);
-  right: calc(25vw + 12px);
+  bottom: 12px;
+  right: 12px;
   z-index: 20;
   display: flex;
   gap: 8px;
@@ -790,10 +795,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .console-area {
-    width: 30vw;
-  }
-
   .character-card {
     min-width: 220px;
     width: 220px;
@@ -804,8 +805,8 @@ onUnmounted(() => {
   }
 
   .control-buttons {
-    bottom: calc(200px + 8px);
-    right: calc(30vw + 8px);
+    bottom: 8px;
+    right: 8px;
   }
 
   .cards-area {
