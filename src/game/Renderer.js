@@ -1,4 +1,4 @@
-// src/game/Renderer.js - ОПТИМИЗИРОВАННАЯ ВЕРСИЯ
+// src/game/Renderer.js - с курсором на недоступных клетках
 
 export default class Renderer {
   static DEFAULT_TILE_SIZE = 48
@@ -60,7 +60,6 @@ export default class Renderer {
     this.ctx.textAlign = 'center'
     this.ctx.textBaseline = 'middle'
 
-    // Сбрасываем кэш при ресайзе
     this._visibleBoundsCache = null
     this._lastCameraX = null
     this._lastCameraY = null
@@ -116,7 +115,6 @@ export default class Renderer {
       this._lastCameraY = camera.y
       this._lastTileSize = ts
 
-      // Вычисляем видимую область один раз
       this._visibleBoundsCache = {
         startX: Math.max(0, Math.floor(camera.x - this.canvasW / ts / 2) - 1),
         startY: Math.max(0, Math.floor(camera.y - this.canvasH / ts / 2) - 1),
@@ -131,12 +129,11 @@ export default class Renderer {
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, this.canvasW, this.canvasH)
 
-    // Устанавливаем шрифт один раз для всего рендера
     ctx.font = `${ts}px ${this.fontFamily}`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    // Оптимизация: рисуем тайлы пакетами по цветам
+    // ТАЙЛЫ
     const tilesByColor = new Map()
 
     for (let y = startY; y < endY; y++) {
@@ -158,7 +155,6 @@ export default class Renderer {
       }
     }
 
-    // Рисуем все тайлы одного цвета за раз
     for (const [color, tiles] of tilesByColor) {
       ctx.fillStyle = color
       for (const tile of tiles) {
@@ -166,7 +162,7 @@ export default class Renderer {
       }
     }
 
-    // Аналогично для предметов (группировка)
+    // ПРЕДМЕТЫ
     if (this._location?.items) {
       const itemsByColor = new Map()
       for (const item of this._location.items) {
@@ -192,7 +188,7 @@ export default class Renderer {
       }
     }
 
-    // Персонажи (их меньше, можно не группировать)
+    // ПЕРСОНАЖИ
     for (const char of characters) {
       const tile = map.getTile(Math.floor(char.x), Math.floor(char.y))
       const isVisible = this._location?.isCharacterVisibleForPlayerTeam(char) ?? (tile && tile.visible)
@@ -212,7 +208,7 @@ export default class Renderer {
       }
     }
 
-    // ПУТЬ АКТИВНОГО ПЕРСОНАЖА (только если уже движется)
+    // ПУТЬ АКТИВНОГО ПЕРСОНАЖА
     if (this._activeCharacter?.path?.length) {
       const activeTile = map.getTile(Math.floor(this._activeCharacter.x), Math.floor(this._activeCharacter.y))
       if (activeTile && activeTile.visible) {
@@ -228,33 +224,52 @@ export default class Renderer {
       }
     }
 
-    // КУРСОР И ТУЛТИП (БЕЗ ПРЕВЬЮ ПУТИ)
+    // КУРСОР - РИСУЕМ ВСЕГДА, ДАЖЕ НА НЕВИДИМЫХ КЛЕТКАХ!
     if (!input.isCameraMovingNow() && this.hoverTileX !== null && (!this._activeCharacter || this._activeCharacter.isPlayerControlled)) {
-      const hoverTile = map.getTile(this.hoverTileX, this.hoverTileY)
-      if (hoverTile && hoverTile.visible) {
-        const x = this.hoverTileX * ts + ox
-        const y = this.hoverTileY * ts + oy
+      const x = this.hoverTileX * ts + ox
+      const y = this.hoverTileY * ts + oy
 
-        // Рамка курсора
-        ctx.strokeStyle = '#666666'
+      // Проверяем, находится ли курсор в пределах карты
+      if (this.hoverTileX >= 0 && this.hoverTileX < map.cols &&
+        this.hoverTileY >= 0 && this.hoverTileY < map.rows) {
+
+        const hoverTile = map.getTile(this.hoverTileX, this.hoverTileY)
+        const isVisible = hoverTile && hoverTile.visible
+        const isExplored = hoverTile && hoverTile.explored
+
+        // Рамка курсора - СЕРАЯ для недоступных клеток, БЕЛАЯ для видимых
+        if (isVisible) {
+          ctx.strokeStyle = '#ffffff'
+        } else if (isExplored) {
+          ctx.strokeStyle = '#666666'
+        } else {
+          ctx.strokeStyle = '#333333'
+        }
+
         ctx.lineWidth = 1
         ctx.setLineDash([])
         ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
 
-        // Тултип
-        if (this._location) {
+        // ТУЛТИП - показываем ТОЛЬКО для видимых или исследованных клеток
+        if (this._location && (isVisible || isExplored)) {
           const info = this._location.getTileInfo(this.hoverTileX, this.hoverTileY)
           if (info) {
             let tooltipText = info.name
-            if (info.type === 'character' && hoverTile.visible) {
+            if (info.type === 'character' && isVisible) {
               tooltipText += `\n❤️ ${info.hp}/${info.maxHp} HP`
               tooltipText += `\n⚡ ${info.currentAP}/${info.maxAP} AP`
             }
-            if (info.type === 'item' && hoverTile.visible) {
+            if (info.type === 'item' && isVisible) {
               tooltipText += `\n📦 Нажмите чтобы подобрать`
+            }
+            if (!isVisible && isExplored) {
+              tooltipText = `🌑 ${info.name} (исследовано)`
             }
             this.drawTooltip(tooltipText)
           }
+        } else if (this._location && !isVisible && !isExplored) {
+          // Для неисследованных клеток показываем "Туман войны"
+          this.drawTooltip('🌑 Туман войны')
         }
       }
     }

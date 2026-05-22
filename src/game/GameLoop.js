@@ -63,7 +63,6 @@ export default class GameLoop {
     this.updateCombinedFov()
   }
 
-  // ОБНОВЛЯЕМ FOV ДЛЯ ВСЕХ СОЮЗНИКОВ (стены и радиус работают!)
   updateCombinedFov() {
     const now = Date.now()
     if (now - this._lastFovUpdate < this._fovUpdateInterval) {
@@ -71,14 +70,12 @@ export default class GameLoop {
     }
     this._lastFovUpdate = now
 
-    // Получаем всех союзников
     const allies = this.currentLocation.getAllCharacters().filter(
       c => c.isPlayerControlled || c.canSwitchTo
     )
 
     if (allies.length === 0) return
 
-    // Сбрасываем видимость ПЕРЕД объединением
     for (let y = 0; y < this.currentLocation.map.rows; y++) {
       for (let x = 0; x < this.currentLocation.map.cols; x++) {
         const tile = this.currentLocation.map.getTile(x, y)
@@ -86,17 +83,12 @@ export default class GameLoop {
       }
     }
 
-    // Для КАЖДОГО союзника вычисляем FOV с ПРАВИЛЬНОЙ БЛОКИРОВКОЙ СТЕН
-    // Используем resetVisibility = false, чтобы НЕ сбрасывать уже добавленную видимость
     for (const ally of allies) {
       const tileX = Math.floor(ally.x)
       const tileY = Math.floor(ally.y)
-      // false = не сбрасывать visible, а ДОБАВЛЯТЬ новую видимость
-      // Стены и радиус работают внутри computeFov!
       this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8, false)
     }
 
-    // Отмечаем explored для всех видимых тайлов
     const map = this.currentLocation.map
     for (let y = 0; y < map.rows; y++) {
       for (let x = 0; x < map.cols; x++) {
@@ -106,6 +98,22 @@ export default class GameLoop {
         }
       }
     }
+  }
+
+  // НОВЫЙ МЕТОД: центрирование на следующем союзнике в очереди
+  centerOnNextAlly() {
+    const queue = this.currentLocation.turnQueue?.queue || []
+    if (queue.length === 0) return false
+
+    // Ищем следующего союзника (не врага) в очереди
+    for (const item of queue) {
+      const char = item.character
+      if (char && (char.isPlayerControlled || char.canSwitchTo)) {
+        this.centerOnCharacter(char.id)
+        return true
+      }
+    }
+    return false
   }
 
   regenerateLevel(biomeType = null) {
@@ -145,7 +153,6 @@ export default class GameLoop {
       this.currentLocation.pathfinder.clearCache()
     }
 
-    // Пересчитываем FOV для новой локации
     this.updateCombinedFov()
 
     return newActiveCharacter?.id
@@ -272,8 +279,15 @@ export default class GameLoop {
       return
     }
 
+    // Проверяем, нужно ли переключить ход
     if (this.currentLocation.shouldAdvanceTurn()) {
       const nextChar = this.currentLocation.nextTurn()
+
+      // ВСЕГДА центрируем камеру на следующем союзнике, если он есть
+      // Даже если следующий ход принадлежит врагу
+      this.centerOnNextAlly()
+
+      // Если следующий персонаж - союзник, дополнительно центрируем на нём
       if (nextChar?.team?.isPlayerControlled) {
         this.centerOnCharacter(nextChar.id)
       }
@@ -291,9 +305,7 @@ export default class GameLoop {
         }
       }
 
-      // Обновляем комбинированный FOV для всех союзников
       this.updateCombinedFov()
-
       activeChar.checkAndCollectTarget(this.currentLocation)
     }
 
@@ -398,6 +410,8 @@ export default class GameLoop {
       const activeChar = this.currentLocation.getActiveCharacter()
       if (activeChar?.team?.isPlayerControlled) {
         const nextChar = this.currentLocation.endTurn()
+        // После принудительного завершения хода - центрируем на следующем союзнике
+        this.centerOnNextAlly()
         if (nextChar?.team?.isPlayerControlled) {
           this.centerOnCharacter(nextChar.id)
         }
