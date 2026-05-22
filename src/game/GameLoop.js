@@ -1,10 +1,8 @@
-// src/game/GameLoop.js - ПОЛНОСТЬЮ БЕЗ PathCache
 
 import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
 import Location from './Location.js'
-import { logger, LOG_MODULES } from './Logger.js'
 
 export default class GameLoop {
   constructor(canvas, config, initialLocation = null, biomeType = null) {
@@ -43,21 +41,19 @@ export default class GameLoop {
     this.hoverTileX = null
     this.hoverTileY = null
 
-    // PathCache УДАЛЕН
-    // this.pathCache = null
-
     this.waitingForTurnEnd = false
     this.debugMode = false
 
-    this.targetFPS = 60
+    // СТАБИЛЬНЫЕ НАСТРОЙКИ (60 FPS)
+    this.targetFPS = 100
     this.frameInterval = 1000 / this.targetFPS
     this.lastFrameTime = 0
 
-    this.frameTimes = []
-    this.renderTimes = []
-    this.updateTimes = []
+    // Для измерения производительности
+    this.frameCount = 0
+    this.lastFpsUpdate = 0
+    this.currentFps = 60
 
-    // СТАРТОВЫЙ FOV
     this.initializeFovForAllAllies()
   }
 
@@ -73,7 +69,6 @@ export default class GameLoop {
       const tileX = Math.floor(ally.x)
       const tileY = Math.floor(ally.y)
       const resetVisibility = (i === 0)
-
       this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8, resetVisibility)
     }
 
@@ -89,13 +84,10 @@ export default class GameLoop {
 
   regenerateLevel(biomeType = null) {
     const oldActiveId = this.currentLocation.getActiveCharacter()?.id
-
     this.currentLocation = Location.generateProcedural(this.config, biomeType)
 
     if (this.currentLocation.initializeTurnQueue) {
       this.currentLocation.initializeTurnQueue()
-    } else {
-      logger.warn(LOG_MODULES.SYSTEM, 'Location не имеет метода initializeTurnQueue')
     }
 
     const characters = this.currentLocation.getAllCharacters()
@@ -147,7 +139,6 @@ export default class GameLoop {
       this.camera.setPosition(activeChar.x, activeChar.y)
       return true
     }
-    logger.warn(LOG_MODULES.SYSTEM, 'Нет активного персонажа для центрирования')
     return false
   }
 
@@ -157,86 +148,65 @@ export default class GameLoop {
   }
 
   handleClick(screenX, screenY) {
-    if (this.input.isCameraMovingNow()) return false;
+    if (this.input.isCameraMovingNow()) return false
 
-    const activeChar = this.currentLocation.getActiveCharacter();
-    if (!activeChar) return false;
+    const activeChar = this.currentLocation.getActiveCharacter()
+    if (!activeChar) return false
+    if (!activeChar.team?.isPlayerControlled) return false
+    if (activeChar.currentAP <= 0) return false
 
-    if (!activeChar.team || !activeChar.team.isPlayerControlled) {
-      return false;
-    }
+    const worldX = (screenX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x
+    const worldY = (screenY - this.renderer.halfH) / this.renderer.tileSize + this.camera.y
+    const tileX = worldX | 0
+    const tileY = worldY | 0
+    const fromX = Math.floor(activeChar.x)
+    const fromY = Math.floor(activeChar.y)
+    const isAdjacent = Math.abs(fromX - tileX) <= 1 && Math.abs(fromY - tileY) <= 1
 
-    if (activeChar.currentAP <= 0) {
-      return false;
-    }
+    const clickTarget = this.getClickTarget(tileX, tileY)
+    const tile = this.currentLocation.map.getTile(tileX, tileY)
 
-    const worldX = (screenX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x;
-    const worldY = (screenY - this.renderer.halfH) / this.renderer.tileSize + this.camera.y;
-    const tileX = worldX | 0;
-    const tileY = worldY | 0;
+    if (tile?.constructor?.name === 'Wall') return false
 
-    const fromX = Math.floor(activeChar.x);
-    const fromY = Math.floor(activeChar.y);
-
-    const isAdjacent = Math.abs(fromX - tileX) <= 1 && Math.abs(fromY - tileY) <= 1;
-
-    const clickTarget = this.getClickTarget(tileX, tileY);
-    const tile = this.currentLocation.map.getTile(tileX, tileY);
-
-    if (tile && tile.constructor && tile.constructor.name === 'Wall') {
-      return false;
-    }
-
-    if (clickTarget && clickTarget.constructor && clickTarget.constructor.name === 'ItemTile' && !clickTarget.collected) {
+    if (clickTarget?.constructor?.name === 'ItemTile' && !clickTarget.collected) {
       const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
-        tileX, tileY,
-        this.currentLocation.getAllCharacters(),
-        activeChar,
-        fromX, fromY
-      );
-      if (result && result.path && result.path.length > 0) {
-        activeChar.setPath(result.path, clickTarget);
-        return true;
+        tileX, tileY, this.currentLocation.getAllCharacters(), activeChar, fromX, fromY
+      )
+      if (result?.path?.length) {
+        activeChar.setPath(result.path, clickTarget)
+        return true
       }
-      return false;
+      return false
     }
 
-    if (clickTarget && clickTarget.onClick) {
-      const result = clickTarget.onClick(activeChar, isAdjacent, this);
-      if (result === true) {
-        return true;
-      }
-      if (result === false) {
-        return false;
-      }
+    if (clickTarget?.onClick) {
+      const result = clickTarget.onClick(activeChar, isAdjacent, this)
+      if (result === true || result === false) return result
     }
 
     const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
-      tileX, tileY,
-      this.currentLocation.getAllCharacters(),
-      activeChar,
-      fromX, fromY
-    );
+      tileX, tileY, this.currentLocation.getAllCharacters(), activeChar, fromX, fromY
+    )
 
-    if (result && result.path && result.path.length > 0) {
-      activeChar.setPath(result.path, null);
-      return true;
+    if (result?.path?.length) {
+      activeChar.setPath(result.path, null)
+      return true
     }
 
-    return false;
+    return false
   }
 
   getClickTarget(x, y) {
-    const character = this.currentLocation.getAllCharacters().find(c => c.occupies(x, y));
-    if (character) return character;
+    const character = this.currentLocation.getAllCharacters().find(c => c.occupies(x, y))
+    if (character) return character
 
-    const item = this.currentLocation.map.getItemAt(x, y);
-    if (item && !item.collected) return item;
+    const item = this.currentLocation.map.getItemAt(x, y)
+    if (item && !item.collected) return item
 
-    const tile = this.currentLocation.map.getTile(x, y);
-    if (tile && tile.onClick) return tile;
+    const tile = this.currentLocation.map.getTile(x, y)
+    if (tile?.onClick) return tile
 
-    return null;
+    return null
   }
 
   updateHoverTile(mouseX, mouseY) {
@@ -253,112 +223,55 @@ export default class GameLoop {
   }
 
   update(dt) {
-    const updateStart = performance.now()
-
+    // Обработка кликов
     const click = this.input.consumeClick()
     if (click) {
       this.handleClick(click.x, click.y)
     }
 
+    // Обновление ховера
     if (this.input.mouseOnCanvas && this.renderer) {
       this.updateHoverTile(this.input.mouseX, this.input.mouseY)
     }
 
+    // Обновление игры
     const isGameOver = this.currentLocation.updateTeams(dt)
-
     if (isGameOver) {
-      console.log('[GameLoop] Обнаружено завершение игры! Перезагрузка локации...')
       this.reloadLocation()
       return
     }
 
+    // Очередь ходов
     if (this.currentLocation.shouldAdvanceTurn()) {
-      const currentChar = this.currentLocation.getActiveCharacter()
-      logger.info(LOG_MODULES.TURN, `Завершение хода ${currentChar?.name} (AP: ${currentChar?.currentAP})`)
-
       const nextChar = this.currentLocation.nextTurn()
-      if (nextChar) {
-        const isPlayer = nextChar.team?.isPlayerControlled
-        logger.info(LOG_MODULES.TURN, `Новый активный персонаж: ${nextChar.name} (${isPlayer ? 'игрок' : 'враг'}), AP: ${nextChar.currentAP}/${nextChar.maxAP}`)
-
-        if (isPlayer) {
-          this.centerOnCharacter(nextChar.id)
-        }
-
-        if (!isPlayer) {
-          logger.enemyTurnStart(nextChar.name, nextChar.currentAP)
-          this._lastEnemyTurnLog = nextChar.id
-
-          if (this.currentLocation.isCharacterVisibleForPlayerTeam(nextChar)) {
-            this.centerOnActiveCharacter()
-          }
-        }
-      } else {
-        logger.warn(LOG_MODULES.TURN, 'Нет следующего персонажа в очереди!')
+      if (nextChar?.team?.isPlayerControlled) {
+        this.centerOnCharacter(nextChar.id)
       }
     }
 
     const activeChar = this.currentLocation.getActiveCharacter()
-
     if (activeChar) {
       activeChar.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
 
-      if (activeChar.team && !activeChar.team.isPlayerControlled) {
-        if (!this._lastEnemyTurnLog || this._lastEnemyTurnLog !== activeChar.id) {
-          logger.enemyTurnStart(activeChar.name, activeChar.currentAP)
-          this._lastEnemyTurnLog = activeChar.id
-          this._enemyTurnStartTime = performance.now()
-        }
-
+      // ИИ врагов
+      if (activeChar.team && !activeChar.team.isPlayerControlled && activeChar.currentAP > 0) {
         const enemyTeam = this.currentLocation.getTeam('creatures')
-        if (enemyTeam && enemyTeam.aiInstances) {
-          const ai = enemyTeam.aiInstances.get(activeChar.id)
-          if (ai) {
-            if (activeChar.currentAP > 0) {
-              logger.debug(LOG_MODULES.AI, `Обновление ИИ для ${activeChar.name} (AP: ${activeChar.currentAP})`)
-              ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
-              if (this.currentLocation.isCharacterVisibleForPlayerTeam(activeChar)) {
-                this.centerOnActiveCharacter()
-              }
-            }
-          }
+        const ai = enemyTeam?.aiInstances?.get(activeChar.id)
+        if (ai) {
+          ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
         }
-
-        if (this._enemyTurnStartTime && activeChar.currentAP > 0) {
-          const turnDuration = performance.now() - this._enemyTurnStartTime
-          if (turnDuration > 30000) {
-            logger.warn(LOG_MODULES.SYSTEM, `Фейлсейф: ход врага ${activeChar.name} длится ${Math.round(turnDuration)}ms, принудительно завершаем`)
-            const apToSpend = activeChar.currentAP
-            if (activeChar.spendAP) {
-              activeChar.spendAP(apToSpend)
-            } else {
-              activeChar.currentAP = 0
-            }
-            this._enemyTurnStartTime = null
-          }
-        }
-      } else {
-        this._lastEnemyTurnLog = null
-        this._enemyTurnStartTime = null
       }
 
-      // FOV обновляется каждый кадр
+      // Обновляем FOV (каждый кадр, но можно закомментировать если тормозит)
       this.initializeFovForAllAllies()
-      activeChar.checkAndCollectTarget(this.currentLocation);
+
+      activeChar.checkAndCollectTarget(this.currentLocation)
     }
 
     this.camera.update(dt, this.input)
-
-    const updateEnd = performance.now()
-    if (this.debugMode) {
-      this.updateTimes.push(updateEnd - updateStart)
-      if (this.updateTimes.length > 60) this.updateTimes.shift()
-    }
   }
 
   render() {
-    const renderStart = performance.now()
-
     if (!this.renderer) return
 
     this.renderer.hoverTileX = this.hoverTileX
@@ -369,7 +282,6 @@ export default class GameLoop {
     this.renderer._location = this.currentLocation
     this.renderer._activeCharacter = this.currentLocation.getActiveCharacter()
     this.renderer._allCharacters = this.currentLocation.getAllCharacters()
-    // PathCache НЕ передаем в рендер
     this.renderer._pathCache = null
 
     this.renderer.draw(
@@ -379,53 +291,34 @@ export default class GameLoop {
       this.camera,
       this.input
     )
-
-    const renderEnd = performance.now()
-    if (this.debugMode) {
-      this.renderTimes.push(renderEnd - renderStart)
-      if (this.renderTimes.length > 60) this.renderTimes.shift()
-    }
   }
 
   gameLoop(now) {
+    // Ограничение FPS
     if (this.lastFrameTime && (now - this.lastFrameTime) < this.frameInterval) {
       this.animationId = requestAnimationFrame((t) => this.gameLoop(t))
       return
     }
 
     this.lastFrameTime = now
-    const frameStart = performance.now()
 
-    const dt = this.lastTime
-      ? Math.min((now - this.lastTime) * 0.001, this.config.dtCap)
-      : 0.016
+    // Расчет dt
+    const dt = this.lastTime ? Math.min((now - this.lastTime) * 0.001, 0.033) : 0.016
     this.lastTime = now
 
+    // Обновление и отрисовка
     this.update(dt)
     this.render()
 
-    const frameEnd = performance.now()
-
+    // Подсчет FPS для отладки (опционально)
     if (this.debugMode) {
-      this.frameTimes.push(frameEnd - frameStart)
-      if (this.frameTimes.length > 60) this.frameTimes.shift()
-
-      if (this.frameTimes.length === 60) {
-        const avgFrame = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length
-        const avgRender = this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length
-        const avgUpdate = this.updateTimes.reduce((a, b) => a + b, 0) / this.updateTimes.length
-        const fps = 1000 / avgFrame
-
-        logger.debug(LOG_MODULES.SYSTEM, `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-        logger.debug(LOG_MODULES.SYSTEM, `📊 БЕНЧМАРК ПРОИЗВОДИТЕЛЬНОСТИ:`)
-        logger.debug(LOG_MODULES.SYSTEM, `   🎬 FPS: ${fps.toFixed(1)} (${avgFrame.toFixed(2)}ms/кадр)`)
-        logger.debug(LOG_MODULES.SYSTEM, `   🎨 Рендер: ${avgRender.toFixed(2)}ms (${((avgRender / avgFrame) * 100).toFixed(1)}%)`)
-        logger.debug(LOG_MODULES.SYSTEM, `   ⚙️  Update: ${avgUpdate.toFixed(2)}ms (${((avgUpdate / avgFrame) * 100).toFixed(1)}%)`)
-        logger.debug(LOG_MODULES.SYSTEM, `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
-
-        this.frameTimes = []
-        this.renderTimes = []
-        this.updateTimes = []
+      this.frameCount++
+      const nowSec = performance.now()
+      if (nowSec - this.lastFpsUpdate >= 1000) {
+        this.currentFps = this.frameCount
+        this.frameCount = 0
+        this.lastFpsUpdate = nowSec
+        console.log(`FPS: ${this.currentFps}`)
       }
     }
 
@@ -470,39 +363,21 @@ export default class GameLoop {
   onKeyDown(e) {
     this.input.handleKeyDown(e)
 
-    // F7 - переключение режима отладки
-    if (e.code === 'F7') {
-      this.debugMode = !this.debugMode
-      logger.info(LOG_MODULES.SYSTEM, `Режим отладки: ${this.debugMode ? 'ВКЛЮЧЕН' : 'ВЫКЛЮЧЕН'}`)
-      if (!this.debugMode) {
-        this.frameTimes = []
-        this.renderTimes = []
-        this.updateTimes = []
-      }
-    }
-
-    // Space или Enter - принудительное завершение хода
     if (e.code === 'Space' || e.code === 'Enter') {
       e.preventDefault()
       const activeChar = this.currentLocation.getActiveCharacter()
-      if (!activeChar || !activeChar.team || !activeChar.team.isPlayerControlled) {
-        logger.info(LOG_MODULES.TURN, 'Нельзя завершить ход врага вручную')
-        return
-      }
-      const nextChar = this.currentLocation.endTurn()
-      if (nextChar && nextChar.team && nextChar.team.isPlayerControlled) {
-        this.centerOnCharacter(nextChar.id)
+      if (activeChar?.team?.isPlayerControlled) {
+        const nextChar = this.currentLocation.endTurn()
+        if (nextChar?.team?.isPlayerControlled) {
+          this.centerOnCharacter(nextChar.id)
+        }
       }
     }
 
-    // F8 - принудительная инициализация очереди ходов
-    if (e.code === 'F8') {
-      e.preventDefault()
-      if (this.currentLocation && this.currentLocation.initializeTurnQueue) {
-        this.currentLocation.initializeTurnQueue()
-      } else {
-        logger.warn(LOG_MODULES.SYSTEM, 'Не удалось инициализировать очередь ходов')
-      }
+    // F7 для отладки
+    if (e.code === 'F7') {
+      this.debugMode = !this.debugMode
+      console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`)
     }
   }
 
@@ -510,10 +385,8 @@ export default class GameLoop {
 
   onMouseMove(e) {
     this.input.handleMouseMove(e)
-    this.updateHoverTile(this.input.mouseX, this.input.mouseY)
     if (this.input.isRightButtonDown()) {
       this.input.updatePan(e, this.camera, this.renderer)
-      this.updateHoverTile(this.input.mouseX, this.input.mouseY)
     }
   }
 
@@ -571,6 +444,5 @@ export default class GameLoop {
     }
 
     this.initializeFovForAllAllies()
-    console.log('[GameLoop] Локация перезагружена!')
   }
 }

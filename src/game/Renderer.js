@@ -1,7 +1,6 @@
-// src/game/Renderer.js - НА ОСНОВЕ ВАШЕГО РАБОЧЕГО, НО БЕЗ ПРЕВЬЮ ПУТИ
+// src/game/Renderer.js - ИСПРАВЛЕННЫЙ
 
 export default class Renderer {
-  // Константы класса
   static DEFAULT_TILE_SIZE = 48
   static MIN_TILE_SIZE = 12
   static DEFAULT_FONT_FAMILY = "Lucida Console, monospace"
@@ -57,7 +56,10 @@ export default class Renderer {
 
   drawTooltip(text) {
     const ctx = this.ctx
+    ctx.save()
     ctx.font = `14px ${this.fontFamily}`
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
 
     const lines = text.split('\n');
     let maxWidth = 0;
@@ -78,23 +80,16 @@ export default class Renderer {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'
     ctx.fillRect(x, y, w, h)
 
-    ctx.textAlign = 'left'
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      if (line.includes('💰')) {
-        ctx.fillStyle = '#ffff88';
-      } else if (line.includes('📦')) {
-        ctx.fillStyle = '#88ff88';
-      } else if (line.includes('🚶')) {
-        ctx.fillStyle = '#aaaaff';
-      } else {
-        ctx.fillStyle = '#aaaaaa';
-      }
+      if (line.includes('💰')) ctx.fillStyle = '#ffff88';
+      else if (line.includes('📦')) ctx.fillStyle = '#88ff88';
+      else if (line.includes('🚶')) ctx.fillStyle = '#aaaaff';
+      else ctx.fillStyle = '#aaaaaa';
       ctx.fillText(line, x + 6, y + lineHeight * (i + 1) - 4);
     }
 
-    ctx.textAlign = 'center'
-    ctx.font = `${this.tileSize}px ${this.fontFamily}`
+    ctx.restore()
   }
 
   draw(map, characters, items, camera, input) {
@@ -103,14 +98,20 @@ export default class Renderer {
     const ox = this.halfW - camera.x * ts
     const oy = this.halfH - camera.y * ts
 
+    // Очистка
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, this.canvasW, this.canvasH)
-    ctx.imageSmoothingEnabled = false
 
+    // Вычисляем видимую область
     const startX = Math.max(0, Math.floor(camera.x - this.canvasW / ts / 2) - 1)
     const startY = Math.max(0, Math.floor(camera.y - this.canvasH / ts / 2) - 1)
     const endX = Math.min(map.cols, startX + Math.ceil(this.canvasW / ts) + 2)
     const endY = Math.min(map.rows, startY + Math.ceil(this.canvasH / ts) + 2)
+
+    // Устанавливаем шрифт один раз для всего рендера
+    ctx.font = `${ts}px ${this.fontFamily}`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
 
     // ТАЙЛЫ
     for (let y = startY; y < endY; y++) {
@@ -123,28 +124,27 @@ export default class Renderer {
         const drawY = y * ts + oy
 
         if (tile.char !== ' ') {
-          let color = tile.visible ? '#888888' : '#333333'
-          ctx.fillStyle = color
-          ctx.font = `${ts}px ${this.fontFamily}`
+          ctx.fillStyle = tile.visible ? '#888888' : '#333333'
           ctx.fillText(tile.char, drawX + ts / 2, drawY + ts / 2)
         }
       }
     }
 
     // ПРЕДМЕТЫ
-    for (const item of this._location?.items || []) {
-      if (item.collected) continue
+    if (this._location?.items) {
+      for (const item of this._location.items) {
+        if (item.collected) continue
 
-      const tile = map.getTile(Math.floor(item.x), Math.floor(item.y))
-      const isVisible = tile && tile.visible
-      const isExplored = tile && tile.explored
+        const tile = map.getTile(Math.floor(item.x), Math.floor(item.y))
+        const isVisible = tile && tile.visible
+        const isExplored = tile && tile.explored
 
-      if (isVisible || isExplored) {
-        const drawX = item.x * ts + ox
-        const drawY = item.y * ts + oy
-        ctx.fillStyle = isVisible ? '#aaaaaa' : '#555555'
-        ctx.font = `${ts}px ${this.fontFamily}`
-        ctx.fillText(item.char, drawX + ts / 2, drawY + ts / 2)
+        if (isVisible || isExplored) {
+          const drawX = item.x * ts + ox
+          const drawY = item.y * ts + oy
+          ctx.fillStyle = isVisible ? '#aaaaaa' : '#555555'
+          ctx.fillText(item.char, drawX + ts / 2, drawY + ts / 2)
+        }
       }
     }
 
@@ -164,18 +164,15 @@ export default class Renderer {
         } else {
           ctx.fillStyle = '#d83232'
         }
-
-        ctx.font = `${ts}px ${this.fontFamily}`
         ctx.fillText(char.char, drawX + ts / 2, drawY + ts / 2)
       }
     }
 
-    // ПУТЬ АКТИВНОГО ПЕРСОНАЖА (только если он уже движется)
+    // ПУТЬ АКТИВНОГО ПЕРСОНАЖА (только если уже движется)
     if (this._activeCharacter?.path?.length) {
       const activeTile = map.getTile(Math.floor(this._activeCharacter.x), Math.floor(this._activeCharacter.y))
       if (activeTile && activeTile.visible) {
         ctx.fillStyle = '#666666'
-        ctx.font = `${ts}px ${this.fontFamily}`
         for (const p of this._activeCharacter.path) {
           const pathTile = map.getTile(p.x, p.y)
           if (pathTile && (pathTile.visible || pathTile.explored)) {
@@ -187,14 +184,14 @@ export default class Renderer {
       }
     }
 
-    // ========== ТОЛЬКО КУРСОР И ТУЛТИП (БЕЗ ПРЕВЬЮ ПУТИ) ==========
+    // КУРСОР И ТУЛТИП (БЕЗ ПРЕВЬЮ ПУТИ)
     if (!input.isCameraMovingNow() && this.hoverTileX !== null && (!this._activeCharacter || this._activeCharacter.isPlayerControlled)) {
       const hoverTile = map.getTile(this.hoverTileX, this.hoverTileY)
       if (hoverTile && hoverTile.visible) {
         const x = this.hoverTileX * ts + ox
         const y = this.hoverTileY * ts + oy
 
-        // Простая серая рамка курсора
+        // Рамка курсора
         ctx.strokeStyle = '#666666'
         ctx.lineWidth = 1
         ctx.setLineDash([])
@@ -205,21 +202,13 @@ export default class Renderer {
           const info = this._location.getTileInfo(this.hoverTileX, this.hoverTileY)
           if (info) {
             let tooltipText = info.name
-
             if (info.type === 'character' && hoverTile.visible) {
-              if (!info.isPlayerControlled) {
-                tooltipText += `\n❤️ ${info.hp}/${info.maxHp} HP`
-                tooltipText += `\n⚡ ${info.currentAP}/${info.maxAP} AP`
-              } else {
-                tooltipText += `\n❤️ ${info.hp}/${info.maxHp} HP`
-                tooltipText += `\n⚡ ${info.currentAP}/${info.maxAP} AP`
-              }
+              tooltipText += `\n❤️ ${info.hp}/${info.maxHp} HP`
+              tooltipText += `\n⚡ ${info.currentAP}/${info.maxAP} AP`
             }
-
             if (info.type === 'item' && hoverTile.visible) {
               tooltipText += `\n📦 Нажмите чтобы подобрать`
             }
-
             this.drawTooltip(tooltipText)
           }
         }

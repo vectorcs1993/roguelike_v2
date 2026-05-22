@@ -1,8 +1,9 @@
 {
   "swipeThreshold": 10,
-  "resizeDebounce": 100,
-  "dprCap": 2,
-  "tileSizeMaxDivisor": 15,
-  "dtCap": 0.1,
-  "cameraSpeed": 15
+  "resizeDebounce": 50,
+  "dprCap": 1.5,
+  "tileSizeMaxDivisor": 12,
+  "dtCap": 0.02,
+  "cameraSpeed": 15,
+  "fpsCap": 100
 }

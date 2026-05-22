@@ -3,9 +3,9 @@
     <div class="game-layout">
       <!-- Canvas wrapper -->
       <div class="canvas-wrapper">
-        <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd"
-          @click.prevent="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu"
-          @mousedown="onMouseDown" @mouseup="onMouseUp">
+        <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove"
+          @touchend.prevent="onTouchEnd" @click.prevent="onCanvasClick" @mousemove="onMouseMove"
+          @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu" @mousedown="onMouseDown" @mouseup="onMouseUp">
         </canvas>
       </div>
 
@@ -39,13 +39,14 @@
               <q-badge color="grey-7" :label="`${charactersList.length}`" class="q-ml-sm" />
             </div>
             <div class="characters-container">
-              <div v-for="character in charactersList" :key="character.id" :class="['character-card', getCharacterCardClass(character)]"
-                @click="onCharacterClick(character)">
+              <div v-for="character in charactersList" :key="character.id"
+                :class="['character-card', getCharacterCardClass(character)]" @click="onCharacterClick(character)">
                 <div class="character-card-content">
                   <div class="character-symbol">{{ character.char }}</div>
                   <div class="character-name">{{ character.name }}</div>
                   <div class="character-team">
-                    <q-chip :style="{ backgroundColor: character.teamColor }" size="sm" dense text-color="white" class="team-chip">
+                    <q-chip :style="{ backgroundColor: character.teamColor }" size="sm" dense text-color="white"
+                      class="team-chip">
                       {{ character.teamName }}
                     </q-chip>
                   </div>
@@ -57,8 +58,8 @@
                     <div class="character-ap-value" :class="getAPColor(character.apPercentage)">
                       {{ character.ap }}/{{ character.maxAP }}
                     </div>
-                    <q-linear-progress :value="(character.apPercentage || 0) / 100" :color="getAPProgressColor(character.apPercentage)"
-                      class="ap-progress" track-color="grey-8" />
+                    <q-linear-progress :value="(character.apPercentage || 0) / 100"
+                      :color="getAPProgressColor(character.apPercentage)" class="ap-progress" track-color="grey-8" />
                   </div>
 
                   <div class="character-hp-section">
@@ -69,8 +70,8 @@
                     <div class="character-hp-value" :class="getHPColor(character.hpPercentage)">
                       {{ character.hp }}/{{ character.maxHp }}
                     </div>
-                    <q-linear-progress :value="(character.hpPercentage || 0) / 100" :color="getHPProgressColor(character.hpPercentage)"
-                      class="hp-progress" track-color="grey-8" />
+                    <q-linear-progress :value="(character.hpPercentage || 0) / 100"
+                      :color="getHPProgressColor(character.hpPercentage)" class="hp-progress" track-color="grey-8" />
                   </div>
                 </div>
               </div>
@@ -426,6 +427,9 @@ onUnmounted(() => {
   min-height: 0;
   overflow: hidden;
   background: #000;
+  /* АППАРАТНОЕ УСКОРЕНИЕ */
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .game-canvas {
@@ -436,6 +440,12 @@ onUnmounted(() => {
   height: 100%;
   display: block;
   cursor: default;
+  /* АППАРАТНОЕ УСКОРЕНИЕ */
+  transform: translateZ(0);
+  will-change: transform;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: pixelated;
 }
 
 .location-name {
