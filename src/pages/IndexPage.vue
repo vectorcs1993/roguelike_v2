@@ -257,11 +257,19 @@ function updateCharactersList() {
 
   lastCharactersHash = newHash
   locationNameValue.value = game.currentLocation.name || 'Неизвестная локация'
-  const allCharacters = game.currentLocation.getAllCharacters()
 
-  const newList = new Array(allCharacters.length)
-  for (let i = 0; i < allCharacters.length; i++) {
-    const char = allCharacters[i]
+  // ФИЛЬТР: показываем только персонажей на ВИДИМЫХ клетках
+  const allCharacters = game.currentLocation.getAllCharacters()
+  const visibleCharacters = allCharacters.filter(char => {
+    const tile = game.currentLocation.map.getTile(Math.floor(char.x), Math.floor(char.y))
+    // Союзников показываем всегда, врагов только если клетка видна
+    if (char.isPlayerControlled || char.canSwitchTo) return true
+    return tile && tile.visible
+  })
+
+  const newList = new Array(visibleCharacters.length)
+  for (let i = 0; i < visibleCharacters.length; i++) {
+    const char = visibleCharacters[i]
     const hp = char.hp || 0
     const maxHp = char.maxHp || hp || 0
     const hpPercentage = maxHp ? (hp / maxHp) * 100 : 100
