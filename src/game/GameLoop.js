@@ -42,7 +42,6 @@ export default class GameLoop {
 
     this.debugMode = false
 
-    // НАСТРОЙКИ ДЛЯ 100 FPS
     this.targetFPS = 100
     this.frameInterval = 1000 / this.targetFPS
     this.lastFrameTime = 0
@@ -51,47 +50,30 @@ export default class GameLoop {
     this.lastFpsUpdate = 0
     this.currentFps = 100
 
-    // Throttle для FOV
-    this._lastFovUpdate = 0
-    this._fovUpdateInterval = 50
-
     this._lastRenderTime = 0
     this._renderInterval = 1000 / 100
 
-    // Стартовый FOV
-    this.updateCombinedFov()
+    this.initializeFovForAllAllies()
   }
 
-  updateCombinedFov() {
-    const now = Date.now()
-    if (now - this._lastFovUpdate < this._fovUpdateInterval) {
-      return
-    }
-    this._lastFovUpdate = now
-
+  initializeFovForAllAllies() {
     const allies = this.currentLocation.getAllCharacters().filter(
       c => c.isPlayerControlled || c.canSwitchTo
     )
 
     if (allies.length === 0) return
 
+    for (let i = 0; i < allies.length; i++) {
+      const ally = allies[i]
+      const tileX = Math.floor(ally.x)
+      const tileY = Math.floor(ally.y)
+      const resetVisibility = (i === 0)
+      this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8, resetVisibility)
+    }
+
     for (let y = 0; y < this.currentLocation.map.rows; y++) {
       for (let x = 0; x < this.currentLocation.map.cols; x++) {
         const tile = this.currentLocation.map.getTile(x, y)
-        if (tile) tile.visible = false
-      }
-    }
-
-    for (const ally of allies) {
-      const tileX = Math.floor(ally.x)
-      const tileY = Math.floor(ally.y)
-      this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8, false)
-    }
-
-    const map = this.currentLocation.map
-    for (let y = 0; y < map.rows; y++) {
-      for (let x = 0; x < map.cols; x++) {
-        const tile = map.getTile(x, y)
         if (tile && tile.visible) {
           tile.explored = true
         }
@@ -99,12 +81,22 @@ export default class GameLoop {
     }
   }
 
-  // НОВЫЙ МЕТОД: центрирование на следующем союзнике в очереди
+  // НОВЫЙ МЕТОД: проверяет, есть ли враги в очереди
+  hasEnemiesInQueue() {
+    const queue = this.currentLocation.turnQueue?.queue || []
+    for (const item of queue) {
+      const char = item.character
+      if (char && char.team && !char.team.isPlayerControlled) {
+        return true
+      }
+    }
+    return false
+  }
+
   centerOnNextAlly() {
     const queue = this.currentLocation.turnQueue?.queue || []
     if (queue.length === 0) return false
 
-    // Ищем следующего союзника (не врага) в очереди
     for (const item of queue) {
       const char = item.character
       if (char && (char.isPlayerControlled || char.canSwitchTo)) {
@@ -152,7 +144,7 @@ export default class GameLoop {
       this.currentLocation.pathfinder.clearCache()
     }
 
-    this.updateCombinedFov()
+    this.initializeFovForAllAllies()
 
     return newActiveCharacter?.id
   }
@@ -162,7 +154,7 @@ export default class GameLoop {
     if (newActive) {
       newActive.restoreFullAP()
       this.camera.setPosition(newActive.x, newActive.y)
-      this.updateCombinedFov()
+      this.initializeFovForAllAllies()
     }
   }
 
@@ -278,17 +270,15 @@ export default class GameLoop {
       return
     }
 
-    // Проверяем, нужно ли переключить ход
     if (this.currentLocation.shouldAdvanceTurn()) {
       const nextChar = this.currentLocation.nextTurn()
 
-      // ВСЕГДА центрируем камеру на следующем союзнике, если он есть
-      // Даже если следующий ход принадлежит врагу
-      this.centerOnNextAlly()
-
-      // Если следующий персонаж - союзник, дополнительно центрируем на нём
-      if (nextChar?.team?.isPlayerControlled) {
-        this.centerOnCharacter(nextChar.id)
+      // Центрируем камеру на следующем союзнике ТОЛЬКО если есть враги в очереди
+      if (this.hasEnemiesInQueue()) {
+        this.centerOnNextAlly()
+        if (nextChar?.team?.isPlayerControlled) {
+          this.centerOnCharacter(nextChar.id)
+        }
       }
     }
 
@@ -304,7 +294,7 @@ export default class GameLoop {
         }
       }
 
-      this.updateCombinedFov()
+      this.initializeFovForAllAllies()
       activeChar.checkAndCollectTarget(this.currentLocation)
     }
 
@@ -409,10 +399,13 @@ export default class GameLoop {
       const activeChar = this.currentLocation.getActiveCharacter()
       if (activeChar?.team?.isPlayerControlled) {
         const nextChar = this.currentLocation.endTurn()
-        // После принудительного завершения хода - центрируем на следующем союзнике
-        this.centerOnNextAlly()
-        if (nextChar?.team?.isPlayerControlled) {
-          this.centerOnCharacter(nextChar.id)
+
+        // Центрируем камеру ТОЛЬКО если есть враги
+        if (this.hasEnemiesInQueue()) {
+          this.centerOnNextAlly()
+          if (nextChar?.team?.isPlayerControlled) {
+            this.centerOnCharacter(nextChar.id)
+          }
         }
       }
     }
@@ -485,7 +478,7 @@ export default class GameLoop {
       this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, this.config.cameraSpeed)
     }
 
-    this.updateCombinedFov()
+    this.initializeFovForAllAllies()
 
     if (this.currentLocation.pathfinder) {
       this.currentLocation.pathfinder.clearCache()

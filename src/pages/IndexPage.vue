@@ -31,20 +31,27 @@
         </div>
       </div>
 
-      <!-- Нижняя панель: Карточки персонажей -->
+      <!-- Нижняя панель: Карточки персонажей + Кнопка завершения -->
       <div class="cards-area">
         <div class="cards-header">
-          <q-icon name="groups" size="14px" />
-          <span>Отряд</span>
-          <q-badge color="grey-7" :label="`${charactersList.length}`" class="q-ml-sm" />
+          <div class="cards-header-left">
+            <q-icon name="groups" size="14px" />
+            <span>Отряд</span>
+            <q-badge color="grey-7" :label="`${charactersList.length}`" class="q-ml-sm" />
+          </div>
+          <div class="cards-header-right">
+            <q-btn v-if="isPlayerTurn" @click="endTurn" color="primary" icon="skip_next" label="Завершить ход" flat
+              dense size="sm" :disable="!canEndTurn">
+              <q-tooltip>Завершить ход (Space)</q-tooltip>
+            </q-btn>
+          </div>
         </div>
         <div class="cards-container">
-          <q-card v-for="character in charactersList" :key="character.id"
+          <q-card dark v-for="character in charactersList" :key="character.id"
             :class="['character-card', getCharacterCardClass(character)]" flat bordered
             @click="() => onCharacterClick(character)">
             <q-card-section class="q-pa-sm">
               <div class="row items-center q-gutter-sm">
-                <!-- Символ и имя -->
                 <div class="col-auto">
                   <div class="character-symbol">{{ character.char }}</div>
                 </div>
@@ -58,7 +65,6 @@
                 <div class="col-auto">
                   <q-badge v-if="character.isActive" color="primary" label="АКТИВЕН" />
                 </div>
-                <!-- Кнопка центрирования -->
                 <div class="col-auto">
                   <q-btn flat dense round size="sm" icon="center_focus_strong"
                     @click.stop="() => centerOnCharacter(character)">
@@ -67,7 +73,6 @@
                 </div>
               </div>
 
-              <!-- HP и AP -->
               <div class="row q-mt-sm q-gutter-sm">
                 <div class="col">
                   <div class="row items-center justify-between">
@@ -95,7 +100,6 @@
                 </div>
               </div>
 
-              <!-- Дополнительные параметры -->
               <div class="row q-mt-sm q-gutter-sm">
                 <div v-if="character.armor" class="col">
                   <div class="row items-center justify-between">
@@ -123,7 +127,6 @@
                 </div>
               </div>
 
-              <!-- Характеристики оружия если есть -->
               <div v-if="character.weapon" class="row q-mt-sm">
                 <div class="col">
                   <div class="text-caption text-grey">
@@ -140,12 +143,10 @@
         </div>
       </div>
 
-      <!-- Название локации (поверх canvas) -->
       <q-chip class="location-name" color="dark" text-color="amber" icon="place">
         {{ locationNameValue }}
       </q-chip>
 
-      <!-- Кнопки управления -->
       <div class="control-buttons">
         <q-btn @click="regenerateLevel" color="orange" icon="refresh" label="Обновить" flat dense size="sm" />
         <q-btn @click="revealFullMap" color="purple" icon="map" label="Открыть карту" flat dense size="sm" />
@@ -165,11 +166,12 @@ const consoleRef = ref(null)
 let game = null
 let resizeTimeout = null
 let updateInterval = null
-let resizeObserver = null
 
 const charactersListData = shallowRef([])
 const locationNameValue = ref('')
 const consoleLogs = shallowRef([])
+const isPlayerTurn = ref(false)
+const canEndTurn = ref(false)
 
 const charactersList = computed(() => charactersListData.value)
 
@@ -250,26 +252,70 @@ function getHPProgressColor(percentage) {
   return 'green'
 }
 
+function updateTurnStatus() {
+  if (!game?.currentLocation) {
+    isPlayerTurn.value = false
+    canEndTurn.value = false
+    return
+  }
+
+  const activeChar = game.currentLocation.getActiveCharacter()
+  if (activeChar && activeChar.team && activeChar.team.isPlayerControlled) {
+    isPlayerTurn.value = true
+    canEndTurn.value = activeChar.currentAP > 0
+  } else {
+    isPlayerTurn.value = false
+    canEndTurn.value = false
+  }
+}
+
+function endTurn() {
+  if (!game) return
+
+  const activeChar = game.currentLocation.getActiveCharacter()
+  if (!activeChar || !activeChar.team?.isPlayerControlled) {
+    addConsoleMessage('Нельзя завершить ход врага!', 'warning')
+    return
+  }
+
+  if (activeChar.currentAP <= 0) {
+    addConsoleMessage('У персонажа нет очков действий для завершения хода', 'warning')
+    return
+  }
+
+  addConsoleMessage(`⚡ Принудительное завершение хода: ${activeChar.name}`, 'info')
+
+  const nextChar = game.currentLocation.endTurn()
+  if (nextChar && nextChar.team?.isPlayerControlled) {
+    game.centerOnCharacter(nextChar.id)
+  }
+
+  updateTurnStatus()
+  throttledUpdate()
+}
+
 function updateCharactersList() {
   if (!game?.currentLocation) {
     if (charactersListData.value.length !== 0) {
       charactersListData.value = []
       locationNameValue.value = ''
     }
+    updateTurnStatus()
     return
   }
 
   const newHash = getCharactersHash()
-  if (newHash === lastCharactersHash && updatePending) return
+  if (newHash === lastCharactersHash && updatePending) {
+    updateTurnStatus()
+    return
+  }
 
   lastCharactersHash = newHash
   locationNameValue.value = game.currentLocation.name || 'Неизвестная локация'
 
-  // ФИЛЬТР: показываем только персонажей на ВИДИМЫХ клетках
   const allCharacters = game.currentLocation.getAllCharacters()
   const visibleCharacters = allCharacters.filter(char => {
     const tile = game.currentLocation.map.getTile(Math.floor(char.x), Math.floor(char.y))
-    // Союзников показываем всегда, врагов только если клетка видна
     if (char.isPlayerControlled || char.canSwitchTo) return true
     return tile && tile.visible
   })
@@ -305,6 +351,7 @@ function updateCharactersList() {
   }
 
   charactersListData.value = newList
+  updateTurnStatus()
   updatePending = false
 }
 
@@ -319,13 +366,11 @@ function throttledUpdate() {
   })
 }
 
-// Центрирование камеры на персонаже
 function centerOnCharacter(character) {
   if (!game || !character) return
   game.centerOnCharacter(character.id)
 }
 
-// Клик по карточке персонажа
 function onCharacterClick(character) {
   if (!game || !character) return
   centerOnCharacter(character)
@@ -361,28 +406,18 @@ function revealFullMap() {
 
 function onCanvasClick(e) {
   game?.onClick(e)
+  // Обновляем статус после клика (возможно, потратили AP)
+  setTimeout(() => updateTurnStatus(), 50)
 }
 
 function resizeCanvas() {
   const canvas = canvasRef.value
   const wrapper = wrapperRef.value
 
-  if (!canvas || !wrapper) {
-    console.warn('Canvas or wrapper not found')
-    return
-  }
-
-  if (!game) {
-    console.warn('Game not initialized')
-    return
-  }
+  if (!canvas || !wrapper || !game) return
 
   const rect = wrapper.getBoundingClientRect()
-
-  if (rect.width <= 0 || rect.height <= 0) {
-    setTimeout(() => resizeCanvas(), 100)
-    return
-  }
+  if (rect.width <= 0 || rect.height <= 0) return
 
   const dpr = Math.min(window.devicePixelRatio || 1, config.dprCap)
 
@@ -402,45 +437,23 @@ function resizeCanvas() {
   }
 }
 
-function debounce(fn, delay) {
-  let timeoutId
-  return function (...args) {
-    clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => fn.apply(this, args), delay)
-  }
-}
-
-const debouncedResize = debounce(resizeCanvas, config.resizeDebounce)
-
 function onResize() {
-  debouncedResize()
-}
-
-function initResizeObserver() {
-  if (!wrapperRef.value) return
-
-  if (resizeObserver) {
-    resizeObserver.disconnect()
-  }
-
-  resizeObserver = new ResizeObserver(() => {
+  if (resizeTimeout) clearTimeout(resizeTimeout)
+  resizeTimeout = setTimeout(() => {
     resizeCanvas()
-  })
-  resizeObserver.observe(wrapperRef.value)
-}
-
-function forceResize() {
-  nextTick(() => {
-    resizeCanvas()
-    setTimeout(() => resizeCanvas(), 200)
-    setTimeout(() => resizeCanvas(), 500)
-  })
+  }, 100)
 }
 
 function onTouchStart(e) { game?.onTouchStart(e) }
 function onTouchMove(e) { game?.onTouchMove(e) }
 function onTouchEnd() { game?.onTouchEnd() }
-function onKeyDown(e) { game?.onKeyDown(e) }
+function onKeyDown(e) {
+  if (e.code === 'Space' || e.code === 'Enter') {
+    e.preventDefault()
+    endTurn()
+  }
+  game?.onKeyDown(e)
+}
 function onKeyUp(e) { game?.onKeyUp(e) }
 function onMouseMove(e) { game?.onMouseMove(e) }
 function onMouseLeave() { game?.onMouseLeave() }
@@ -466,8 +479,9 @@ onMounted(() => {
 
   game = new GameLoop(canvasRef.value, config)
 
-  initResizeObserver()
-  forceResize()
+  nextTick(() => {
+    resizeCanvas()
+  })
 
   window.addEventListener('resize', onResize)
   window.addEventListener('keydown', onKeyDown)
@@ -490,18 +504,13 @@ onUnmounted(() => {
   console.error = originalConsoleError
 
   game?.stop()
-  clearTimeout(resizeTimeout)
+  if (resizeTimeout) clearTimeout(resizeTimeout)
   if (updateInterval) clearInterval(updateInterval)
-  if (resizeObserver) resizeObserver.disconnect()
   window.removeEventListener('resize', onResize)
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('keyup', onKeyUp)
 })
 </script>
-
-<style scoped>
-/* ... все стили остаются без изменений ... */
-</style>
 
 <style scoped>
 .game-page {
@@ -525,7 +534,6 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* Основная область: Canvas + Консоль */
 .main-area {
   display: flex;
   flex: 1;
@@ -533,14 +541,11 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* Canvas область */
 .canvas-area {
   flex: 1;
   position: relative;
   background: #000;
   overflow: hidden;
-  transform: translateZ(0);
-  will-change: transform;
 }
 
 .game-canvas {
@@ -551,20 +556,16 @@ onUnmounted(() => {
   height: 100%;
   display: block;
   cursor: default;
-  transform: translateZ(0);
-  will-change: transform;
   image-rendering: crisp-edges;
   image-rendering: pixelated;
 }
 
-/* Консоль справа */
 .console-area {
   width: 25vw;
   display: flex;
   flex-direction: column;
   background: rgba(10, 10, 15, 0.95);
   border-left: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
 }
 
 .console-header {
@@ -587,13 +588,11 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-/* Нижняя панель - карточки персонажей */
 .cards-area {
   height: auto;
   min-height: 180px;
   max-height: 220px;
   background: rgba(10, 10, 15, 0.95);
-  backdrop-filter: blur(10px);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
@@ -603,13 +602,25 @@ onUnmounted(() => {
 .cards-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
   padding: 6px 12px;
   background: rgba(0, 0, 0, 0.5);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   font-size: 12px;
   color: #aaa;
   flex-shrink: 0;
+}
+
+.cards-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cards-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .cards-container {
@@ -628,12 +639,7 @@ onUnmounted(() => {
   width: 260px;
   flex-shrink: 0;
   cursor: pointer;
-  transition: all 0.15s ease;
   background: rgba(255, 255, 255, 0.05);
-}
-
-.character-card:hover {
-  transform: translateY(-2px);
 }
 
 .character-symbol {
@@ -643,14 +649,12 @@ onUnmounted(() => {
   text-align: center;
 }
 
-/* Кнопки управления поверх canvas */
 .location-name {
   position: absolute;
   top: 12px;
   left: 12px;
   z-index: 20;
   pointer-events: none;
-  backdrop-filter: blur(4px);
   font-size: 12px;
 }
 
@@ -663,7 +667,6 @@ onUnmounted(() => {
   gap: 8px;
 }
 
-/* Стили консоли */
 .console-line {
   padding: 4px 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
@@ -708,10 +711,8 @@ onUnmounted(() => {
   font-size: 12px;
 }
 
-/* Стили карточек */
 .active-character-card {
   border: 2px solid #44aaff !important;
-  box-shadow: 0 0 8px rgba(68, 170, 255, 0.3) !important;
   background: rgba(68, 170, 255, 0.1) !important;
 }
 
@@ -723,7 +724,6 @@ onUnmounted(() => {
   border: 1px solid rgba(255, 68, 68, 0.4) !important;
 }
 
-/* Текстовые цвета */
 .text-red {
   color: #f55;
 }
@@ -744,7 +744,6 @@ onUnmounted(() => {
   color: #888;
 }
 
-/* Скроллбары */
 .cards-container::-webkit-scrollbar {
   height: 4px;
 }
@@ -771,7 +770,6 @@ onUnmounted(() => {
   border-radius: 2px;
 }
 
-/* Адаптив для мобильных устройств */
 @media (max-width: 768px) {
   .console-area {
     width: 30vw;
