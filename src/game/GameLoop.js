@@ -1,4 +1,4 @@
-// src/game/GameLoop.js
+// src/game/GameLoop.js - ПОЛНОСТЬЮ БЕЗ PathCache
 
 import Camera from './Camera.js'
 import InputManager from './InputManager.js'
@@ -12,7 +12,6 @@ export default class GameLoop {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
-    // Если передан biomeType, генерируем процедурную локацию
     if (biomeType && !initialLocation) {
       this.currentLocation = Location.generateProcedural(config, biomeType)
     } else {
@@ -44,42 +43,25 @@ export default class GameLoop {
     this.hoverTileX = null
     this.hoverTileY = null
 
-    // Убираем PathCache - он больше не нужен
-    // this.pathCache = new PathCache(200)
+    // PathCache УДАЛЕН
+    // this.pathCache = null
 
-    // Флаг ожидания конца хода
     this.waitingForTurnEnd = false
-
-    // Настройки
     this.debugMode = false
 
-    // Ограничение FPS
-    this.targetFPS = 100
+    this.targetFPS = 60
     this.frameInterval = 1000 / this.targetFPS
     this.lastFrameTime = 0
 
-    // Бенчмарк
     this.frameTimes = []
     this.renderTimes = []
     this.updateTimes = []
 
-    // FOV оптимизации
-    this.fovUpdateCounter = 0
-    this.fovUpdateInterval = 8
-    this.characterMoved = false
-    this.lastFovUpdateTime = 0
-    this.fovThrottleMs = 100
-
-    // СТАРТОВЫЙ FOV ДЛЯ ВСЕХ СОЮЗНИКОВ
+    // СТАРТОВЫЙ FOV
     this.initializeFovForAllAllies()
   }
 
-  initializeFovForAllAllies(force = false) {
-    const now = performance.now()
-    if (!force && (now - this.lastFovUpdateTime) < this.fovThrottleMs) {
-      return
-    }
-
+  initializeFovForAllAllies() {
     const allies = this.currentLocation.getAllCharacters().filter(
       c => c.isPlayerControlled || c.canSwitchTo
     )
@@ -90,7 +72,8 @@ export default class GameLoop {
       const ally = allies[i]
       const tileX = Math.floor(ally.x)
       const tileY = Math.floor(ally.y)
-      const resetVisibility = (i === 0 && force)
+      const resetVisibility = (i === 0)
+
       this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8, resetVisibility)
     }
 
@@ -102,8 +85,6 @@ export default class GameLoop {
         }
       }
     }
-
-    this.lastFovUpdateTime = now
   }
 
   regenerateLevel(biomeType = null) {
@@ -150,7 +131,6 @@ export default class GameLoop {
     if (newActive) {
       newActive.restoreFullAP()
       this.camera.setPosition(newActive.x, newActive.y)
-      this.characterMoved = true
     }
   }
 
@@ -302,19 +282,17 @@ export default class GameLoop {
         logger.info(LOG_MODULES.TURN, `Новый активный персонаж: ${nextChar.name} (${isPlayer ? 'игрок' : 'враг'}), AP: ${nextChar.currentAP}/${nextChar.maxAP}`)
 
         if (isPlayer) {
-          const playerCharacters = this.currentLocation.getAllCharacters().filter(c => c.team?.isPlayerControlled)
-          const shouldCenterCamera = playerCharacters.length > 1
-          if (shouldCenterCamera) {
-            this.centerOnCharacter(nextChar.id)
-          }
+          this.centerOnCharacter(nextChar.id)
         }
 
         if (!isPlayer) {
           logger.enemyTurnStart(nextChar.name, nextChar.currentAP)
           this._lastEnemyTurnLog = nextChar.id
-        }
 
-        this.characterMoved = true
+          if (this.currentLocation.isCharacterVisibleForPlayerTeam(nextChar)) {
+            this.centerOnActiveCharacter()
+          }
+        }
       } else {
         logger.warn(LOG_MODULES.TURN, 'Нет следующего персонажа в очереди!')
       }
@@ -323,16 +301,7 @@ export default class GameLoop {
     const activeChar = this.currentLocation.getActiveCharacter()
 
     if (activeChar) {
-      const oldX = Math.floor(activeChar.x)
-      const oldY = Math.floor(activeChar.y)
-
       activeChar.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
-
-      const newX = Math.floor(activeChar.x)
-      const newY = Math.floor(activeChar.y)
-      if (oldX !== newX || oldY !== newY) {
-        this.characterMoved = true
-      }
 
       if (activeChar.team && !activeChar.team.isPlayerControlled) {
         if (!this._lastEnemyTurnLog || this._lastEnemyTurnLog !== activeChar.id) {
@@ -344,9 +313,14 @@ export default class GameLoop {
         const enemyTeam = this.currentLocation.getTeam('creatures')
         if (enemyTeam && enemyTeam.aiInstances) {
           const ai = enemyTeam.aiInstances.get(activeChar.id)
-          if (ai && activeChar.currentAP > 0) {
-            ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
-            this.characterMoved = true
+          if (ai) {
+            if (activeChar.currentAP > 0) {
+              logger.debug(LOG_MODULES.AI, `Обновление ИИ для ${activeChar.name} (AP: ${activeChar.currentAP})`)
+              ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
+              if (this.currentLocation.isCharacterVisibleForPlayerTeam(activeChar)) {
+                this.centerOnActiveCharacter()
+              }
+            }
           }
         }
 
@@ -368,14 +342,8 @@ export default class GameLoop {
         this._enemyTurnStartTime = null
       }
 
-      // Оптимизированный FOV
-      this.fovUpdateCounter++
-      if (this.characterMoved || this.fovUpdateCounter >= this.fovUpdateInterval) {
-        this.initializeFovForAllAllies(false)
-        this.fovUpdateCounter = 0
-        this.characterMoved = false
-      }
-
+      // FOV обновляется каждый кадр
+      this.initializeFovForAllAllies()
       activeChar.checkAndCollectTarget(this.currentLocation);
     }
 
@@ -384,7 +352,7 @@ export default class GameLoop {
     const updateEnd = performance.now()
     if (this.debugMode) {
       this.updateTimes.push(updateEnd - updateStart)
-      if (this.updateTimes.length > 100) this.updateTimes.shift()
+      if (this.updateTimes.length > 60) this.updateTimes.shift()
     }
   }
 
@@ -401,8 +369,8 @@ export default class GameLoop {
     this.renderer._location = this.currentLocation
     this.renderer._activeCharacter = this.currentLocation.getActiveCharacter()
     this.renderer._allCharacters = this.currentLocation.getAllCharacters()
-    // Убираем pathCache
-    // this.renderer._pathCache = this.pathCache
+    // PathCache НЕ передаем в рендер
+    this.renderer._pathCache = null
 
     this.renderer.draw(
       this.currentLocation.map,
@@ -440,9 +408,9 @@ export default class GameLoop {
 
     if (this.debugMode) {
       this.frameTimes.push(frameEnd - frameStart)
-      if (this.frameTimes.length > 100) this.frameTimes.shift()
+      if (this.frameTimes.length > 60) this.frameTimes.shift()
 
-      if (this.frameTimes.length === 100) {
+      if (this.frameTimes.length === 60) {
         const avgFrame = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length
         const avgRender = this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length
         const avgUpdate = this.updateTimes.reduce((a, b) => a + b, 0) / this.updateTimes.length
@@ -502,11 +470,7 @@ export default class GameLoop {
   onKeyDown(e) {
     this.input.handleKeyDown(e)
 
-    if (e.code === 'F3') {
-      // Убираем вывод статистики кэша
-      console.log('PathCache удален')
-    }
-
+    // F7 - переключение режима отладки
     if (e.code === 'F7') {
       this.debugMode = !this.debugMode
       logger.info(LOG_MODULES.SYSTEM, `Режим отладки: ${this.debugMode ? 'ВКЛЮЧЕН' : 'ВЫКЛЮЧЕН'}`)
@@ -517,6 +481,7 @@ export default class GameLoop {
       }
     }
 
+    // Space или Enter - принудительное завершение хода
     if (e.code === 'Space' || e.code === 'Enter') {
       e.preventDefault()
       const activeChar = this.currentLocation.getActiveCharacter()
@@ -530,6 +495,7 @@ export default class GameLoop {
       }
     }
 
+    // F8 - принудительная инициализация очереди ходов
     if (e.code === 'F8') {
       e.preventDefault()
       if (this.currentLocation && this.currentLocation.initializeTurnQueue) {
@@ -541,6 +507,7 @@ export default class GameLoop {
   }
 
   onKeyUp(e) { this.input.handleKeyUp(e) }
+
   onMouseMove(e) {
     this.input.handleMouseMove(e)
     this.updateHoverTile(this.input.mouseX, this.input.mouseY)
@@ -549,17 +516,21 @@ export default class GameLoop {
       this.updateHoverTile(this.input.mouseX, this.input.mouseY)
     }
   }
+
   onMouseLeave() {
     this.input.handleMouseLeave()
     this.hoverTileX = null
     this.hoverTileY = null
   }
+
   onContextMenu(e) { e.preventDefault(); return false }
+
   onMouseDown(e) {
     if (e.button === 2) {
       this.input.startPan(e, this.camera)
     }
   }
+
   onMouseUp(e) {
     if (e.button === 2) {
       this.input.endPan(e)
