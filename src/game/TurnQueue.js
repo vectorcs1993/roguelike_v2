@@ -82,16 +82,23 @@ export default class TurnQueue {
   }
 
   /**
-   * Сортирует очередь: сначала персонажи игрока, затем враги
+   * Сортирует очередь по инициативе (по убыванию)
    */
   sortQueue() {
     this.queue.sort((a, b) => {
-      // Сначала персонажи игрока, затем враги
-      if (a.isEnemy !== b.isEnemy) {
-        return a.isEnemy ? 1 : -1
+      // Сортируем по инициативе (высшая инициатива идет первой)
+      const initiativeDiff = b.character.initiative - a.character.initiative
+
+      // Если инициатива одинаковая, сортируем по типу (персонажи игрока перед врагами)
+      if (initiativeDiff === 0) {
+        if (a.isEnemy !== b.isEnemy) {
+          return a.isEnemy ? 1 : -1
+        }
+        // Если тип одинаковый - по имени
+        return a.character.name.localeCompare(b.character.name)
       }
-      // При одинаковом типе - по имени
-      return a.character.name.localeCompare(b.character.name)
+
+      return initiativeDiff
     })
 
     // Обновляем текущий индекс после сортировки
@@ -216,6 +223,7 @@ export default class TurnQueue {
       queue: this.queue.map(item => ({
         name: item.character.name,
         isEnemy: item.isEnemy,
+        initiative: item.character.initiative,
         isCurrent: this.getCurrentCharacter()?.id === item.character.id
       })),
       currentIndex: this.currentIndex,

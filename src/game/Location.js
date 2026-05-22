@@ -52,8 +52,20 @@ export default class Location {
         const apConfig = charConfig.ap || {}
         const maxAP = apConfig.max || 12
         const moveAPCost = apConfig.moveCost !== undefined ? apConfig.moveCost : 1
-
         const pickupAPCost = apConfig.pickupCost !== undefined ? apConfig.pickupCost : 1
+
+        // Создаем combatConfig из полей charConfig
+        const combatConfig = {
+          hp: charConfig.hp,
+          maxHp: charConfig.maxHp || charConfig.hp,
+          armor: charConfig.armor,
+          damageMin: charConfig.damageMin,
+          damageMax: charConfig.damageMax,
+          damageType: charConfig.damageType,
+          attackRange: charConfig.range,
+          accuracy: charConfig.accuracy,
+          initiative: charConfig.initiative
+        }
 
         const character = new Character(
           charConfig.x, charConfig.y,
@@ -62,7 +74,8 @@ export default class Location {
           charConfig.name,
           team,
           fovRadius,
-          { maxAP, moveAPCost, pickupAPCost }
+          { maxAP, moveAPCost, pickupAPCost },
+          combatConfig
         )
         team.addCharacter(character)
         this.characters.push(character)
@@ -625,7 +638,16 @@ export default class Location {
             max: 12,
             moveCost: 1,
             pickupAPCost: 2
-          }
+          },
+          // Боевые характеристики
+          hp: 25,
+          armor: 1,
+          damageMin: 3,
+          damageMax: 6,
+          damageType: 'blunt',
+          range: 1,
+          accuracy: 0.75,
+          initiative: 6  // Высокая инициатива у командира
         },
         {
           x: allyStart.x, y: allyStart.y,
@@ -638,7 +660,16 @@ export default class Location {
             max: 10,
             moveCost: 2,
             pickupAPCost: 4
-          }
+          },
+          // Боевые характеристики
+          hp: 20,
+          armor: 0,
+          damageMin: 2,
+          damageMax: 4,
+          damageType: 'blunt',
+          range: 1,
+          accuracy: 0.70,
+          initiative: 4  // Средняя инициатива у спутника
         }
       ]
     }

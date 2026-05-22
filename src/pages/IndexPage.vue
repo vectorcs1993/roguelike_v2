@@ -5,10 +5,9 @@
       <div class="main-area">
         <!-- Canvas область -->
         <div class="canvas-area" ref="wrapperRef">
-          <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart"
-            @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd" @click.prevent="onCanvasClick"
-            @mousemove="onMouseMove" @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu"
-            @mousedown="onMouseDown" @mouseup="onMouseUp" @wheel.prevent="onWheel">
+          <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove"
+            @touchend.prevent="onTouchEnd" @click.prevent="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave"
+            @contextmenu.prevent="onContextMenu" @mousedown="onMouseDown" @mouseup="onMouseUp" @wheel.prevent="onWheel">
           </canvas>
         </div>
 
@@ -40,16 +39,15 @@
             <q-badge color="grey-7" :label="`${charactersList.length}`" class="q-ml-sm" />
           </div>
           <div class="cards-header-right">
-            <q-btn v-if="isPlayerTurn" @click="endTurn" color="primary" icon="skip_next" label="Завершить ход" flat
-              dense size="sm" :disable="!canEndTurn">
+            <q-btn v-if="isPlayerTurn" @click="endTurn" color="primary" icon="skip_next" label="Завершить ход" flat dense size="sm"
+              :disable="!canEndTurn">
               <q-tooltip>Завершить ход (Space)</q-tooltip>
             </q-btn>
           </div>
         </div>
         <div class="cards-container">
-          <q-card dark v-for="character in charactersList" :key="character.id"
-            :class="['character-card', getCharacterCardClass(character)]" flat bordered
-            @click="() => onCharacterClick(character)">
+          <q-card dark v-for="character in charactersList" :key="character.id" :class="['character-card', getCharacterCardClass(character)]" flat
+            bordered @click="() => onCharacterClick(character)">
             <q-card-section class="q-pa-sm">
               <div class="row items-center q-gutter-sm">
                 <div class="col-auto">
@@ -57,8 +55,7 @@
                 </div>
                 <div class="col">
                   <div class="text-subtitle2 text-weight-bold">{{ character.name }}</div>
-                  <q-chip :style="{ backgroundColor: character.teamColor }" size="sm" dense text-color="white"
-                    class="q-mt-xs">
+                  <q-chip :style="{ backgroundColor: character.teamColor }" size="sm" dense text-color="white" class="q-mt-xs">
                     {{ character.teamName }}
                   </q-chip>
                 </div>
@@ -66,8 +63,7 @@
                   <q-badge v-if="character.isActive" color="primary" label="АКТИВЕН" />
                 </div>
                 <div class="col-auto">
-                  <q-btn flat dense round size="sm" icon="center_focus_strong"
-                    @click.stop="() => centerOnCharacter(character)">
+                  <q-btn flat dense round size="sm" icon="center_focus_strong" @click.stop="() => centerOnCharacter(character)">
                     <q-tooltip>Центрировать камеру</q-tooltip>
                   </q-btn>
                 </div>
@@ -83,8 +79,8 @@
                       {{ character.hp }}/{{ character.maxHp }}
                     </div>
                   </div>
-                  <q-linear-progress :value="(character.hpPercentage || 0) / 100"
-                    :color="getHPProgressColor(character.hpPercentage)" size="sm" track-color="grey-8" />
+                  <q-linear-progress :value="(character.hpPercentage || 0) / 100" :color="getHPProgressColor(character.hpPercentage)" size="sm"
+                    track-color="grey-8" />
                 </div>
                 <div class="col">
                   <div class="row items-center justify-between">
@@ -95,13 +91,13 @@
                       {{ character.ap }}/{{ character.maxAP }}
                     </div>
                   </div>
-                  <q-linear-progress :value="(character.apPercentage || 0) / 100"
-                    :color="getAPProgressColor(character.apPercentage)" size="sm" track-color="grey-8" />
+                  <q-linear-progress :value="(character.apPercentage || 0) / 100" :color="getAPProgressColor(character.apPercentage)" size="sm"
+                    track-color="grey-8" />
                 </div>
               </div>
 
               <div class="row q-mt-sm q-gutter-sm">
-                <div v-if="character.armor" class="col">
+                <div v-if="character.armor !== undefined && character.armor !== null" class="col">
                   <div class="row items-center justify-between">
                     <div class="text-caption text-grey">
                       <q-icon name="shield" size="12px" /> Броня
@@ -117,7 +113,7 @@
                     <div class="text-caption">{{ character.damage }}</div>
                   </div>
                 </div>
-                <div v-if="character.initiative" class="col">
+                <div v-if="character.initiative !== undefined && character.initiative !== null" class="col">
                   <div class="row items-center justify-between">
                     <div class="text-caption text-grey">
                       <q-icon name="speed" size="12px" /> Инициатива
@@ -320,9 +316,30 @@ function updateCharactersList() {
     return tile && tile.visible
   })
 
-  const newList = new Array(visibleCharacters.length)
-  for (let i = 0; i < visibleCharacters.length; i++) {
-    const char = visibleCharacters[i]
+  // Сортируем персонажей в соответствии с очередью ходов
+  let sortedVisibleCharacters = [...visibleCharacters]
+  if (game.currentLocation.turnQueue) {
+    const turnQueue = game.currentLocation.turnQueue
+    const queueOrder = turnQueue.queue.map(item => item.character.id)
+
+    // Создаем карту для быстрого поиска индекса в очереди
+    const orderMap = new Map()
+    queueOrder.forEach((id, index) => {
+      orderMap.set(id, index)
+    })
+
+    // Сортируем видимых персонажей по их позиции в очереди
+    // Персонажи, которых нет в очереди, идут в конце
+    sortedVisibleCharacters.sort((a, b) => {
+      const aIndex = orderMap.has(a.id) ? orderMap.get(a.id) : Infinity
+      const bIndex = orderMap.has(b.id) ? orderMap.get(b.id) : Infinity
+      return aIndex - bIndex
+    })
+  }
+
+  const newList = new Array(sortedVisibleCharacters.length)
+  for (let i = 0; i < sortedVisibleCharacters.length; i++) {
+    const char = sortedVisibleCharacters[i]
     const hp = char.hp || 0
     const maxHp = char.maxHp || hp || 0
     const hpPercentage = maxHp ? (hp / maxHp) * 100 : 100
