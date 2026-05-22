@@ -133,7 +133,7 @@ export default class Renderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    // ТАЙЛЫ
+    // 1. РИСУЕМ ТАЙЛЫ (стены, полы, ящики)
     const tilesByColor = new Map()
 
     for (let y = startY; y < endY; y++) {
@@ -162,14 +162,31 @@ export default class Renderer {
       }
     }
 
-    // ПРЕДМЕТЫ
+    // СОЗДАЁМ МНОЖЕСТВО КЛЕТОК, ГДЕ СТОЯТ ПЕРСОНАЖИ
+    const occupiedCells = new Set()
+    for (const char of characters) {
+      const tileX = Math.floor(char.x)
+      const tileY = Math.floor(char.y)
+      occupiedCells.add(`${tileX},${tileY}`)
+    }
+
+    // 2. РИСУЕМ ПРЕДМЕТЫ (только если на клетке НЕТ персонажа)
     if (this._location?.items) {
       const itemsByColor = new Map()
       for (const item of this._location.items) {
         if (item.collected) continue
-        const tile = map.getTile(Math.floor(item.x), Math.floor(item.y))
+
+        const itemX = Math.floor(item.x)
+        const itemY = Math.floor(item.y)
+        const cellKey = `${itemX},${itemY}`
+
+        // ПРОПУСКАЕМ предмет, если на его клетке стоит персонаж
+        if (occupiedCells.has(cellKey)) continue
+
+        const tile = map.getTile(itemX, itemY)
         const isVisible = tile && tile.visible
         const isExplored = tile && tile.explored
+
         if (isVisible || isExplored) {
           const drawX = item.x * ts + ox
           const drawY = item.y * ts + oy
@@ -188,7 +205,7 @@ export default class Renderer {
       }
     }
 
-    // ПЕРСОНАЖИ
+    // 3. РИСУЕМ ПЕРСОНАЖЕЙ
     for (const char of characters) {
       const tile = map.getTile(Math.floor(char.x), Math.floor(char.y))
       const isVisible = this._location?.isCharacterVisibleForPlayerTeam(char) ?? (tile && tile.visible)
@@ -208,7 +225,7 @@ export default class Renderer {
       }
     }
 
-    // ПУТЬ АКТИВНОГО ПЕРСОНАЖА
+    // 4. ПУТЬ АКТИВНОГО ПЕРСОНАЖА
     if (this._activeCharacter?.path?.length) {
       const activeTile = map.getTile(Math.floor(this._activeCharacter.x), Math.floor(this._activeCharacter.y))
       if (activeTile && activeTile.visible) {
@@ -224,12 +241,11 @@ export default class Renderer {
       }
     }
 
-    // КУРСОР - РИСУЕМ ВСЕГДА, ДАЖЕ НА НЕВИДИМЫХ КЛЕТКАХ!
+    // 5. КУРСОР
     if (!input.isCameraMovingNow() && this.hoverTileX !== null && (!this._activeCharacter || this._activeCharacter.isPlayerControlled)) {
       const x = this.hoverTileX * ts + ox
       const y = this.hoverTileY * ts + oy
 
-      // Проверяем, находится ли курсор в пределах карты
       if (this.hoverTileX >= 0 && this.hoverTileX < map.cols &&
         this.hoverTileY >= 0 && this.hoverTileY < map.rows) {
 
@@ -237,7 +253,6 @@ export default class Renderer {
         const isVisible = hoverTile && hoverTile.visible
         const isExplored = hoverTile && hoverTile.explored
 
-        // Рамка курсора - СЕРАЯ для недоступных клеток, БЕЛАЯ для видимых
         if (isVisible) {
           ctx.strokeStyle = '#ffffff'
         } else if (isExplored) {
@@ -250,7 +265,6 @@ export default class Renderer {
         ctx.setLineDash([])
         ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
 
-        // ТУЛТИП - показываем ТОЛЬКО для видимых или исследованных клеток
         if (this._location && (isVisible || isExplored)) {
           const info = this._location.getTileInfo(this.hoverTileX, this.hoverTileY)
           if (info) {
@@ -268,7 +282,6 @@ export default class Renderer {
             this.drawTooltip(tooltipText)
           }
         } else if (this._location && !isVisible && !isExplored) {
-          // Для неисследованных клеток показываем "Туман войны"
           this.drawTooltip('🌑 Туман войны')
         }
       }
