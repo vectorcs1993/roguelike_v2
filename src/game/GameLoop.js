@@ -40,7 +40,6 @@ export default class GameLoop {
     this.hoverTileX = null
     this.hoverTileY = null
 
-    this.waitingForTurnEnd = false
     this.debugMode = false
 
     // НАСТРОЙКИ ДЛЯ 100 FPS

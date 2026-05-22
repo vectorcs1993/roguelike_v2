@@ -41,7 +41,7 @@
         <div class="cards-container">
           <q-card v-for="character in charactersList" :key="character.id"
             :class="['character-card', getCharacterCardClass(character)]" flat bordered
-            @click="onCharacterClick(character)">
+            @click="() => onCharacterClick(character)">
             <q-card-section class="q-pa-sm">
               <div class="row items-center q-gutter-sm">
                 <!-- Символ и имя -->
@@ -57,6 +57,13 @@
                 </div>
                 <div class="col-auto">
                   <q-badge v-if="character.isActive" color="primary" label="АКТИВЕН" />
+                </div>
+                <!-- Кнопка центрирования -->
+                <div class="col-auto">
+                  <q-btn flat dense round size="sm" icon="center_focus_strong"
+                    @click.stop="() => centerOnCharacter(character)">
+                    <q-tooltip>Центрировать камеру</q-tooltip>
+                  </q-btn>
                 </div>
               </div>
 
@@ -278,6 +285,8 @@ function updateCharactersList() {
       id: char.id,
       name: char.name,
       char: char.char,
+      x: char.x,
+      y: char.y,
       isActive: char.isActive,
       isSelectable: char.canSwitchTo === true,
       teamColor: char.team?.color || '#666666',
@@ -310,18 +319,16 @@ function throttledUpdate() {
   })
 }
 
-async function onCharacterClick(character) {
-  if (!game) return
-  if (!character.isSelectable) return
+// Центрирование камеры на персонаже
+function centerOnCharacter(character) {
+  if (!game || !character) return
+  game.centerOnCharacter(character.id)
+}
 
-  if (character.isActive) {
-    game.centerOnCharacter(character.id)
-    addConsoleMessage(`Центрирование на: ${character.name}`, 'info')
-  } else {
-    addConsoleMessage(`Персонаж ${character.name} не активен (ход определяется очередью)`, 'warning')
-  }
-
-  await throttledUpdate()
+// Клик по карточке персонажа
+function onCharacterClick(character) {
+  if (!game || !character) return
+  centerOnCharacter(character)
 }
 
 function regenerateLevel() {
@@ -491,6 +498,10 @@ onUnmounted(() => {
   window.removeEventListener('keyup', onKeyUp)
 })
 </script>
+
+<style scoped>
+/* ... все стили остаются без изменений ... */
+</style>
 
 <style scoped>
 .game-page {
