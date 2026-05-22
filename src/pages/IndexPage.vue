@@ -2,7 +2,7 @@
   <q-page class="game-page">
     <div class="game-layout">
       <!-- Основная область: Canvas + Консоль с разделителем -->
-      <q-splitter v-model="splitterModel" unit="%" vertical :limits="[10, 90]" class="main-splitter">
+      <q-splitter v-model="splitterModel" unit="%" vertical :limits="[10, 90]" class="main-splitter" @update:model-value="onSplitterResize">
         <!-- Canvas область -->
         <template v-slot:before>
           <div class="canvas-area" ref="wrapperRef">
@@ -169,7 +169,7 @@ let updateInterval = null
 const charactersListData = shallowRef([])
 const locationNameValue = ref('')
 const consoleLogs = shallowRef([])
-const splitterModel = ref(75) // [canvas, console] in percentages
+const splitterModel = ref(60)
 const isPlayerTurn = ref(false)
 const canEndTurn = ref(false)
 
@@ -463,6 +463,13 @@ function onResize() {
   resizeTimeout = setTimeout(() => {
     resizeCanvas()
   }, 100)
+}
+
+function onSplitterResize() {
+  if (resizeTimeout) clearTimeout(resizeTimeout)
+  resizeTimeout = setTimeout(() => {
+    resizeCanvas()
+  }, 50) // меньшая задержка, т.к. изменение размера сплиттера более плавное
 }
 
 function onTouchStart(e) { game?.onTouchStart(e) }
