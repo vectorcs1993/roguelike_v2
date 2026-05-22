@@ -274,4 +274,20 @@ export default class Renderer {
       }
     }
   }
+
+  // Изменение масштаба (zoom)
+  zoom(delta) {
+    const oldTileSize = this.tileSize
+    let newTileSize = this.tileSize + delta
+
+    // Ограничиваем масштаб
+    newTileSize = Math.max(12, Math.min(96, newTileSize))
+
+    if (newTileSize === oldTileSize) return false
+
+    this.tileSize = newTileSize
+    this.ctx.font = `${this.tileSize}px ${this.fontFamily}`
+
+    return true
+  }
 }

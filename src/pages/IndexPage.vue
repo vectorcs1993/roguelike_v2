@@ -8,7 +8,7 @@
           <canvas ref="canvasRef" class="game-canvas" @touchstart.prevent="onTouchStart"
             @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd" @click.prevent="onCanvasClick"
             @mousemove="onMouseMove" @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu"
-            @mousedown="onMouseDown" @mouseup="onMouseUp">
+            @mousedown="onMouseDown" @mouseup="onMouseUp" @wheel.prevent="onWheel">
           </canvas>
         </div>
 
@@ -460,7 +460,9 @@ function onMouseLeave() { game?.onMouseLeave() }
 function onContextMenu(e) { game?.onContextMenu(e) }
 function onMouseDown(e) { game?.onMouseDown(e) }
 function onMouseUp(e) { game?.onMouseUp(e) }
-
+function onWheel(e) {
+  game?.onWheel(e)
+}
 const UPDATE_INTERVAL = 250
 
 onMounted(() => {

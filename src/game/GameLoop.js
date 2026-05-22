@@ -394,22 +394,6 @@ export default class GameLoop {
   onKeyDown(e) {
     this.input.handleKeyDown(e)
 
-    if (e.code === 'Space' || e.code === 'Enter') {
-      e.preventDefault()
-      const activeChar = this.currentLocation.getActiveCharacter()
-      if (activeChar?.team?.isPlayerControlled) {
-        const nextChar = this.currentLocation.endTurn()
-
-        // Центрируем камеру ТОЛЬКО если есть враги
-        if (this.hasEnemiesInQueue()) {
-          this.centerOnNextAlly()
-          if (nextChar?.team?.isPlayerControlled) {
-            this.centerOnCharacter(nextChar.id)
-          }
-        }
-      }
-    }
-
     if (e.code === 'F7') {
       this.debugMode = !this.debugMode
       console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`)
@@ -430,7 +414,35 @@ export default class GameLoop {
     this.hoverTileX = null
     this.hoverTileY = null
   }
+  onWheel(e) {
+    if (!this.renderer) return
 
+    e.preventDefault()
+
+    // Определяем направление прокрутки
+    const delta = e.deltaY > 0 ? -5 : 5
+
+    // Получаем позицию мыши относительно canvas
+    const rect = this.canvas.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+
+    // Сохраняем позицию под курсором до зума
+    const worldX = (mouseX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x
+    const worldY = (mouseY - this.renderer.halfH) / this.renderer.tileSize + this.camera.y
+
+    // Изменяем масштаб
+    if (this.renderer.zoom(delta, mouseX, mouseY)) {
+      // Корректируем камеру, чтобы позиция под курсором осталась на месте
+      this.camera.x = worldX - (mouseX - this.renderer.halfW) / this.renderer.tileSize
+      this.camera.y = worldY - (mouseY - this.renderer.halfH) / this.renderer.tileSize
+
+      // Обновляем кэш рендерера
+      this.renderer._lastCameraX = null
+      this.renderer._lastCameraY = null
+      this.renderer._lastTileSize = null
+    }
+  }
   onContextMenu(e) { e.preventDefault(); return false }
 
   onMouseDown(e) {
