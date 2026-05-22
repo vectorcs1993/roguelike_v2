@@ -39,6 +39,15 @@ export default class Character extends GameObject {
     this.accuracy = combatConfig.accuracy || 0.7
     this.initiative = combatConfig.initiative || 5
 
+    // Анимация атаки
+    this.isAttacking = false
+    this.attackProgress = 0
+    this.attackFromX = this.x
+    this.attackFromY = this.y
+    this.attackTargetX = this.x
+    this.attackTargetY = this.y
+    this.attackSpeed = 30 // скорость анимации (выше = быстрее)
+
     console.log(`${this.name} (ID: ${this.id}): AP=${this.maxAP}, HP=${this.hp}/${this.maxHp}, damage=${this.damageMin}-${this.damageMax}`)
   }
 
@@ -153,6 +162,55 @@ export default class Character extends GameObject {
     if (this.followingPath) {
       this.moveAlongPath(dt, tileMap, allCharacters)
     }
+    this.updateAttackAnimation(dt)
+  }
+
+  // Запуск анимации атаки
+  startAttackAnimation(target) {
+    this.isAttacking = true
+    this.attackProgress = 0
+    this.attackFromX = this.x
+    this.attackFromY = this.y
+
+    // Вычисляем направление к цели (смещение на 0.3 клетки в направлении цели)
+    const dx = target.x - this.x
+    const dy = target.y - this.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+
+    if (distance > 0) {
+      // Нормализуем вектор и умножаем на 0.3 (чтобы персонаж немного сдвинулся)
+      const moveDistance = 0.3
+      this.attackTargetX = this.x + (dx / distance) * moveDistance
+      this.attackTargetY = this.y + (dy / distance) * moveDistance
+    } else {
+      // Если цель на той же клетке, сдвигаемся в случайном направлении
+      this.attackTargetX = this.x + (Math.random() - 0.5) * 0.3
+      this.attackTargetY = this.y + (Math.random() - 0.5) * 0.3
+    }
+  }
+
+  // Обновление анимации атаки
+  updateAttackAnimation(dt) {
+    if (!this.isAttacking) return
+
+    this.attackProgress += this.attackSpeed * dt
+
+    if (this.attackProgress >= 1) {
+      // Анимация завершена - возвращаем персонажа в исходную позицию
+      this.isAttacking = false
+      this.attackProgress = 0
+      this.vx = this.x
+      this.vy = this.y
+      return
+    }
+
+    // Интерполяция: вперед и назад (используем синусоиду для плавного движения туда-обратно)
+    const t = this.attackProgress
+    // Синусоида: 0 -> π, чтобы движение было вперед и назад
+    const sinT = Math.sin(t * Math.PI)
+
+    this.vx = this.attackFromX + (this.attackTargetX - this.attackFromX) * sinT
+    this.vy = this.attackFromY + (this.attackTargetY - this.attackFromY) * sinT
   }
 
   occupies(tileX, tileY) {
@@ -248,6 +306,9 @@ export default class Character extends GameObject {
       console.log(`${this.name}: Цель слишком далеко! Дистанция Чебышева: ${chebyshevDistance}, Евклидова: ${euclideanDistance.toFixed(2)}, дальность атаки: ${this.attackRange}`)
       return false
     }
+
+    // Запускаем анимацию атаки
+    this.startAttackAnimation(target)
 
     // Проверяем точность
     const hitRoll = Math.random()
