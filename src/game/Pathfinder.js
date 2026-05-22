@@ -1,27 +1,33 @@
+// src/game/Pathfinder.js
+
 export const NEIGHBOR_ORDER = [
-  { dx: 0, dy: -1 },  // вверх
-  { dx: 0, dy: 1 },   // вниз
-  { dx: -1, dy: 0 },  // влево
-  { dx: 1, dy: 0 },   // вправо
-  { dx: -1, dy: -1 }, // вверх-влево
-  { dx: 1, dy: -1 },  // вверх-вправо
-  { dx: -1, dy: 1 },  // вниз-влево
-  { dx: 1, dy: 1 }    // вниз-вправо
+  { dx: 0, dy: -1 },
+  { dx: 0, dy: 1 },
+  { dx: -1, dy: 0 },
+  { dx: 1, dy: 0 },
+  { dx: -1, dy: -1 },
+  { dx: 1, dy: -1 },
+  { dx: -1, dy: 1 },
+  { dx: 1, dy: 1 }
 ]
 
 export default class Pathfinder {
   constructor(map) {
     this.map = map
+    // Убираем кэш
   }
 
-  // ОСНОВНОЙ МЕТОД A* ДЛЯ ПОИСКА ПУТИ
   find(sx, sy, ex, ey, blockedCells = []) {
+    // Прямой поиск пути без кэша
+    return this.findPath(sx, sy, ex, ey, blockedCells)
+  }
+
+  findPath(sx, sy, ex, ey, blockedCells = []) {
     const map = this.map
 
     if (sx === ex && sy === ey) return null
     if (!map.isWalkable(ex, ey)) return null
 
-    // Проверяем целевую клетку (нельзя встать на персонажа)
     for (const b of blockedCells) {
       if (b.x === ex && b.y === ey) return null
     }
@@ -89,25 +95,12 @@ export default class Pathfinder {
 
         if (!map.isWalkable(n.x, n.y)) continue
 
-        // Проверка среза углов для диагонального движения
         if (n.cost > 1) {
           const adj1 = map.isWalkable(n.x, current.y)
           const adj2 = map.isWalkable(current.x, n.y)
-
-          // ОТЛАДКА
-          // console.log(`[PATH] Диагональ (${current.x},${current.y}) -> (${n.x},${n.y})`);
-          // console.log(`[PATH] adj1 (${n.x},${current.y}): walkable=${adj1}`);
-          // console.log(`[PATH] adj2 (${current.x},${n.y}): walkable=${adj2}`);
-
-          // Запрещаем если хотя бы одна непроходима
-          if (!adj1 || !adj2) {
-            // console.log(`[PATH] ❌ Диагональ запрещена!`);
-            continue;
-          }
-          //console.log(`[PATH] ✅ Диагональ разрешена`);
+          if (!adj1 || !adj2) continue
         }
 
-        // Клетки с персонажами - высокий штраф
         let occupationCost = 0
         for (const b of blockedCells) {
           if (b.x === n.x && b.y === n.y) {
@@ -116,7 +109,6 @@ export default class Pathfinder {
           }
         }
 
-        // Если это целевая клетка и она занята - нельзя
         if (n.x === ex && n.y === ey && occupationCost > 0) continue
 
         const moveCost = n.cost + occupationCost
@@ -149,7 +141,6 @@ export default class Pathfinder {
     return null
   }
 
-  // МЕТОД ДЛЯ ПОИСКА ПУТИ ДО БЛИЖАЙШЕЙ ДОСТУПНОЙ КЛЕТКИ
   findPathToNearestWalkable(targetX, targetY, allCharacters, excludeCharacter, startX, startY) {
     const blockedCells = allCharacters
       .filter(c => c !== excludeCharacter)
@@ -180,18 +171,14 @@ export default class Pathfinder {
         const neighborBlocked = blockedCells.some(b => b.x === nx && b.y === ny);
 
         if (neighborWalkable && !neighborBlocked) {
-          // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: проверяем, можно ли ПРИЙТИ к этой клетке
-          // Строим путь и проверяем, не содержит ли он запрещённых диагоналей
           const path = this.find(startX, startY, nx, ny, blockedCells);
 
           if (path && path.length > 0 && path.length < bestPathLength) {
-            // Дополнительная проверка: убеждаемся, что путь не содержит запрещённых диагоналей
             let hasInvalidDiagonal = false;
             for (let i = 1; i < path.length; i++) {
               const prev = path[i - 1];
               const curr = path[i];
               const isDiagonalMove = Math.abs(prev.x - curr.x) === 1 && Math.abs(prev.y - curr.y) === 1;
-
               if (isDiagonalMove) {
                 const adj1 = this.map.isWalkable(curr.x, prev.y);
                 const adj2 = this.map.isWalkable(prev.x, curr.y);

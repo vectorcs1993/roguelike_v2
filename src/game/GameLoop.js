@@ -1,4 +1,5 @@
-import PathCache from './PathCache.js'
+// src/game/GameLoop.js
+
 import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
@@ -29,13 +30,10 @@ export default class GameLoop {
       }
     }
 
-    // ИНИЦИАЛИЗИРУЕМ КАМЕРУ НА АКТИВНОМ ПЕРСОНАЖЕ
     if (activeCharacter) {
       this.camera = new Camera(activeCharacter.x, activeCharacter.y, config.cameraSpeed)
-      // console.log(`Камера центрирована на: ${activeCharacter.name} (${activeCharacter.x}, ${activeCharacter.y})`)
     } else {
       this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, config.cameraSpeed)
-      // console.log(`Камера центрирована на центр карты (${this.config.cols / 2}, ${this.config.rows / 2})`)
     }
 
     this.input = new InputManager(config.swipeThreshold)
@@ -46,53 +44,56 @@ export default class GameLoop {
     this.hoverTileX = null
     this.hoverTileY = null
 
-    this.pathCache = new PathCache(200)
+    // Убираем PathCache - он больше не нужен
+    // this.pathCache = new PathCache(200)
 
     // Флаг ожидания конца хода
     this.waitingForTurnEnd = false
 
-    // ========== НАСТРОЙКИ ==========
-    // Флаг отладки (true - вывод бенчмарка, false - тишина)
+    // Настройки
     this.debugMode = false
 
-    // Ограничение FPS (100 FPS - оптимально для игр)
+    // Ограничение FPS
     this.targetFPS = 100
     this.frameInterval = 1000 / this.targetFPS
     this.lastFrameTime = 0
 
-    // БЕНЧМАРК: массивы для измерения производительности
+    // Бенчмарк
     this.frameTimes = []
     this.renderTimes = []
     this.updateTimes = []
-    // ================================
+
+    // FOV оптимизации
+    this.fovUpdateCounter = 0
+    this.fovUpdateInterval = 8
+    this.characterMoved = false
+    this.lastFovUpdateTime = 0
+    this.fovThrottleMs = 100
 
     // СТАРТОВЫЙ FOV ДЛЯ ВСЕХ СОЮЗНИКОВ
     this.initializeFovForAllAllies()
   }
-  initializeFovForAllAllies() {
-    // Находим всех союзников (игроков и тех, на кого можно переключиться)
+
+  initializeFovForAllAllies(force = false) {
+    const now = performance.now()
+    if (!force && (now - this.lastFovUpdateTime) < this.fovThrottleMs) {
+      return
+    }
+
     const allies = this.currentLocation.getAllCharacters().filter(
       c => c.isPlayerControlled || c.canSwitchTo
     )
 
     if (allies.length === 0) return
 
-    // console.log(`Открываем FOV для ${allies.length} союзников:`)
-
-    // Для первого союзника сбрасываем видимость, для остальных - накапливаем
     for (let i = 0; i < allies.length; i++) {
       const ally = allies[i]
       const tileX = Math.floor(ally.x)
       const tileY = Math.floor(ally.y)
-      // console.log(`  - ${ally.name} (${tileX}, ${tileY}), радиус: ${ally.fovRadius}`)
-
-      // Вычисляем FOV для этого союзника
-      // Для первого сбрасываем видимость, для остальных накапливаем
-      const resetVisibility = (i === 0)
+      const resetVisibility = (i === 0 && force)
       this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8, resetVisibility)
     }
 
-    // Для всех видимых клеток отмечаем explored
     for (let y = 0; y < this.currentLocation.map.rows; y++) {
       for (let x = 0; x < this.currentLocation.map.cols; x++) {
         const tile = this.currentLocation.map.getTile(x, y)
@@ -101,14 +102,15 @@ export default class GameLoop {
         }
       }
     }
+
+    this.lastFovUpdateTime = now
   }
+
   regenerateLevel(biomeType = null) {
-    // Сохраняем ID активного персонажа до регенерации
     const oldActiveId = this.currentLocation.getActiveCharacter()?.id
 
     this.currentLocation = Location.generateProcedural(this.config, biomeType)
 
-    // Гарантируем инициализацию очереди ходов
     if (this.currentLocation.initializeTurnQueue) {
       this.currentLocation.initializeTurnQueue()
     } else {
@@ -119,37 +121,27 @@ export default class GameLoop {
     let newActiveCharacter = null
 
     if (characters.length > 0) {
-      // Пытаемся найти персонажа с тем же ID (если есть)
       if (oldActiveId) {
         newActiveCharacter = characters.find(c => c.id === oldActiveId)
       }
-
-      // Если не нашли по ID, берем первого игрового персонажа
       if (!newActiveCharacter) {
         newActiveCharacter = characters.find(c => c.canSwitchTo === true) || characters[0]
       }
-
       if (newActiveCharacter && newActiveCharacter.canSwitchTo) {
         newActiveCharacter.isActive = true
       }
     }
 
-    // Центрируем камеру на новом активном персонаже
     if (newActiveCharacter) {
       this.camera.setPosition(newActiveCharacter.x, newActiveCharacter.y)
-      // console.log(`Камера центрирована на: ${newActiveCharacter.name}`)
     } else {
       this.camera.setPosition(this.config.cols / 2, this.config.rows / 2)
     }
 
-    this.pathCache.clear()
-
-    // Вызываем колбэк если есть
     if (this.onLocationChanged) {
       this.onLocationChanged()
     }
 
-    // Возвращаем ID активного персонажа для UI
     return newActiveCharacter?.id
   }
 
@@ -158,30 +150,7 @@ export default class GameLoop {
     if (newActive) {
       newActive.restoreFullAP()
       this.camera.setPosition(newActive.x, newActive.y)
-
-      setTimeout(() => {
-        const active = this.currentLocation.getActiveCharacter()
-        if (active && this.pathCache) {
-          const blocked = this.currentLocation.getBlockedCells(active)
-          const fromX = active.x | 0
-          const fromY = active.y | 0
-
-          for (let dy = -8; dy <= 8; dy++) {
-            for (let dx = -8; dx <= 8; dx++) {
-              if (dx === 0 && dy === 0) continue
-              const toX = fromX + dx
-              const toY = fromY + dy
-
-              if (!this.pathCache.get(fromX, fromY, toX, toY, blocked)) {
-                const path = this.currentLocation.pathfinder.find(fromX, fromY, toX, toY, blocked)
-                if (path) {
-                  this.pathCache.set(fromX, fromY, toX, toY, blocked, path)
-                }
-              }
-            }
-          }
-        }
-      }, 50)
+      this.characterMoved = true
     }
   }
 
@@ -189,7 +158,6 @@ export default class GameLoop {
     const character = this.currentLocation.getAllCharacters().find(c => c.id === characterId)
     if (character) {
       this.camera.setPosition(character.x, character.y)
-      // console.log(`Камера центрирована на персонаже: ${character.name}`)
     }
   }
 
@@ -197,7 +165,6 @@ export default class GameLoop {
     const activeChar = this.currentLocation.getActiveCharacter()
     if (activeChar) {
       this.camera.setPosition(activeChar.x, activeChar.y)
-      // console.log(`Камера центрирована на активном персонаже: ${activeChar.name} (ID: ${activeChar.id})`)
       return true
     }
     logger.warn(LOG_MODULES.SYSTEM, 'Нет активного персонажа для центрирования')
@@ -215,7 +182,6 @@ export default class GameLoop {
     const activeChar = this.currentLocation.getActiveCharacter();
     if (!activeChar) return false;
 
-    // Запрещаем управление врагами
     if (!activeChar.team || !activeChar.team.isPlayerControlled) {
       return false;
     }
@@ -234,20 +200,14 @@ export default class GameLoop {
 
     const isAdjacent = Math.abs(fromX - tileX) <= 1 && Math.abs(fromY - tileY) <= 1;
 
-    // Получаем объект под курсором
     const clickTarget = this.getClickTarget(tileX, tileY);
-
-    // ПОЛУЧАЕМ ТАЙЛ (для проверки стены)
     const tile = this.currentLocation.map.getTile(tileX, tileY);
 
-    // Если клик на стене - ничего не делаем
     if (tile && tile.constructor && tile.constructor.name === 'Wall') {
       return false;
     }
 
-    // обработка предметов
     if (clickTarget && clickTarget.constructor && clickTarget.constructor.name === 'ItemTile' && !clickTarget.collected) {
-      // Всегда строим путь к предмету, даже если он рядом
       const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
         tileX, tileY,
         this.currentLocation.getAllCharacters(),
@@ -261,7 +221,6 @@ export default class GameLoop {
       return false;
     }
 
-    // Если есть объект с методом onClick - вызываем его
     if (clickTarget && clickTarget.onClick) {
       const result = clickTarget.onClick(activeChar, isAdjacent, this);
       if (result === true) {
@@ -272,7 +231,6 @@ export default class GameLoop {
       }
     }
 
-    // Стандартная обработка - движение (без цели)
     const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
       tileX, tileY,
       this.currentLocation.getAllCharacters(),
@@ -288,17 +246,13 @@ export default class GameLoop {
     return false;
   }
 
-  // Вспомогательный метод для получения цели клика
   getClickTarget(x, y) {
-    // Сначала проверяем персонажей
     const character = this.currentLocation.getAllCharacters().find(c => c.occupies(x, y));
     if (character) return character;
 
-    // Затем проверяем ПРЕДМЕТЫ (ItemTile)
     const item = this.currentLocation.map.getItemAt(x, y);
     if (item && !item.collected) return item;
 
-    // Затем проверяем ящики и другие тайлы
     const tile = this.currentLocation.map.getTile(x, y);
     if (tile && tile.onClick) return tile;
 
@@ -330,17 +284,14 @@ export default class GameLoop {
       this.updateHoverTile(this.input.mouseX, this.input.mouseY)
     }
 
-    // Обновляем команды и проверяем условие завершения игры
     const isGameOver = this.currentLocation.updateTeams(dt)
 
-    // Если игра окончена, перезагружаем локацию
     if (isGameOver) {
       console.log('[GameLoop] Обнаружено завершение игры! Перезагрузка локации...')
       this.reloadLocation()
-      return // Пропускаем остальную логику обновления на этом кадре
+      return
     }
 
-    // Проверяем, нужно ли переходить к следующему ходу
     if (this.currentLocation.shouldAdvanceTurn()) {
       const currentChar = this.currentLocation.getActiveCharacter()
       logger.info(LOG_MODULES.TURN, `Завершение хода ${currentChar?.name} (AP: ${currentChar?.currentAP})`)
@@ -351,27 +302,19 @@ export default class GameLoop {
         logger.info(LOG_MODULES.TURN, `Новый активный персонаж: ${nextChar.name} (${isPlayer ? 'игрок' : 'враг'}), AP: ${nextChar.currentAP}/${nextChar.maxAP}`)
 
         if (isPlayer) {
-          // Проверяем, сколько персонажей под управлением игрока
           const playerCharacters = this.currentLocation.getAllCharacters().filter(c => c.team?.isPlayerControlled)
           const shouldCenterCamera = playerCharacters.length > 1
-
           if (shouldCenterCamera) {
-            // Центрируем камеру на персонажах игрока только если их больше одного
             this.centerOnCharacter(nextChar.id)
-            logger.info(LOG_MODULES.TURN, `Камера центрирована на игроке ${nextChar.name} (игроков: ${playerCharacters.length})`)
-          } else {
-            logger.info(LOG_MODULES.TURN, `Камера не центрируется на игроке ${nextChar.name} (только один игрок)`)
           }
         }
 
-        // Логируем начало хода врага с помощью специального метода
         if (!isPlayer) {
           logger.enemyTurnStart(nextChar.name, nextChar.currentAP)
           this._lastEnemyTurnLog = nextChar.id
-
-          // Камера НЕ переключается на врагов во время их хода (по требованию пользователя)
-          logger.info(LOG_MODULES.TURN, `Камера не переключается на врага ${nextChar.name} (отключено)`)
         }
+
+        this.characterMoved = true
       } else {
         logger.warn(LOG_MODULES.TURN, 'Нет следующего персонажа в очереди!')
       }
@@ -380,11 +323,18 @@ export default class GameLoop {
     const activeChar = this.currentLocation.getActiveCharacter()
 
     if (activeChar) {
+      const oldX = Math.floor(activeChar.x)
+      const oldY = Math.floor(activeChar.y)
+
       activeChar.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
 
-      // Если активный персонаж - враг, обновляем его ИИ
+      const newX = Math.floor(activeChar.x)
+      const newY = Math.floor(activeChar.y)
+      if (oldX !== newX || oldY !== newY) {
+        this.characterMoved = true
+      }
+
       if (activeChar.team && !activeChar.team.isPlayerControlled) {
-        // Логируем начало хода врага (только один раз)
         if (!this._lastEnemyTurnLog || this._lastEnemyTurnLog !== activeChar.id) {
           logger.enemyTurnStart(activeChar.name, activeChar.currentAP)
           this._lastEnemyTurnLog = activeChar.id
@@ -394,32 +344,16 @@ export default class GameLoop {
         const enemyTeam = this.currentLocation.getTeam('creatures')
         if (enemyTeam && enemyTeam.aiInstances) {
           const ai = enemyTeam.aiInstances.get(activeChar.id)
-          if (ai) {
-            // Обновляем ИИ врага только если у него есть ОД
-            if (activeChar.currentAP > 0) {
-              logger.debug(LOG_MODULES.AI, `Обновление ИИ для ${activeChar.name} (AP: ${activeChar.currentAP})`)
-              ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
-              // Камера НЕ переключается на врагов во время их хода (по требованию пользователя)
-              // Ранее было: if (this.currentLocation.isCharacterVisibleForPlayerTeam(activeChar)) {
-              //   this.centerOnActiveCharacter()
-              //   this._cameraSwitchedToEnemyDuringTurn = true
-              // }
-            } else {
-              logger.debug(LOG_MODULES.AI, `У ${activeChar.name} нет AP (${activeChar.currentAP}), пропускаем ИИ`)
-            }
-          } else {
-            logger.warn(LOG_MODULES.AI, `Не найден ИИ для врага ${activeChar.name} (ID: ${activeChar.id})`)
+          if (ai && activeChar.currentAP > 0) {
+            ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
+            this.characterMoved = true
           }
-        } else {
-          logger.warn(LOG_MODULES.AI, `Не найдена команда врагов или aiInstances для ${activeChar.name}`)
         }
 
-        // Фейлсейф: если ход врага длится больше 30 секунд, принудительно завершаем его
         if (this._enemyTurnStartTime && activeChar.currentAP > 0) {
           const turnDuration = performance.now() - this._enemyTurnStartTime
-          if (turnDuration > 30000) { // 30 секунд
+          if (turnDuration > 30000) {
             logger.warn(LOG_MODULES.SYSTEM, `Фейлсейф: ход врага ${activeChar.name} длится ${Math.round(turnDuration)}ms, принудительно завершаем`)
-            // Тратим все оставшиеся AP
             const apToSpend = activeChar.currentAP
             if (activeChar.spendAP) {
               activeChar.spendAP(apToSpend)
@@ -430,15 +364,18 @@ export default class GameLoop {
           }
         }
       } else {
-        // Сбрасываем лог хода врага при переходе к персонажу игрока
         this._lastEnemyTurnLog = null
         this._enemyTurnStartTime = null
       }
 
-      // Вместо обновления FOV только для активного персонажа,
-      // обновляем FOV для всех союзников (персонажей игрока)
-      this.initializeFovForAllAllies()
-      // Проверяем, достиг ли персонаж цели и подбираем
+      // Оптимизированный FOV
+      this.fovUpdateCounter++
+      if (this.characterMoved || this.fovUpdateCounter >= this.fovUpdateInterval) {
+        this.initializeFovForAllAllies(false)
+        this.fovUpdateCounter = 0
+        this.characterMoved = false
+      }
+
       activeChar.checkAndCollectTarget(this.currentLocation);
     }
 
@@ -447,7 +384,7 @@ export default class GameLoop {
     const updateEnd = performance.now()
     if (this.debugMode) {
       this.updateTimes.push(updateEnd - updateStart)
-      if (this.updateTimes.length > 60) this.updateTimes.shift()
+      if (this.updateTimes.length > 100) this.updateTimes.shift()
     }
   }
 
@@ -461,11 +398,11 @@ export default class GameLoop {
     this.renderer.mouseScreenX = this.input.mouseX
     this.renderer.mouseScreenY = this.input.mouseY
     this.renderer._pathfinder = this.currentLocation.pathfinder
-    this.renderer._blockedCache = this.getBlockedCells()
     this.renderer._location = this.currentLocation
     this.renderer._activeCharacter = this.currentLocation.getActiveCharacter()
     this.renderer._allCharacters = this.currentLocation.getAllCharacters()
-    this.renderer._pathCache = this.pathCache
+    // Убираем pathCache
+    // this.renderer._pathCache = this.pathCache
 
     this.renderer.draw(
       this.currentLocation.map,
@@ -483,7 +420,6 @@ export default class GameLoop {
   }
 
   gameLoop(now) {
-    // Ограничение FPS (60 FPS)
     if (this.lastFrameTime && (now - this.lastFrameTime) < this.frameInterval) {
       this.animationId = requestAnimationFrame((t) => this.gameLoop(t))
       return
@@ -502,13 +438,11 @@ export default class GameLoop {
 
     const frameEnd = performance.now()
 
-    // Бенчмарк только если включен debugMode
     if (this.debugMode) {
       this.frameTimes.push(frameEnd - frameStart)
-      if (this.frameTimes.length > 60) this.frameTimes.shift()
+      if (this.frameTimes.length > 100) this.frameTimes.shift()
 
-      // Логируем каждые 60 кадров
-      if (this.frameTimes.length === 60) {
+      if (this.frameTimes.length === 100) {
         const avgFrame = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length
         const avgRender = this.renderTimes.reduce((a, b) => a + b, 0) / this.renderTimes.length
         const avgUpdate = this.updateTimes.reduce((a, b) => a + b, 0) / this.updateTimes.length
@@ -519,10 +453,8 @@ export default class GameLoop {
         logger.debug(LOG_MODULES.SYSTEM, `   🎬 FPS: ${fps.toFixed(1)} (${avgFrame.toFixed(2)}ms/кадр)`)
         logger.debug(LOG_MODULES.SYSTEM, `   🎨 Рендер: ${avgRender.toFixed(2)}ms (${((avgRender / avgFrame) * 100).toFixed(1)}%)`)
         logger.debug(LOG_MODULES.SYSTEM, `   ⚙️  Update: ${avgUpdate.toFixed(2)}ms (${((avgUpdate / avgFrame) * 100).toFixed(1)}%)`)
-        logger.debug(LOG_MODULES.SYSTEM, `   💾 Путь в кэше: ${this.pathCache?.cache?.size || 0}/${this.pathCache?.maxSize || 0}`)
         logger.debug(LOG_MODULES.SYSTEM, `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
 
-        // Сбрасываем для следующего замера
         this.frameTimes = []
         this.renderTimes = []
         this.updateTimes = []
@@ -571,31 +503,10 @@ export default class GameLoop {
     this.input.handleKeyDown(e)
 
     if (e.code === 'F3') {
-      if (this.pathCache) {
-        this.pathCache.printStats()
-      }
+      // Убираем вывод статистики кэша
+      console.log('PathCache удален')
     }
 
-    if (e.code === 'F4') {
-      if (this.pathCache) {
-        this.pathCache.setDebug(!this.pathCache.debugEnabled)
-      }
-    }
-
-    if (e.code === 'F5') {
-      if (this.pathCache) {
-        this.pathCache.clear()
-      }
-    }
-
-    if (e.code === 'F6') {
-      if (this.pathCache) {
-        // getStats() вызывается, но результат не используется
-        this.pathCache.getStats()
-      }
-    }
-
-    // F7 - переключение режима отладки
     if (e.code === 'F7') {
       this.debugMode = !this.debugMode
       logger.info(LOG_MODULES.SYSTEM, `Режим отладки: ${this.debugMode ? 'ВКЛЮЧЕН' : 'ВЫКЛЮЧЕН'}`)
@@ -606,25 +517,19 @@ export default class GameLoop {
       }
     }
 
-    // Space или Enter - принудительное завершение хода
     if (e.code === 'Space' || e.code === 'Enter') {
       e.preventDefault()
-
-      // Проверяем, можно ли завершить ход (только для персонажей игрока)
       const activeChar = this.currentLocation.getActiveCharacter()
       if (!activeChar || !activeChar.team || !activeChar.team.isPlayerControlled) {
-        // Не позволяем игроку завершать ход врагов
         logger.info(LOG_MODULES.TURN, 'Нельзя завершить ход врага вручную')
         return
       }
-
       const nextChar = this.currentLocation.endTurn()
       if (nextChar && nextChar.team && nextChar.team.isPlayerControlled) {
         this.centerOnCharacter(nextChar.id)
       }
     }
 
-    // F8 - принудительная инициализация очереди ходов
     if (e.code === 'F8') {
       e.preventDefault()
       if (this.currentLocation && this.currentLocation.initializeTurnQueue) {
@@ -672,19 +577,11 @@ export default class GameLoop {
     }
   }
 
-  /**
-   * Перезагружает локацию (начать заново после смерти)
-   */
   reloadLocation() {
     console.log('[GameLoop] Перезагрузка локации...')
-
-    // Сохраняем тип биома текущей локации
     const biomeType = this.currentLocation?.biomeName || 'forest'
-
-    // Создаем новую процедурную локацию
     this.currentLocation = Location.generateProcedural(this.config, biomeType)
 
-    // Находим активного персонажа (первого игрока)
     const characters = this.currentLocation.getAllCharacters()
     let activeCharacter = null
 
@@ -696,16 +593,13 @@ export default class GameLoop {
       }
     }
 
-    // Обновляем камеру
     if (activeCharacter) {
       this.camera = new Camera(activeCharacter.x, activeCharacter.y, this.config.cameraSpeed)
     } else {
       this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, this.config.cameraSpeed)
     }
 
-    // Инициализируем FOV для всех союзников
     this.initializeFovForAllAllies()
-
     console.log('[GameLoop] Локация перезагружена!')
   }
 }

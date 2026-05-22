@@ -373,28 +373,31 @@ export default class Location {
   }
 
   isCharacterVisibleForPlayerTeam(character) {
-    // Find player team (team with isPlayerControlled = true)
+    // Находим команду игрока
     const playerTeam = Array.from(this.teams.values()).find(team => team.isPlayerControlled)
     if (!playerTeam) {
-      // If no player team found, fall back to tile visibility
       const tileX = Math.floor(character.x)
       const tileY = Math.floor(character.y)
       const tile = this.map.getTile(tileX, tileY)
       return tile ? tile.visible : false
     }
 
-    // If character is on player team, always visible
+    // Если персонаж из команды игрока - всегда виден
     if (character.team === playerTeam) {
       return true
     }
 
-    // Otherwise check if visible to player team
-    return playerTeam.isCharacterVisible(character, this.map)
+    // Для врагов - проверяем видимость через клетку (только visible!)
+    const tileX = Math.floor(character.x)
+    const tileY = Math.floor(character.y)
+    const tile = this.map.getTile(tileX, tileY)
+    return tile ? tile.visible : false
   }
 
   getTileInfo(tileX, tileY) {
     const tile = this.map.getTile(tileX, tileY)
 
+    // Неизвестная клетка (не видна и не исследована)
     if (!tile || (!tile.visible && !tile.explored)) {
       return {
         type: 'unknown',
@@ -402,17 +405,25 @@ export default class Location {
       }
     }
 
-    // Сначала проверяем персонажей
-    for (const character of this.characters) {
-      if (character.occupies(tileX, tileY) && this.isCharacterVisibleForPlayerTeam(character)) {
-        return character.getTooltipInfo()
+    // Проверяем персонажей ТОЛЬКО если клетка видима (не explored!)
+    if (tile.visible) {
+      for (const character of this.characters) {
+        if (character.occupies(tileX, tileY)) {
+          // Для врагов показываем информацию только если они видны
+          const isVisible = this.isCharacterVisibleForPlayerTeam(character)
+          if (isVisible) {
+            return character.getTooltipInfo()
+          }
+        }
       }
     }
 
-    // Затем проверяем предметы
-    const item = this.map.getItemAt(tileX, tileY)
-    if (item && !item.collected && tile.visible) {
-      return item.getTooltipInfo()
+    // Проверяем предметы (только на видимых клетках)
+    if (tile.visible) {
+      const item = this.map.getItemAt(tileX, tileY)
+      if (item && !item.collected) {
+        return item.getTooltipInfo()
+      }
     }
 
     // Возвращаем информацию о тайле
@@ -420,7 +431,7 @@ export default class Location {
       const tileInfo = tile.getTooltipInfo()
       tileInfo.pos = { x: tileX, y: tileY }
       if (!tile.visible && tile.explored) {
-        tileInfo.name += ' (Исследовано)'
+        tileInfo.name = '🌑 ' + tileInfo.name + ' (исследовано)'
       }
       return tileInfo
     }
