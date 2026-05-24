@@ -498,10 +498,47 @@ function regenerateLevel() {
   }
 }
 
+// IndexPage.vue - исправленный метод revealFullMap
+
 function revealFullMap() {
-  if (game?.currentLocation) {
-    game.currentLocation.revealAll?.()
-    addConsoleMessage('Карта полностью открыта', 'info')
+  if (!game?.currentLocation) {
+    console.error('revealFullMap: нет текущей локации!')
+    addConsoleMessage('❌ Не удалось открыть карту: локация не загружена', 'error')
+    return
+  }
+
+  const map = game.currentLocation.map
+  if (!map) {
+    console.error('revealFullMap: нет объекта map!')
+    addConsoleMessage('❌ Не удалось открыть карту: объект карты отсутствует', 'error')
+    return
+  }
+
+  let revealedCount = 0
+
+  for (let y = 0; y < map.rows; y++) {
+    for (let x = 0; x < map.cols; x++) {
+      const tile = map.getTile(x, y)
+      if (tile) {
+        // Устанавливаем видимость и исследованность
+        if (!tile.visible) {
+          tile.visible = true
+          revealedCount++
+        }
+        if (!tile.explored) {
+          tile.explored = true
+        }
+      }
+    }
+  }
+
+  console.log(`Открыто ${revealedCount} новых клеток`)
+  addConsoleMessage(`🗺️ Карта полностью открыта (${revealedCount} клеток)`, 'success')
+
+  // Принудительно перерисовываем
+  if (game.renderer) {
+    game.renderer.hoverTileX = null
+    game.renderer.hoverTileY = null
   }
 }
 

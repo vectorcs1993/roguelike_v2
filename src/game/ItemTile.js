@@ -24,7 +24,7 @@ export default class ItemTile extends Tile {
   static getItemChar(itemType) {
     const chars = {
       generic: '$',
-      health: '+',
+      health: '&',
       mana: '*',
       weapon: '/',
       armor: ']'

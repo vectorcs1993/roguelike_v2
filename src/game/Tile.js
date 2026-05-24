@@ -27,8 +27,12 @@ export default class Tile {
   }
 
   get isWalkable() { return this._isWalkable }
+  set isWalkable(value) { this._isWalkable = value }
+
   get isWall() { return !this._isWalkable }
+
   get blocksSight() { return this._blocksSight }
+  set blocksSight(value) { this._blocksSight = value }
 
   draw(ctx, x, y, ts, isVisible, isExplored, fontFamily) {
     if (!isVisible && !isExplored) return

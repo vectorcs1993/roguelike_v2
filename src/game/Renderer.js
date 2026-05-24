@@ -1,5 +1,4 @@
-// src/game/Renderer.js - с курсором на недоступных клетках
-
+// Renderer.js
 export default class Renderer {
   static DEFAULT_TILE_SIZE = 48
   static MIN_TILE_SIZE = 12
@@ -30,7 +29,6 @@ export default class Renderer {
     this._lastCameraY = null
     this._lastTileSize = null
     this._visibleBoundsCache = null
-    this._lastFrameTimestamp = 0
   }
 
   resize(canvasW, canvasH) {
@@ -133,7 +131,15 @@ export default class Renderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    // 1. РИСУЕМ ТАЙЛЫ (стены, полы, ящики)
+    // СОЗДАЁМ МНОЖЕСТВО КЛЕТОК, ГДЕ СТОЯТ ПЕРСОНАЖИ
+    const occupiedCells = new Set()
+    for (const char of characters) {
+      const tileX = Math.floor(char.x)
+      const tileY = Math.floor(char.y)
+      occupiedCells.add(`${tileX},${tileY}`)
+    }
+
+    // 1. РИСУЕМ ТАЙЛЫ (стены, полы, ящики, ДВЕРИ)
     const tilesByColor = new Map()
 
     for (let y = startY; y < endY; y++) {
@@ -142,10 +148,27 @@ export default class Renderer {
         if (!tile) continue
         if (!tile.visible && !tile.explored) continue
 
-        if (tile.char !== ' ') {
+        // ★★★ ЕСЛИ НА КЛЕТКЕ СТОИТ ПЕРСОНАЖ — НЕ РИСУЕМ ТАЙЛ (включая двери) ★★★
+        const cellKey = `${x},${y}`
+        if (occupiedCells.has(cellKey)) continue
+
+        // Обработка символа (для всех типов тайлов, включая двери)
+        if (tile.char !== ' ' && tile.char !== undefined) {
           const drawX = x * ts + ox
           const drawY = y * ts + oy
-          const color = tile.visible ? '#888888' : '#333333'
+
+          // Определяем цвет в зависимости от видимости
+          let color
+          if (tile.visible) {
+            color = '#888888'
+          } else {
+            color = '#333333'
+          }
+
+          // ОСОБЫЙ СЛУЧАЙ: ДВЕРИ — можно сделать их чуть заметнее
+          if (tile.constructor?.name === 'Door' && tile.visible) {
+            color = '#aa8866'  // Коричневатый оттенок для дверей
+          }
 
           if (!tilesByColor.has(color)) {
             tilesByColor.set(color, [])
@@ -162,14 +185,6 @@ export default class Renderer {
       }
     }
 
-    // СОЗДАЁМ МНОЖЕСТВО КЛЕТОК, ГДЕ СТОЯТ ПЕРСОНАЖИ
-    const occupiedCells = new Set()
-    for (const char of characters) {
-      const tileX = Math.floor(char.x)
-      const tileY = Math.floor(char.y)
-      occupiedCells.add(`${tileX},${tileY}`)
-    }
-
     // 2. РИСУЕМ ПРЕДМЕТЫ (только если на клетке НЕТ персонажа)
     if (this._location?.items) {
       const itemsByColor = new Map()
@@ -180,7 +195,6 @@ export default class Renderer {
         const itemY = Math.floor(item.y)
         const cellKey = `${itemX},${itemY}`
 
-        // ПРОПУСКАЕМ предмет, если на его клетке стоит персонаж
         if (occupiedCells.has(cellKey)) continue
 
         const tile = map.getTile(itemX, itemY)
@@ -276,6 +290,9 @@ export default class Renderer {
             if (info.type === 'item' && isVisible) {
               tooltipText += `\n📦 Нажмите чтобы подобрать`
             }
+            if (info.type === 'door' && isVisible) {
+              tooltipText += `\n${info.action === 'открыть' ? '🔓' : '🔒'} ${info.action} (${info.cost} AP)`
+            }
             if (!isVisible && isExplored) {
               tooltipText = `🌑 ${info.name} (исследовано)`
             }
@@ -288,12 +305,9 @@ export default class Renderer {
     }
   }
 
-  // Изменение масштаба (zoom)
   zoom(delta) {
     const oldTileSize = this.tileSize
     let newTileSize = this.tileSize + delta
-
-    // Ограничиваем масштаб
     newTileSize = Math.max(12, Math.min(96, newTileSize))
 
     if (newTileSize === oldTileSize) return false

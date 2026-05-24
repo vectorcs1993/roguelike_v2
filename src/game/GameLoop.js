@@ -81,7 +81,7 @@ export default class GameLoop {
     }
   }
 
-  // НОВЫЙ МЕТОД: проверяет, есть ли враги в очереди
+  // проверяет, есть ли враги в очереди
   hasEnemiesInQueue() {
     const queue = this.currentLocation.turnQueue?.queue || []
     for (const item of queue) {
@@ -472,7 +472,7 @@ export default class GameLoop {
     console.log('[GameLoop] Перезагрузка локации...')
     const biomeType = this.currentLocation?.biomeName || 'forest'
     this.currentLocation = Location.generateProcedural(this.config, biomeType)
-
+    this.debugPrintMap()
     const characters = this.currentLocation.getAllCharacters()
     let activeCharacter = null
 
@@ -495,5 +495,46 @@ export default class GameLoop {
     if (this.currentLocation.pathfinder) {
       this.currentLocation.pathfinder.clearCache()
     }
+  }
+
+  debugPrintMap() {
+    const map = this.currentLocation.map
+    if (!map) {
+      console.log('Карта не инициализирована')
+      return
+    }
+
+    console.log(`\n=== КАРТА ${map.cols}x${map.rows} ===`)
+
+    let output = ''
+
+    for (let y = 0; y < map.rows; y++) {
+      let row = ''
+      for (let x = 0; x < map.cols; x++) {
+        const tile = map.getTile(x, y)
+
+        if (!tile) {
+          row += '?'
+          continue
+        }
+
+        // Определяем символ для отображения
+        let symbol
+
+        if (tile.constructor?.name === 'Door') {
+          symbol = tile.char  // '+' или '/'
+        } else if (tile.isWalkable) {
+          symbol = '.'  // пол
+        } else {
+          symbol = '#'  // стена
+        }
+
+        row += symbol
+      }
+      output += row + '\n'
+    }
+
+    console.log(output)
+    console.log(`=== КОНЕЦ КАРТЫ ===\n`)
   }
 }
