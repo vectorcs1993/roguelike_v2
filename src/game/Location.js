@@ -1,5 +1,6 @@
 import TileMap from './TileMap.js'
 import Character from './Character.js'
+import Door from './Door.js'
 import ItemTile from './ItemTile.js'
 import Pathfinder from './Pathfinder.js'
 import PlayerTeam from './PlayerTeam.js'
@@ -9,14 +10,22 @@ import TurnQueue from './TurnQueue.js'
 import { ENEMIES } from './EnemyData.js'
 
 export default class Location {
-  constructor(config, pillars, teamConfigs = [], itemConfigs = [], biomeName = null, cratePositions = []) {
+  /**
+   * @type  {import('./GameLoop.js').default}
+   */
+  #gameLoop = null
+
+  constructor(config, walls, teamConfigs = [], itemConfigs = [], biomeName = null, cratePositions = []) {
     this.config = config
+
     this.biomeName = biomeName || 'Неизвестная локация'
     this.name = this.biomeName
 
+
+
     this.map = new TileMap(config.cols, config.rows)
     this.map.fill()
-    this.map.setWalls(pillars)
+    this.map.setWalls(walls)
 
     // Добавляем ящики на карту
     if (cratePositions && cratePositions.length > 0) {
@@ -45,6 +54,7 @@ export default class Location {
           console.warn(`Unknown team type: ${teamConfig.type}`)
           continue
       }
+      team.setLocation(this);
 
       for (const charConfig of teamConfig.characters) {
 
@@ -92,10 +102,16 @@ export default class Location {
       this.map.addItem(item)
     }
 
+
     // Инициализируем очередь ходов после создания всех персонажей
     this.initializeTurnQueue()
   }
-
+  setGameLoop(gameLoop) {
+    this.#gameLoop = gameLoop
+  }
+  getGameLoop() {
+    return this.#gameLoop
+  }
   getAllCharacters() {
     return this.characters
   }
@@ -215,9 +231,6 @@ export default class Location {
       }
     }
 
-    // Проверяем врагов и добавляем их в очередь ходов при обнаружении
-    this.updateEnemiesInTurnQueue()
-
     // Удаляем мертвых персонажей и проверяем условие завершения игры
     return this.removeDeadCharacters()
   }
@@ -277,18 +290,8 @@ export default class Location {
   }
 
   /**
-   * Обновляет очередь ходов, добавляя врагов при их обнаружении
-   * В упрощенной системе все враги уже добавлены при инициализации,
-   * но этот метод оставлен для совместимости
-   */
-  updateEnemiesInTurnQueue() {
-    // В упрощенной системе все враги уже добавлены в очередь при инициализации
-    // Этот метод теперь ничего не делает, но оставлен для совместимости
-  }
-
-  /**
    * Переходит к следующему ходу в очереди
-   * @returns {Object|null} следующий персонаж
+   * @returns {import('./Character.js').default} следующий персонаж
    */
   nextTurn() {
     const nextCharacter = this.turnQueue.next()
@@ -308,6 +311,7 @@ export default class Location {
     nextCharacter.isActive = true
     nextCharacter.restoreFullAP() // восстанавливаем полные ОД новому активному персонажу
 
+    if (nextCharacter.isPlayerControlled) this.getGameLoop().centerOnCharacter(nextCharacter.id);
     return nextCharacter
   }
 
@@ -317,15 +321,24 @@ export default class Location {
    * @returns {boolean}
    */
   shouldAdvanceTurn() {
-    const currentChar = this.getActiveCharacter()
-    if (!currentChar) {
-      return false
+    const currentChar = this.getActiveCharacter();
+    if (!currentChar) return false;
+
+    // Если у персонажа ещё есть AP – ход не заканчиваем
+    if (currentChar.currentAP > 0) return false;
+
+    // Если персонаж игрока и нет врагов – не переключаем ход, а восстанавливаем AP
+    if (currentChar.team?.isPlayerControlled) {
+      const hasEnemies = this.getGameLoop() ? this.getGameLoop().hasEnemiesInQueue() : true;
+      if (!hasEnemies) {
+        currentChar.restoreFullAP();  // Вне боя: восстанавливаем AP и остаёмся с тем же персонажем
+        console.log(`${currentChar.name} AP восстановлены, ход продолжается`);
+        return false; // ход не переключается
+      }
     }
 
-    const shouldAdvance = currentChar.currentAP <= 0
-
-    // Если у текущего персонажа закончились AP, переходим к следующему
-    return shouldAdvance
+    // В бою или для врагов – переключаем ход
+    return true;
   }
 
   /**
@@ -341,7 +354,7 @@ export default class Location {
     // Сбрасываем оставшиеся AP у текущего персонажа
     currentChar.currentAP = 0
 
-    return this.nextTurn()
+    return this.nextTurn();
   }
 
   updateFov(centerX, centerY, radius, resetVisibility = true) {
@@ -468,69 +481,71 @@ export default class Location {
 
 
   static generateProcedural(config, biomeType = null) {
-    // Если биом не указан - выбираем случайный
+    // Выбор биома
     const selectedBiome = biomeType || (() => {
       const biomes = ['residential', 'factory', 'technical']
       return biomes[Math.floor(Math.random() * biomes.length)]
     })()
 
-    // Базовые настройки генератора
+    // Базовые настройки генератора (новый формат)
     let generatorConfig = {
-      roomCount: 60,
-      minRoomSize: 3,
-      maxRoomSize: 6,
-      corridorWidth: 1,
+      width: 100,           // ширина карты
+      height: 80,           // высота карты
+      minRoomSize: 5,
+      maxRoomSize: 10,
+      maxRooms: 25,
       roomSpacing: 2,
-      maxAttempts: 200,        // уменьшил для скорости
-      gridSize: 40,            // увеличил для лучшего размещения
+      wallClearance: 1
     }
 
     let biomeName
 
-    // Настройки в зависимости от типа биома
     switch (selectedBiome) {
       case 'residential':
         biomeName = 'Жилой этаж'
-        generatorConfig.roomCount = 20
+        generatorConfig.maxRooms = 45
         generatorConfig.minRoomSize = 4
-        generatorConfig.maxRoomSize = 8
+        generatorConfig.maxRoomSize = 6
         generatorConfig.roomSpacing = 1
-        generatorConfig.corridorWidth = 1
+        generatorConfig.wallClearance = 0   // разрешить коридорам касаться стен
         break
 
       case 'factory':
         biomeName = 'Фабрика'
-        generatorConfig.roomCount = 25
-        generatorConfig.minRoomSize = 5
-        generatorConfig.maxRoomSize = 10
-        generatorConfig.corridorWidth = 1
-        generatorConfig.roomSpacing = 3
+        generatorConfig.maxRooms = 10
+        generatorConfig.minRoomSize = 8
+        generatorConfig.maxRoomSize = 14
+        generatorConfig.roomSpacing = 4
+        generatorConfig.wallClearance = 1
         break
 
       case 'technical':
         biomeName = 'Технический этаж'
-        generatorConfig.roomCount = 30
-        generatorConfig.minRoomSize = 3
+        generatorConfig.maxRooms = 35
+        generatorConfig.minRoomSize = 4
         generatorConfig.maxRoomSize = 6
-        generatorConfig.corridorWidth = 1
-        generatorConfig.roomSpacing = 4
+        generatorConfig.roomSpacing = 3
+        generatorConfig.wallClearance = 1
         break
 
       default:
         biomeName = 'Зараженная зона'
-        break
+        generatorConfig.maxRooms = 25
+        generatorConfig.minRoomSize = 5
+        generatorConfig.maxRoomSize = 10
+        generatorConfig.roomSpacing = 2
+        generatorConfig.wallClearance = 1
     }
 
-    // 1. ГЕНЕРАЦИЯ КАРТЫ (только стены, комнаты, коридоры, двери)
+    // Генерация карты
     const generator = new BiomeGenerator(generatorConfig)
-    const { walls, width, height, rooms, doors } = generator.generate()
+    const { walls, width, height, rooms, doors: doorData } = generator.generate()
 
-    // ========== 2. ГЕНЕРАЦИЯ ЯЩИКОВ (упрощённая, без сложных проверок) ==========
+    // ========== 2. ГЕНЕРАЦИЯ ЯЩИКОВ ==========
     const crates = []
     const crateCells = new Set()
     const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
 
-    // Собираем все клетки внутри комнат
     const roomCells = new Set()
     for (const room of rooms) {
       for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
@@ -541,7 +556,6 @@ export default class Location {
     }
 
     const availableForCrates = Array.from(roomCells)
-    // Перемешиваем
     for (let i = availableForCrates.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
         ;[availableForCrates[i], availableForCrates[j]] = [availableForCrates[j], availableForCrates[i]]
@@ -556,17 +570,9 @@ export default class Location {
 
     // ========== 3. ГЕНЕРАЦИЯ ПРЕДМЕТОВ ==========
     const items = []
-    const availableForItems = []
-
-    for (const cell of availableForCrates) {
-      if (!crateCells.has(cell)) {
-        availableForItems.push(cell)
-      }
-    }
-
+    const availableForItems = availableForCrates.filter(cell => !crateCells.has(cell))
     const itemCount = Math.min(20, availableForItems.length)
     const itemTypes = ['generic', 'health', 'mana', 'weapon', 'armor']
-
     for (let i = 0; i < itemCount; i++) {
       const [x, y] = availableForItems[i].split(',').map(Number)
       const randomType = itemTypes[Math.floor(Math.random() * itemTypes.length)]
@@ -582,7 +588,7 @@ export default class Location {
     const playerStart = Location.findEmptyTile(width, height, isPositionFree)
     const allyStart = Location.findEmptyTile(width, height, isPositionFree, [playerStart])
 
-    // ========== 5. ГЕНЕРАЦИЯ ВРАГОВ (упрощённая) ==========
+    // ========== 5. ГЕНЕРАЦИЯ ВРАГОВ ==========
     const enemies = []
     const enemyTypes = ['groaner', 'crawler', 'runner', 'mold', 'sticker']
     const availableForEnemies = availableForCrates.filter(cell => {
@@ -590,16 +596,14 @@ export default class Location {
       const distToPlayer = Math.abs(x - playerStart.x) + Math.abs(y - playerStart.y)
       return !crateCells.has(cell) && distToPlayer > 5
     })
-
     const enemyCount = Math.min(10, availableForEnemies.length)
     for (let i = 0; i < enemyCount; i++) {
       const [x, y] = availableForEnemies[i].split(',').map(Number)
       const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)]
-      const enemyData = ENEMIES[type] // нужно импортировать ENEMIES
+      const enemyData = ENEMIES[type]
       if (enemyData) {
         enemies.push({
-          x, y,
-          type: type,
+          x, y, type,
           name: enemyData.name,
           char: enemyData.char,
           color: enemyData.color,
@@ -629,10 +633,8 @@ export default class Location {
       characters: [
         {
           x: playerStart.x, y: playerStart.y,
-          char: '@',
-          color: '#44ffaa',
-          id: generateId(),
-          name: 'Командир',
+          char: '@', color: '#44ffaa',
+          id: generateId(), name: 'Командир',
           fovRadius: 12,
           ap: { max: 12, moveCost: 1, pickupCost: 2 },
           hp: 25, armor: 1, damageMin: 3, damageMax: 6,
@@ -640,10 +642,8 @@ export default class Location {
         },
         {
           x: allyStart.x, y: allyStart.y,
-          char: '@',
-          color: '#44ffaa',
-          id: generateId(),
-          name: 'Спутник',
+          char: '@', color: '#44ffaa',
+          id: generateId(), name: 'Спутник',
           fovRadius: 10,
           ap: { max: 10, moveCost: 2, pickupCost: 4 },
           hp: 20, armor: 0, damageMin: 2, damageMax: 4,
@@ -671,17 +671,20 @@ export default class Location {
       }))
     }
 
-    const itemConfigs = items.map(item => ({
-      x: item.x, y: item.y,
+    const itemConfigs = items.map((item) => ({
+      x: item.x,
+      y: item.y,
       itemType: item.itemType,
       apRestore: 2 + Math.floor(Math.random() * 8)
     }))
 
-    const updatedConfig = { ...config, cols: width, rows: height }
 
-    // 7. СОЗДАНИЕ ЛОКАЦИИ
+    // Создаём объекты дверей
+    const doorObjects = (doorData || []).map(d => new Door(d.x, d.y, d.locked))
+
+    // Создаём локацию
     const location = new Location(
-      updatedConfig,
+      { ...config, cols: width, rows: height },
       walls,
       [playerTeamConfig, enemyTeamConfig],
       itemConfigs,
@@ -689,19 +692,14 @@ export default class Location {
       crates
     )
 
-    // Добавляем двери на карту
-    if (doors && doors.length > 0) {
-      for (const door of doors) {
-        if (door.y >= 0 && door.y < location.map.rows &&
-          door.x >= 0 && door.x < location.map.cols) {
-          location.map.grid[door.y][door.x] = door
-        }
-      }
-      console.log(`[Location] Добавлено ${doors.length} дверей на карту`)
+    // Добавляем двери через TileMap
+    if (doorObjects.length) {
+      location.map.setDoors(doorObjects)
+      console.log(`[Location] Добавлено ${doorObjects.length} дверей на карту`)
     }
 
     console.log(`[Location] Сгенерирована локация: ${biomeName}, размер ${width}x${height}`)
-    console.log(`  - Комнат: ${rooms.length}, дверей: ${doors?.length || 0}`)
+    console.log(`  - Комнат: ${rooms.length}, дверей: ${doorObjects.length}`)
     console.log(`  - Ящиков: ${crates.length}, предметов: ${items.length}, врагов: ${enemies.length}`)
 
     return location
@@ -752,64 +750,6 @@ export default class Location {
     return { x: topCandidates[randomIndex].x, y: topCandidates[randomIndex].y }
   }
 
-  // Вывод карты с видимостью (туман войны)
-  debugPrintMapWithVisibility() {
-    const map = this.currentLocation.map
-    if (!map) {
-      console.log('Карта не инициализирована')
-      return
-    }
-
-    const activeChar = this.currentLocation.getActiveCharacter()
-
-
-    console.log(`\n=== КАРТА С ВИДИМОСТЬЮ (активный: ${activeChar?.name || 'нет'}) ===`)
-
-    let output = ''
-
-    for (let y = 0; y < map.rows; y++) {
-      let row = ''
-      for (let x = 0; x < map.cols; x++) {
-        const tile = map.getTile(x, y)
-
-        if (!tile) {
-          row += '?'
-          continue
-        }
-
-        let symbol
-
-        if (tile.visible) {
-          // Видимая клетка
-          if (tile.constructor?.name === 'Door') {
-            symbol = tile.char
-          } else if (tile.isWalkable) {
-            symbol = '.'
-          } else {
-            symbol = '#'
-          }
-        } else if (tile.explored) {
-          // Исследованная, но невидимая
-          if (tile.constructor?.name === 'Door') {
-            symbol = '░'  // тёмная дверь
-          } else if (tile.isWalkable) {
-            symbol = '░'
-          } else {
-            symbol = '▓'
-          }
-        } else {
-          // Неизвестная клетка
-          symbol = '?'
-        }
-
-        row += symbol
-      }
-      output += row + '\n'
-    }
-
-    console.log(output)
-    console.log(`Легенда: #=стена .=пол +=закрытая дверь /=открытая дверь ?=неизвестно ░=исследовано ▓=исследованная стена\n`)
-  }
   // Старый метод createDefault оставляем для совместимости
   static createDefault(config) {
     return Location.generateProcedural(config)

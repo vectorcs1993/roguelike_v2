@@ -1,4 +1,5 @@
 import GameObject from './GameObject.js'
+import { LOG_MODULES, logger } from './Logger.js'
 
 export default class Character extends GameObject {
   // Константы класса
@@ -9,6 +10,9 @@ export default class Character extends GameObject {
     // Если id уже число - используем его, иначе генерируем числовой
     this.id = (typeof id === 'number') ? id : (id ? parseInt(id) || Date.now() : Date.now())
     this.name = name || 'Персонаж'
+    /**
+   * @type  {import('./Team.js').default}
+   */
     this.team = team
     this.isActive = false
     this.isDead = false
@@ -74,7 +78,6 @@ export default class Character extends GameObject {
     this.currentAP = this.maxAP
   }
 
-
   setPath(path, target = null) {
     if (!path || path.length <= 1) {
       this.followingPath = false
@@ -115,7 +118,7 @@ export default class Character extends GameObject {
     return true
   }
 
-  moveAlongPath(dt, tileMap, blockers) {
+  moveAlongPath(tileMap, blockers) {
     if (!this.followingPath || this.moving) return
     if (this.path.length === 0) {
       this.endMovement()
@@ -126,7 +129,7 @@ export default class Character extends GameObject {
     const apCost = this.moveAPCost
 
     if (!this.canAffordAP(apCost)) {
-      console.log(`${this.name}: Закончились AP! Остановка.`)
+      logger.info(LOG_MODULES.MOVEMENT, `${this.name}: Закончились очки действий!`)
       this.followingPath = false
       this.path = []
       return
@@ -160,7 +163,7 @@ export default class Character extends GameObject {
     if (!this.isActive) return
     this.updateMovement(dt, this.pathSpeed)
     if (this.followingPath) {
-      this.moveAlongPath(dt, tileMap, allCharacters)
+      this.moveAlongPath(tileMap, allCharacters)
     }
     this.updateAttackAnimation(dt)
   }
@@ -255,10 +258,12 @@ export default class Character extends GameObject {
       team: this.team?.name
     }
   }
+
   endMovement() {
     this.followingPath = false
     this.path = []
   }
+
   checkAndCollectTarget(location) {
     if (!this.target || this.target.collected) {
       this.target = null
@@ -295,7 +300,7 @@ export default class Character extends GameObject {
   attack(target) {
     // Проверяем, хватает ли AP для атаки
     if (!this.canAffordAP(this.attackAPCost)) {
-      console.log(`${this.name}: Недостаточно AP для атаки! Нужно ${this.attackAPCost}, есть ${this.currentAP}`)
+      logger.info(LOG_MODULES.COMBAT, `${this.name}: Недостаточно AP для атаки! Нужно ${this.attackAPCost}, есть ${this.currentAP}`)
       return false
     }
 
@@ -369,8 +374,6 @@ export default class Character extends GameObject {
     console.log(`${this.name} погибает!`)
     this.isDead = true
     this.isActive = false
-    // Здесь можно добавить логику удаления персонажа из игры
-    // Например: this.team.removeCharacter(this)
   }
 
   // Восстановление здоровья
@@ -378,6 +381,7 @@ export default class Character extends GameObject {
     this.hp = Math.min(this.maxHp, this.hp + amount)
     console.log(`${this.name} восстанавливает ${amount} HP. Теперь: ${this.hp}/${this.maxHp}`)
   }
+
   onClick(activeCharacter, isAdjacent) {
     // Если это враг
     if (this.team && !this.team.isPlayerControlled) {

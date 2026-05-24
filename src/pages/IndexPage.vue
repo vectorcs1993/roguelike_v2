@@ -462,7 +462,7 @@ function updateCharactersList() {
     return tile && tile.visible
   })
 
-  // Сортируем персонажей в соответствии с очередью ходов
+
   let sortedVisibleCharacters = [...visibleCharacters]
   if (game.currentLocation.turnQueue) {
     const turnQueue = game.currentLocation.turnQueue
@@ -502,7 +502,6 @@ function updateCharactersList() {
       teamName: char.team?.name || 'Без команды',
       ap: char.currentAP,
       maxAP: char.maxAP,
-      apPercentage: char.getAPPercentage ? char.getAPPercentage() : (char.currentAP / char.maxAP) * 100,
       hp: hp,
       maxHp: maxHp,
       hpPercentage: hpPercentage,
@@ -663,9 +662,6 @@ function endTurn() {
   if (activeChar && activeChar.team?.isPlayerControlled) {
     game.currentLocation.endTurn?.()
     addConsoleMessage(`Ход завершен: ${activeChar.name}`, 'info')
-
-    // 👇 Центрируем камеру на новом активном персонаже
-    game.centerOnActiveCharacter()
   }
 }
 

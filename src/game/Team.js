@@ -8,8 +8,14 @@ export default class Team {
     this.isPlayerControlled = config.isPlayerControlled || false
     this.canSwitchTo = config.canSwitchTo || false
     this.visibleInFog = config.visibleInFog || false
+    /**
+     * @type  {import('./Location.js').default}
+     */
+    this.location = null
   }
-
+  setLocation(location) {
+    this.location = location
+  }
   addCharacter(character) {
     this.characters.push(character)
     character.team = this

@@ -1,5 +1,3 @@
-// src/game/TileMap.js
-
 import Floor from './Floor.js'
 import Wall from './Wall.js'
 import Crate from './Crate.js'
@@ -11,6 +9,7 @@ export default class TileMap {
     this.rows = rows
     this.grid = []
     this.items = new Map() // Отдельное хранилище для предметов
+    this.doors = new Map() // Отдельное хранилище для дверей
     this.fov = new Fov(this)
   }
 
@@ -85,7 +84,40 @@ export default class TileMap {
     const tile = this.getTile(x, y)
     return tile ? tile.blocksSight : true
   }
-
+  setDoors(doors) {
+    for (const door of doors) {
+      const x = door.x, y = door.y
+      if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
+        const tile = this.getTile(x, y)
+        // Дверь можно ставить только на пол (не на стену и не на ящик)
+        if (tile && tile.isWalkable && !(tile instanceof Crate)) {
+          this.grid[y][x] = door
+        }
+      }
+    }
+  }
+  addDoor(door) {
+    const key = `${door.x},${door.y}`
+    this.doors.set(key, door)
+  }
+  getDoorAt(x, y) {
+    const key = `${x},${y}`
+    return this.doors.get(key)
+  }
+  hasDoorAt(x, y) {
+    const key = `${x},${y}`
+    return this.doors.has(key)
+  }
+  removeDoorAt(x, y) {
+    const key = `${x},${y}`
+    this.doors.delete(key)
+  }
+  getDoors() {
+    return this.doors.values()
+  }
+  getDoorCount() {
+    return this.doors.size
+  }
   computeFov(originX, originY, radius, resetVisibility = true) {
     if (resetVisibility) {
       for (let y = 0; y < this.rows; y++) {

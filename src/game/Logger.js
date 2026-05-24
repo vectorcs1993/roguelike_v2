@@ -13,6 +13,7 @@ export const LOG_MODULES = {
   ENEMY: 'enemy',
   COMBAT: 'combat',
   MOVEMENT: 'movement',
+  ACTION: 'action',
   AI: 'ai',
   TURN: 'turn',
   PATHFINDING: 'pathfinding',

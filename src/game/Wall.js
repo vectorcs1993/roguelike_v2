@@ -13,6 +13,7 @@ export default class Wall extends Tile {
   }
 
   onClick() {
-    return null;
+    console.log('Невозможно пройти через стену')
+    return false;
   }
 }

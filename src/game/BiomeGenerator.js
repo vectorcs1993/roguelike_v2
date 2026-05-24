@@ -1,323 +1,393 @@
-// BiomeGenerator.js - ПРОСТОЙ И НАДЁЖНЫЙ
-
-import Door from './Door.js'
+// BiomeGenerator.js
+// Генератор карты подземелья: комнаты + коридоры (A* с избеганием стен комнат)
+// Возвращает: стены, размеры, список комнат, данные для дверей (без создания объектов Door)
 
 export default class BiomeGenerator {
+  /**
+   * @param {Object} config - настройки генерации
+   * @param {number} config.width - ширина карты (клеток)
+   * @param {number} config.height - высота карты (клеток)
+   * @param {number} config.minRoomSize - мин. размер комнаты
+   * @param {number} config.maxRoomSize - макс. размер комнаты
+   * @param {number} config.maxRooms - сколько комнат пытаться разместить
+   * @param {number} config.roomSpacing - мин. расстояние между комнатами
+   * @param {number} config.wallClearance - мин. расстояние от коридора до стен комнат (0/1)
+   */
   constructor(config = {}) {
-    this.roomCount = config.roomCount || 25
-    this.minRoomSize = config.minRoomSize || 3
-    this.maxRoomSize = config.maxRoomSize || 6
-    this.corridorWidth = config.corridorWidth || 1
+    this.width = config.width || 80
+    this.height = config.height || 60
+    this.minRoomSize = config.minRoomSize || 5
+    this.maxRoomSize = config.maxRoomSize || 10
+    this.maxRooms = config.maxRooms || 25
     this.roomSpacing = config.roomSpacing || 2
-    this.maxAttempts = config.maxAttempts || 200
-    this.gridSize = config.gridSize || 50
-
-    this.doorConfig = {
-      lockedChance: config.doors?.lockedChance || 0.1,
-    }
+    this.wallClearance = config.wallClearance !== undefined ? config.wallClearance : 1   // 0 или 1
   }
 
+  // ========================== ПУБЛИЧНЫЙ МЕТОД ==========================
+
+  /**
+   * Генерирует подземелье
+   * @returns {Object} Результат:
+   *   walls: массив координат стен [[x,y], ...]
+   *   width, height: размеры карты
+   *   rooms: массив комнат { x, y, w, h }
+   *   corridorCells: Set строк "x,y" клеток коридоров (пустой, можно не использовать)
+   *   doors: массив { x, y, locked } для создания дверей в Location
+   */
   generate() {
-    // 1. Генерация комнат
-    const rooms = this.generateRooms()
-
-    // 2. Сдвиг комнат
-    const { minX, minY } = this.getRoomBounds(rooms)
-    const padding = 2
-    const offsetX = padding - minX
-    const offsetY = padding - minY
-    rooms.forEach(room => {
-      room.x += offsetX
-      room.y += offsetY
-    })
-
-    // 3. Размеры карты
-    const finalBounds = this.getRoomBounds(rooms)
-    const width = finalBounds.maxX - finalBounds.minX + padding * 2
-    const height = finalBounds.maxY - finalBounds.minY + padding * 2
-
-    // 4. Создаём карту (true = стена)
-    let map = Array(height).fill().map(() => Array(width).fill(true))
-
-    // 5. Рисуем комнаты
-    for (const room of rooms) {
-      for (let y = room.y; y < room.y + room.h; y++) {
-        for (let x = room.x; x < room.x + room.w; x++) {
-          map[y][x] = false
-        }
-      }
-    }
-
-    // 6. СОЕДИНЯЕМ ТОЛЬКО БЛИЗКИЕ КОМНАТЫ
-    this.connectNearbyRooms(map, rooms)
-
-    // 7. Собираем стены
-    const walls = []
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        if (map[y][x] === true) walls.push([x, y])
-      }
-    }
-
-    // 8. Расставляем двери
-    const doors = this.placeDoors(map, rooms)
-
-    console.log(`Комнат: ${rooms.length}, дверей: ${doors.length}`)
-
-    return { walls, width, height, rooms, corridorCells: new Set(), doors }
-  }
-
-  generateRooms() {
+    // 1. Инициализация карты (true = стена)
+    const map = Array(this.height).fill().map(() => Array(this.width).fill(true))
     const rooms = []
-    for (let i = 0; i < this.roomCount; i++) {
-      let attempts = 0
-      let placed = false
 
-      while (!placed && attempts < this.maxAttempts) {
-        const w = this.randomInt(this.minRoomSize, this.maxRoomSize)
-        const h = this.randomInt(this.minRoomSize, this.maxRoomSize)
-        const x = this.randomInt(1, this.gridSize - w - this.roomSpacing)
-        const y = this.randomInt(1, this.gridSize - h - this.roomSpacing)
-
-        const newRoom = { x, y, w, h }
-        let intersects = false
-        for (const room of rooms) {
-          if (this.rectIntersect(newRoom, room, this.roomSpacing)) {
-            intersects = true
-            break
-          }
+    // 2. Размещение комнат
+    for (let i = 0; i < this.maxRooms; i++) {
+      const w = this.rand(this.minRoomSize, this.maxRoomSize)
+      const h = this.rand(this.minRoomSize, this.maxRoomSize)
+      const x = this.rand(1, this.width - w - 1)
+      const y = this.rand(1, this.height - h - 1)
+      const newRoom = { x, y, w, h }
+      let ok = true
+      for (const r of rooms) {
+        if (this.intersects(newRoom, r, this.roomSpacing)) {
+          ok = false
+          break
         }
-        if (!intersects) {
-          rooms.push(newRoom)
-          placed = true
-        }
-        attempts++
+      }
+      if (ok) {
+        // Заливаем комнату полом (false)
+        for (let ry = y; ry < y + h; ry++)
+          for (let rx = x; rx < x + w; rx++)
+            map[ry][rx] = false
+        rooms.push(newRoom)
       }
     }
-    return rooms
+    if (rooms.length < 2) return this.emptyMap()
+
+    // 3. Соединение комнат коридорами (MST + A*)
+    this.connectRooms(map, rooms)
+
+    // 4. Сбор стен
+    const walls = []
+    for (let y = 0; y < this.height; y++)
+      for (let x = 0; x < this.width; x++)
+        if (map[y][x] === true) walls.push([x, y])
+
+    // 5. Генерация данных о дверях (без создания объектов Door)
+    const doorData = this.placeDoors(map, rooms)
+
+    console.log(`[BiomeGenerator] Комнат: ${rooms.length}, дверей: ${doorData.length}`)
+    return {
+      walls,
+      width: this.width,
+      height: this.height,
+      rooms,
+      corridorCells: new Set(),
+      doors: doorData
+    }
   }
 
-  rectIntersect(r1, r2, spacing) {
+  // ========================== РАЗМЕЩЕНИЕ КОМНАТ ==========================
+
+  /**
+   * Проверка пересечения двух прямоугольников с отступом spacing
+   */
+  intersects(r1, r2, spacing) {
     return !(r1.x + r1.w + spacing <= r2.x - spacing ||
       r2.x + r2.w + spacing <= r1.x - spacing ||
       r1.y + r1.h + spacing <= r2.y - spacing ||
       r2.y + r2.h + spacing <= r1.y - spacing)
   }
 
-  getRoomBounds(rooms) {
-    let minX = Infinity, minY = Infinity
-    let maxX = -Infinity, maxY = -Infinity
-    for (const r of rooms) {
-      minX = Math.min(minX, r.x)
-      minY = Math.min(minY, r.y)
-      maxX = Math.max(maxX, r.x + r.w)
-      maxY = Math.max(maxY, r.y + r.h)
+  /**
+   * Точка выхода из комнаты: отступ от углов на 2 клетки, от стены наружу на 1.
+   * Гарантирует, что коридор не начнётся из угла.
+   * @param {Object} room - комната {x,y,w,h}
+   * @param {Object} target - целевая точка (центр другой комнаты)
+   * @returns {Object} { x, y }
+   */
+  getExitPoint(room, target) {
+    const left = room.x
+    const right = room.x + room.w - 1
+    const top = room.y
+    const bottom = room.y + room.h - 1
+    const cx = (left + right) / 2
+    const cy = (top + bottom) / 2
+    const dx = target.x - cx
+    const dy = target.y - cy
+    let x, y
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Горизонтальная сторона
+      if (dx > 0) x = right + 1
+      else x = left - 1
+      let midY = Math.floor(cy)
+      // Отступ от углов: не ближе 2 от top и bottom
+      midY = Math.min(Math.max(midY, top + 2), bottom - 2)
+      y = midY
+    } else {
+      // Вертикальная сторона
+      if (dy > 0) y = bottom + 1
+      else y = top - 1
+      let midX = Math.floor(cx)
+      midX = Math.min(Math.max(midX, left + 2), right - 2)
+      x = midX
     }
-    return { minX, minY, maxX, maxY }
+    // Ограничение границами карты
+    x = Math.min(Math.max(x, 2), this.width - 3)
+    y = Math.min(Math.max(y, 2), this.height - 3)
+    return { x, y }
   }
 
-  // ========== СОЕДИНЯЕМ ТОЛЬКО БЛИЗКИЕ КОМНАТЫ ==========
-  connectNearbyRooms(map, rooms) {
+  // ========================== СОЕДИНЕНИЕ КОМНАТ (MST + A*) ==========================
+
+  /**
+   * Построение минимального остовного дерева (алгоритм Прима) и прокладка коридоров
+   */
+  connectRooms(map, rooms) {
     const n = rooms.length
-    if (n < 2) return
-
-    // Находим все пары комнат в пределах 15 клеток
-    const pairs = []
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        const dist = this.distanceBetweenRooms(rooms[i], rooms[j])
-        if (dist < 15) {  // Только близкие комнаты
-          pairs.push({ i, j, dist })
-        }
-      }
-    }
-
-    // Сортируем по расстоянию
-    pairs.sort((a, b) => a.dist - b.dist)
-
-    // Соединяем, пока все комнаты не станут связаны
     const connected = new Set([0])
-    const usedPairs = []
-
-    for (const pair of pairs) {
-      if (connected.has(pair.i) !== connected.has(pair.j)) {
-        this.drawCorridorBetweenRooms(map, rooms[pair.i], rooms[pair.j])
-        connected.add(pair.i)
-        connected.add(pair.j)
-        usedPairs.push(pair)
+    while (connected.size < n) {
+      let best = null
+      for (const i of connected) {
+        for (let j = 0; j < n; j++) {
+          if (connected.has(j)) continue
+          const target = { x: rooms[j].x + rooms[j].w / 2, y: rooms[j].y + rooms[j].h / 2 }
+          const p1 = this.getExitPoint(rooms[i], target)
+          const target2 = { x: rooms[i].x + rooms[i].w / 2, y: rooms[i].y + rooms[i].h / 2 }
+          const p2 = this.getExitPoint(rooms[j], target2)
+          const dist = Math.abs(p1.x - p2.x) + Math.abs(p1.y - p2.y)
+          if (!best || dist < best.dist) best = { i, j, dist, p1, p2 }
+        }
       }
-      if (connected.size === n) break
-    }
-
-    // Добавляем несколько дополнительных соединений
-    const extraCount = Math.min(3, pairs.length - usedPairs.length)
-    for (let i = 0; i < extraCount; i++) {
-      const pair = pairs.find(p => !usedPairs.includes(p))
-      if (pair) {
-        this.drawCorridorBetweenRooms(map, rooms[pair.i], rooms[pair.j])
-        usedPairs.push(pair)
-      }
-    }
-  }
-
-  distanceBetweenRooms(roomA, roomB) {
-    const ax1 = roomA.x
-    const ax2 = roomA.x + roomA.w
-    const ay1 = roomA.y
-    const ay2 = roomA.y + roomA.h
-
-    const bx1 = roomB.x
-    const bx2 = roomB.x + roomB.w
-    const by1 = roomB.y
-    const by2 = roomB.y + roomB.h
-
-    const dx = Math.max(ax1 - bx2, bx1 - ax2, 0)
-    const dy = Math.max(ay1 - by2, by1 - ay2, 0)
-
-    return dx + dy
-  }
-
-  drawCorridorBetweenRooms(map, roomA, roomB) {
-    // Находим ближайшие точки на границах комнат
-    const pointA = this.getClosestBorderPoint(roomA, roomB)
-    const pointB = this.getClosestBorderPoint(roomB, roomA)
-
-    // Рисуем L-образный коридор
-    this.drawCorridorPath(map, pointA.x, pointA.y, pointB.x, pointB.y)
-  }
-
-  getClosestBorderPoint(room, targetRoom) {
-    const targetX = targetRoom.x + targetRoom.w / 2
-    const targetY = targetRoom.y + targetRoom.h / 2
-
-    let bestPoint = { x: room.x + Math.floor(room.w / 2), y: room.y + Math.floor(room.h / 2) }
-    let bestDist = Infinity
-
-    // Проверяем все граничные клетки комнаты
-    for (let y = room.y; y < room.y + room.h; y++) {
-      // Левая граница
-      let dist = Math.abs(room.x - targetX) + Math.abs(y - targetY)
-      if (dist < bestDist) {
-        bestDist = dist
-        bestPoint = { x: room.x, y: y }
-      }
-      // Правая граница
-      dist = Math.abs(room.x + room.w - 1 - targetX) + Math.abs(y - targetY)
-      if (dist < bestDist) {
-        bestDist = dist
-        bestPoint = { x: room.x + room.w - 1, y: y }
-      }
-    }
-
-    for (let x = room.x; x < room.x + room.w; x++) {
-      // Верхняя граница
-      let dist = Math.abs(x - targetX) + Math.abs(room.y - targetY)
-      if (dist < bestDist) {
-        bestDist = dist
-        bestPoint = { x: x, y: room.y }
-      }
-      // Нижняя граница
-      dist = Math.abs(x - targetX) + Math.abs(room.y + room.h - 1 - targetY)
-      if (dist < bestDist) {
-        bestDist = dist
-        bestPoint = { x: x, y: room.y + room.h - 1 }
-      }
-    }
-
-    return bestPoint
-  }
-
-  drawCorridorPath(map, x1, y1, x2, y2) {
-    // Рисуем горизонтальную линию
-    const stepX = x1 < x2 ? 1 : -1
-    for (let x = x1; x !== x2 + stepX; x += stepX) {
-      this.drawHorizontalSlice(map, x, y1)
-    }
-    // Рисуем вертикальную линию
-    const stepY = y1 < y2 ? 1 : -1
-    for (let y = y1; y !== y2 + stepY; y += stepY) {
-      this.drawVerticalSlice(map, x2, y)
+      if (best) {
+        connected.add(best.j)
+        const path = this.findPathAStar(map, best.p1, best.p2, rooms)
+        if (path) {
+          for (const { x, y } of path) {
+            if (map[y][x] === true) map[y][x] = false
+          }
+        } else {
+          // fallback: прямой L-образный путь с проверкой
+          this.drawCorridorFallback(map, best.p1, best.p2, rooms)
+        }
+      } else break
     }
   }
 
-  drawHorizontalSlice(map, x, y) {
-    const w = this.corridorWidth
-    const half = Math.floor(w / 2)
-    for (let offset = -half; offset <= half; offset++) {
-      const ny = y + offset
-      if (ny >= 0 && ny < map.length && x >= 0 && x < map[0].length) {
-        if (map[ny][x] === true) {
-          map[ny][x] = false
+  /**
+   * A* поиск пути с запретом на проход вблизи комнат (кроме старта/финиша)
+   * @returns {Array<{x,y}>|null}
+   */
+  findPathAStar(map, start, goal, rooms) {
+    const openSet = [{ ...start, g: 0, f: this.heur(start, goal) }]
+    const cameFrom = new Map()
+    const gScore = new Map()
+    gScore.set(this.key(start), 0)
+
+    while (openSet.length) {
+      openSet.sort((a, b) => a.f - b.f)
+      const current = openSet.shift()
+      if (current.x === goal.x && current.y === goal.y) {
+        const path = []
+        let cur = current
+        while (cur) {
+          path.unshift({ x: cur.x, y: cur.y })
+          cur = cameFrom.get(this.key(cur))
+        }
+        return path
+      }
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        const nx = current.x + dx, ny = current.y + dy
+        if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue
+        // Нельзя ходить по стенам (только по полу true/false, но тут false = пол)
+        if (map[ny][nx] !== true && map[ny][nx] !== false) continue
+        // Проверка близости к комнатам (кроме старта/цели)
+        let tooClose = false
+        if (!((nx === start.x && ny === start.y) || (nx === goal.x && ny === goal.y))) {
+          for (const room of rooms) {
+            for (let dy2 = -this.wallClearance; dy2 <= this.wallClearance; dy2++) {
+              for (let dx2 = -this.wallClearance; dx2 <= this.wallClearance; dx2++) {
+                const tx = nx + dx2, ty = ny + dy2
+                if (tx >= room.x && tx < room.x + room.w && ty >= room.y && ty < room.y + room.h) {
+                  tooClose = true
+                  break
+                }
+              }
+              if (tooClose) break
+            }
+            if (tooClose) break
+          }
+        }
+        if (tooClose) continue
+        const tentativeG = gScore.get(this.key(current)) + 1
+        const key = this.key({ x: nx, y: ny })
+        if (!gScore.has(key) || tentativeG < gScore.get(key)) {
+          gScore.set(key, tentativeG)
+          const f = tentativeG + this.heur({ x: nx, y: ny }, goal)
+          openSet.push({ x: nx, y: ny, g: tentativeG, f })
+          cameFrom.set(key, current)
         }
       }
     }
+    return null
   }
 
-  drawVerticalSlice(map, x, y) {
-    const w = this.corridorWidth
-    const half = Math.floor(w / 2)
-    for (let offset = -half; offset <= half; offset++) {
-      const nx = x + offset
-      if (nx >= 0 && nx < map[0].length && y >= 0 && y < map.length) {
-        if (map[y][nx] === true) {
-          map[y][nx] = false
+  heur(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) }
+  key(p) { return `${p.x},${p.y}` }
+
+  /**
+   * Fallback: L-образный путь с проверкой близости к комнатам
+   */
+  drawCorridorFallback(map, p1, p2, rooms) {
+    const paths = [
+      this.buildPath(p1.x, p1.y, p2.x, p2.y, true),
+      this.buildPath(p1.x, p1.y, p2.x, p2.y, false)
+    ]
+    for (const path of paths) {
+      let ok = true
+      for (const { x, y } of path) {
+        if ((x === p1.x && y === p1.y) || (x === p2.x && y === p2.y)) continue
+        for (const room of rooms) {
+          for (let dy = -this.wallClearance; dy <= this.wallClearance; dy++) {
+            for (let dx = -this.wallClearance; dx <= this.wallClearance; dx++) {
+              const nx = x + dx, ny = y + dy
+              if (nx >= room.x && nx < room.x + room.w && ny >= room.y && ny < room.y + room.h) {
+                ok = false
+                break
+              }
+            }
+            if (!ok) break
+          }
+          if (!ok) break
         }
+        if (!ok) break
+      }
+      if (ok) {
+        for (const { x, y } of path) {
+          if (map[y][x] === true) map[y][x] = false
+        }
+        return
+      }
+    }
+    // Если ни один не подошёл — рисуем первый попавшийся
+    const fallbackPath = paths[0] || paths[1]
+    if (fallbackPath) {
+      for (const { x, y } of fallbackPath) {
+        if (map[y][x] === true) map[y][x] = false
       }
     }
   }
 
-  // ========== РАССТАНОВКА ДВЕРЕЙ ==========
+  /**
+   * Построить L-образный путь (горизонталь-вертикаль или вертикаль-горизонталь)
+   */
+  buildPath(x1, y1, x2, y2, horizontalFirst) {
+    const cells = []
+    if (horizontalFirst) {
+      const stepX = x1 < x2 ? 1 : -1
+      for (let x = x1; x !== x2 + stepX; x += stepX) cells.push({ x, y: y1 })
+      const stepY = y1 < y2 ? 1 : -1
+      for (let y = y1; y !== y2 + stepY; y += stepY) cells.push({ x: x2, y })
+    } else {
+      const stepY = y1 < y2 ? 1 : -1
+      for (let y = y1; y !== y2 + stepY; y += stepY) cells.push({ x: x1, y })
+      const stepX = x1 < x2 ? 1 : -1
+      for (let x = x1; x !== x2 + stepX; x += stepX) cells.push({ x, y: y2 })
+    }
+    // удаляем возможный дубликат угловой точки
+    const unique = []
+    for (let i = 0; i < cells.length; i++) {
+      if (i === 0 || cells[i].x !== cells[i - 1].x || cells[i].y !== cells[i - 1].y)
+        unique.push(cells[i])
+    }
+    return unique
+  }
+
+  // ========================== ГЕНЕРАЦИЯ ДАННЫХ О ДВЕРЯХ ==========================
+
+  /**
+   * Определяет места для дверей (стык коридора и комнаты).
+   * Возвращает массив объектов { x, y, locked } для последующего создания Door в Location.
+   * @returns {Array<{x:number, y:number, locked:boolean}>}
+   */
   placeDoors(map, rooms) {
-    const doors = []
+    const doorData = []
+    const roomSet = new Set()
+    for (const r of rooms) {
+      for (let y = r.y; y < r.y + r.h; y++)
+        for (let x = r.x; x < r.x + r.w; x++)
+          roomSet.add(`${x},${y}`)
+    }
 
-    // Собираем клетки комнат
-    const roomCells = new Set()
-    for (const room of rooms) {
-      for (let y = room.y; y < room.y + room.h; y++) {
-        for (let x = room.x; x < room.x + room.w; x++) {
-          roomCells.add(`${x},${y}`)
+    const corridorSet = new Set()
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (map[y][x] === false && !roomSet.has(`${x},${y}`)) {
+          corridorSet.add(`${x},${y}`)
         }
       }
     }
 
-    // Собираем клетки коридоров
-    const corridorCells = new Set()
-    for (let y = 0; y < map.length; y++) {
-      for (let x = 0; x < map[0].length; x++) {
-        if (map[y][x] === false && !roomCells.has(`${x},${y}`)) {
-          corridorCells.add(`${x},${y}`)
-        }
-      }
-    }
-
-    const doorPositions = new Set()
-
-    for (const cellKey of corridorCells) {
-      const [x, y] = cellKey.split(',').map(Number)
-
-      const neighbors = [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]
-
-      for (const [nx, ny] of neighbors) {
-        const neighborKey = `${nx},${ny}`
-
-        if (roomCells.has(neighborKey) && !corridorCells.has(neighborKey)) {
-          const doorKey = `${x},${y}`
-          if (!doorPositions.has(doorKey)) {
-            doorPositions.add(doorKey)
-            const isLocked = Math.random() < (this.doorConfig.lockedChance || 0)
-            const door = new Door(x, y, isLocked)
-            doors.push(door)
-            map[y][x] = door
+    // Для каждой стороны комнаты храним лучшую клетку для двери
+    const bestDoor = new Map() // key = `${roomIdx},${side}`
+    for (const cell of corridorSet) {
+      const [x, y] = cell.split(',').map(Number)
+      for (const [dx, dy, side] of [[-1, 0, 'left'], [1, 0, 'right'], [0, -1, 'top'], [0, 1, 'bottom']]) {
+        const nx = x + dx, ny = y + dy
+        const nkey = `${nx},${ny}`
+        if (roomSet.has(nkey) && !corridorSet.has(nkey)) {
+          let roomIdx = -1
+          for (let i = 0; i < rooms.length; i++) {
+            const r = rooms[i]
+            if (nx >= r.x && nx < r.x + r.w && ny >= r.y && ny < r.y + r.h) {
+              roomIdx = i
+              break
+            }
+          }
+          if (roomIdx !== -1) {
+            const key = `${roomIdx},${side}`
+            if (!bestDoor.has(key)) bestDoor.set(key, { x, y })
           }
           break
         }
       }
     }
 
-    return doors
+    // Формируем результат, избегая дубликатов клеток
+    const placed = new Set()
+    for (const pos of bestDoor.values()) {
+      const key = `${pos.x},${pos.y}`
+      if (!placed.has(key)) {
+        placed.add(key)
+        // По умолчанию двери не заперты (locked = false). Можно добавить шанс запертой двери.
+        const locked = false
+        doorData.push({ x: pos.x, y: pos.y, locked })
+        // На карте временно кладём пол, позже Location заменит на дверь
+        map[pos.y][pos.x] = false
+      }
+    }
+    return doorData
   }
 
-  randomInt(min, max) {
+  // ========================== ВСПОМОГАТЕЛЬНЫЕ ==========================
+
+  /**
+   * Случайное целое в диапазоне [min, max]
+   */
+  rand(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min
+  }
+
+  /**
+   * Возвращает пустую карту на случай ошибки
+   */
+  emptyMap() {
+    return {
+      walls: [],
+      width: 20,
+      height: 20,
+      rooms: [],
+      corridorCells: new Set(),
+      doors: []
+    }
   }
 }

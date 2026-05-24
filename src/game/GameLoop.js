@@ -11,10 +11,12 @@ export default class GameLoop {
 
     if (biomeType && !initialLocation) {
       this.currentLocation = Location.generateProcedural(config, biomeType)
+      this.currentLocation.setGameLoop(this)
     } else {
       this.currentLocation = initialLocation || Location.createDefault(config)
+      this.currentLocation.setGameLoop(this)
     }
-
+    this.debugPrintMap();
     const characters = this.currentLocation.getAllCharacters()
     let activeCharacter = null
 
@@ -86,67 +88,15 @@ export default class GameLoop {
     const queue = this.currentLocation.turnQueue?.queue || []
     for (const item of queue) {
       const char = item.character
-      if (char && char.team && !char.team.isPlayerControlled) {
-        return true
+      // Живой враг (не мёртв, есть команда, не игрок)
+      if (char && !char.isDead && char.team && !char.team.isPlayerControlled) {
+        // Проверяем, видит ли игрок этого врага
+        if (this.currentLocation.isCharacterVisibleForPlayerTeam(char)) {
+          return true   // есть видимый живой враг
+        }
       }
     }
-    return false
-  }
-
-  centerOnNextAlly() {
-    const queue = this.currentLocation.turnQueue?.queue || []
-    if (queue.length === 0) return false
-
-    for (const item of queue) {
-      const char = item.character
-      if (char && (char.isPlayerControlled || char.canSwitchTo)) {
-        this.centerOnCharacter(char.id)
-        return true
-      }
-    }
-    return false
-  }
-
-  regenerateLevel(biomeType = null) {
-    const oldActiveId = this.currentLocation.getActiveCharacter()?.id
-    this.currentLocation = Location.generateProcedural(this.config, biomeType)
-
-    if (this.currentLocation.initializeTurnQueue) {
-      this.currentLocation.initializeTurnQueue()
-    }
-
-    const characters = this.currentLocation.getAllCharacters()
-    let newActiveCharacter = null
-
-    if (characters.length > 0) {
-      if (oldActiveId) {
-        newActiveCharacter = characters.find(c => c.id === oldActiveId)
-      }
-      if (!newActiveCharacter) {
-        newActiveCharacter = characters.find(c => c.canSwitchTo === true) || characters[0]
-      }
-      if (newActiveCharacter && newActiveCharacter.canSwitchTo) {
-        newActiveCharacter.isActive = true
-      }
-    }
-
-    if (newActiveCharacter) {
-      this.camera.setPosition(newActiveCharacter.x, newActiveCharacter.y)
-    } else {
-      this.camera.setPosition(this.config.cols / 2, this.config.rows / 2)
-    }
-
-    if (this.onLocationChanged) {
-      this.onLocationChanged()
-    }
-
-    if (this.currentLocation.pathfinder) {
-      this.currentLocation.pathfinder.clearCache()
-    }
-
-    this.initializeFovForAllAllies()
-
-    return newActiveCharacter?.id
+    return false  // нет видимых живых врагов
   }
 
   switchCharacter(characterId) {
@@ -157,7 +107,10 @@ export default class GameLoop {
       this.initializeFovForAllAllies()
     }
   }
-
+  /**
+   * Принудительно центрирует камеру на персонаже с characterId
+   * @param {number} characterId  - id персонажа
+   */
   centerOnCharacter(characterId) {
     const character = this.currentLocation.getAllCharacters().find(c => c.id === characterId)
     if (character) {
@@ -196,20 +149,17 @@ export default class GameLoop {
     const isAdjacent = Math.abs(fromX - tileX) <= 1 && Math.abs(fromY - tileY) <= 1
 
     const clickTarget = this.getClickTarget(tileX, tileY)
-    const tile = this.currentLocation.map.getTile(tileX, tileY)
 
-    if (tile?.constructor?.name === 'Wall') return false
-
-    if (clickTarget?.constructor?.name === 'ItemTile' && !clickTarget.collected) {
-      const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
-        tileX, tileY, this.currentLocation.getAllCharacters(), activeChar, fromX, fromY
-      )
-      if (result?.path?.length) {
-        activeChar.setPath(result.path, clickTarget)
-        return true
-      }
-      return false
-    }
+    // if (clickTarget?.constructor?.name === 'ItemTile' && !clickTarget.collected) {
+    //   const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
+    //     tileX, tileY, this.currentLocation.getAllCharacters(), activeChar, fromX, fromY
+    //   )
+    //   if (result?.path?.length) {
+    //     activeChar.setPath(result.path, clickTarget)
+    //     return true
+    //   }
+    //   return false
+    // }
 
     if (clickTarget?.onClick) {
       const result = clickTarget.onClick(activeChar, isAdjacent, this)
@@ -275,10 +225,7 @@ export default class GameLoop {
 
       // Центрируем камеру на следующем союзнике ТОЛЬКО если есть враги в очереди
       if (this.hasEnemiesInQueue()) {
-        this.centerOnNextAlly()
-        if (nextChar?.team?.isPlayerControlled) {
-          this.centerOnCharacter(nextChar.id)
-        }
+        this.centerOnCharacter(nextChar.id)
       }
     }
 
@@ -470,8 +417,8 @@ export default class GameLoop {
 
   reloadLocation() {
     console.log('[GameLoop] Перезагрузка локации...')
-    const biomeType = this.currentLocation?.biomeName || 'forest'
-    this.currentLocation = Location.generateProcedural(this.config, biomeType)
+    this.currentLocation = Location.generateProcedural(this.config)
+    this.currentLocation.setGameLoop(this)
     this.debugPrintMap()
     const characters = this.currentLocation.getAllCharacters()
     let activeCharacter = null

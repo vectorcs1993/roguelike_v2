@@ -1,4 +1,5 @@
 // Door.js
+import { LOG_MODULES, logger } from './Logger.js'
 import Tile from './Tile.js'
 
 export default class Door extends Tile {
@@ -50,12 +51,17 @@ export default class Door extends Tile {
     }
   }
 
-  // Взаимодействие (вызовется при клике)
-  onClick(activeCharacter, isAdjacent) {
+  /**
+  * Взаимодействие, вызывается при клике на дверь
+  * @param {Object} activeCharacter - активный персонаж
+  * @param {boolean} isAdjacent - является ли персонаж соседним
+  * @param {import('./GameLoop.js').default} gameLoop - игровой цикл
+  */
+  onClick(activeCharacter, isAdjacent, gameLoop) {
     if (!isAdjacent) return null // нужно подойти
 
-    if (!activeCharacter.canAffordAP(this.openCost)) {
-      console.log(`Не хватает AP (нужно ${this.openCost})`)
+    if (gameLoop.hasEnemiesInQueue(activeCharacter) && !activeCharacter.canAffordAP(this.openCost)) {
+      logger.info(LOG_MODULES.ACTION, `${activeCharacter.name} не хватает очков действий`)
       return false
     }
 
