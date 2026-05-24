@@ -112,8 +112,7 @@ export default class Character extends GameObject {
         return false
       }
     }
-
-    this.spendAP(apCost)
+    if (this.team.location.getGameLoop().hasEnemiesInQueue()) this.spendAP(apCost)
     super.moveTo(newX, newY)
     return true
   }

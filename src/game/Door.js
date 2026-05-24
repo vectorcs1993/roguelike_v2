@@ -60,18 +60,14 @@ export default class Door extends Tile {
   onClick(activeCharacter, isAdjacent, gameLoop) {
     if (!isAdjacent) return null // нужно подойти
 
+
     if (gameLoop.hasEnemiesInQueue(activeCharacter) && !activeCharacter.canAffordAP(this.openCost)) {
       logger.info(LOG_MODULES.ACTION, `${activeCharacter.name} не хватает очков действий`)
       return false
     }
 
-    if (this.isLocked) {
-      console.log('Дверь заперта! Нужен ключ.')
-      return false
-    }
-
     // Тратим AP
-    activeCharacter.spendAP(this.openCost)
+    if (gameLoop.hasEnemiesInQueue(activeCharacter)) activeCharacter.spendAP(this.openCost)
 
     // Переключаем состояние
     const action = this.toggle()
