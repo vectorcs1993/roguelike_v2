@@ -36,9 +36,9 @@
       <q-separator dark />
 
       <q-card-section class="q-pa-none bg-grey-10">
-        <div class="row no-wrap">
-          <!-- Canvas area (60%) -->
-          <div class="col-7 relative-position" style="min-height: 500px;">
+        <div class="row no-wrap" style="min-height: 500px;">
+          <!-- Canvas area -->
+          <div class="col-6 relative-position">
             <canvas ref="canvasRef" class="full-width full-height" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove"
               @touchend.prevent="onTouchEnd" @click.prevent="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave"
               @contextmenu.prevent="onContextMenu" @mousedown="onMouseDown" @mouseup="onMouseUp" @wheel.prevent="onWheel">
@@ -50,10 +50,10 @@
             </div>
           </div>
 
-          <!-- Console panel (40%) -->
+          <!-- Console panel -->
           <q-separator vertical dark />
 
-          <div class="col-5 bg-grey-9 text-white">
+          <div class="col-6 bg-grey-9 text-white d-flex flex-column" style="min-height: 0; flex-shrink: 1;">
             <div class="q-pa-sm bg-grey-10 text-subtitle2 flex items-center">
               <q-icon name="terminal" size="16px" class="q-mr-sm" />
               <span>Консоль игры</span>
@@ -61,16 +61,19 @@
               <q-btn flat dense round icon="delete_sweep" size="sm" @click="clearConsole" />
             </div>
 
-            <q-scroll-area dark style="height: 450px;" class="q-pa-sm">
-              <div v-for="(log, idx) in consoleLogs" :key="idx"
-                :class="`text-${log.type === 'error' ? 'red' : log.type === 'warning' ? 'orange' : log.type === 'success' ? 'green' : 'white'} text-caption q-py-xs`">
-                <span class="text-grey-5">{{ log.time }}</span>
-                <span class="q-ml-sm">{{ log.text }}</span>
-              </div>
-              <div v-if="consoleLogs.length === 0" class="text-grey-5 text-center q-py-lg">
-                Готов к работе...
-              </div>
-            </q-scroll-area>
+            <div class="flex-grow min-h-0 d-flex flex-column" style="overflow: hidden;">
+              <q-scroll-area ref="consoleScrollAreaRef" dark class="console-scroll-area" style="height: 400px;">
+                <div class="q-pa-sm">
+                  <div v-for="(log, idx) in consoleLogs" :key="idx" class="text-caption q-py-xs console-log-item">
+                    <span class="text-grey-5 console-log-time">{{ log.time }}</span>
+                    <span class="q-ml-sm console-log-text" :class="getMessageColorClass(log)">{{ log.text }}</span>
+                  </div>
+                  <div v-if="consoleLogs.length === 0" class="text-grey-5 text-center q-py-lg">
+                    Готов к работе...
+                  </div>
+                </div>
+              </q-scroll-area>
+            </div>
           </div>
         </div>
       </q-card-section>
@@ -239,8 +242,10 @@
 import { ref, onMounted, onUnmounted, shallowRef, nextTick } from 'vue'
 import GameLoop from 'src/game/GameLoop.js'
 import config from 'src/game/config.json'
+import { logger, LOG_LEVEL } from 'src/game/Logger.js'
 
 const canvasRef = ref(null)
+const consoleScrollAreaRef = ref(null)
 let game = null
 let resizeTimeout = null
 
@@ -271,21 +276,130 @@ const settings = ref({
 })
 
 // Console functions
-function addConsoleMessage(text, type = 'info') {
+function addConsoleMessage(text, type = 'info', color = null) {
   const now = new Date()
   const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
-  const newLogs = [...consoleLogs.value, { time, text: String(text), type }]
+  const newLogs = [...consoleLogs.value, { time, text: String(text), type, color }]
 
   if (newLogs.length > 500) {
     newLogs.shift()
   }
 
   consoleLogs.value = newLogs
+
+  // Автопрокрутка к новому сообщению
+  scrollConsoleToBottom()
+}
+
+// Определение класса цвета для сообщения
+function getMessageColorClass(log) {
+  // Если указан явный цвет, используем его
+  if (log.color) {
+    return `text-${log.color}`
+  }
+
+  // Иначе используем цвет по типу сообщения
+  switch (log.type) {
+    case 'error':
+      return 'text-red'
+    case 'warning':
+      return 'text-orange'
+    case 'success':
+      return 'text-green'
+    case 'info':
+      return 'text-blue-3'
+    case 'debug':
+      return 'text-cyan'
+    case 'trace':
+      return 'text-grey-5'
+    default:
+      return 'text-white'
+  }
 }
 
 function clearConsole() {
   consoleLogs.value = []
 }
+
+// Автопрокрутка консоли к последнему сообщению
+function scrollConsoleToBottom() {
+  if (consoleScrollAreaRef.value) {
+    nextTick(() => {
+      const scrollArea = consoleScrollAreaRef.value
+      if (scrollArea) {
+
+        const target = scrollArea.getScrollTarget()
+        if (target) target.scrollTop = target.scrollHeight
+      }
+    })
+  }
+}
+
+// Callback для перехвата сообщений из логгера
+function loggerCallback(level, logModule, message) {
+  // Преобразуем уровень логгера в тип сообщения для консоли
+  let messageType = 'info'
+  let color = null
+
+  switch (level) {
+    case LOG_LEVEL.ERROR:
+      messageType = 'error'
+      color = 'red'
+      break
+    case LOG_LEVEL.WARN:
+      messageType = 'warning'
+      color = 'orange'
+      break
+    case LOG_LEVEL.INFO:
+      messageType = 'info'
+      // Назначаем цвет в зависимости от модуля
+      if (logModule) {
+        switch (logModule) {
+          case 'combat':
+            color = 'red-4'
+            break
+          case 'movement':
+            color = 'blue-4'
+            break
+          case 'ai':
+            color = 'purple-4'
+            break
+          case 'enemy':
+            color = 'deep-orange'
+            break
+          case 'turn':
+            color = 'teal'
+            break
+          case 'system':
+            color = 'grey-5'
+            break
+          default:
+            color = 'blue-3'
+        }
+      }
+      break
+    case LOG_LEVEL.DEBUG:
+      messageType = 'debug'
+      color = 'cyan'
+      break
+    case LOG_LEVEL.TRACE:
+      messageType = 'trace'
+      color = 'grey-6'
+      break
+  }
+
+  // Добавляем сообщение в консоль игры
+  addConsoleMessage(message, messageType, color)
+}
+
+// Регистрируем callback в логгере
+logger.addCallback(loggerCallback)
+
+// Восстанавливаем оригинальные console методы при размонтировании компонента
+onUnmounted(() => {
+  // Удаляем callback из логгера
+  logger.removeCallback(loggerCallback)
+})
 
 // Character list update functions
 function getCharactersHash() {
@@ -549,6 +663,9 @@ function endTurn() {
   if (activeChar && activeChar.team?.isPlayerControlled) {
     game.currentLocation.endTurn?.()
     addConsoleMessage(`Ход завершен: ${activeChar.name}`, 'info')
+
+    // 👇 Центрируем камеру на новом активном персонаже
+    game.centerOnActiveCharacter()
   }
 }
 
@@ -710,5 +827,30 @@ canvas {
     width: 100%;
     height: 100%;
   }
+}
+
+// Console scroll area styles
+.console-scroll-area {
+  // QScrollArea will handle scrollbar styling
+  // Make it fill available space
+  height: 100%;
+}
+
+.console-log-item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.console-log-time {
+  font-family: monospace;
+  font-size: 0.75rem;
+}
+
+.console-log-text {
+  word-break: break-word;
+  line-height: 1.4;
 }
 </style>

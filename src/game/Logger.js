@@ -27,7 +27,8 @@ const DEFAULT_CONFIG = {
   showTimestamp: false,
   showModule: true,
   showLevel: true,
-  colors: true
+  colors: true,
+  callbacks: [] // Массив callback-функций для перехвата сообщений
 };
 
 class Logger {
@@ -41,6 +42,9 @@ class Logger {
 
     // Кэшируем проверки для производительности
     this._enabledCache = new Map();
+
+    // Инициализируем массив callback-ов
+    this.config.callbacks = this.config.callbacks || [];
   }
 
   // Проверка, включено ли логирование для данного уровня и модуля
@@ -88,6 +92,17 @@ class Logger {
     if (!this.isEnabled(level, module)) return;
 
     const message = this.formatMessage(level, module, args.join(' '));
+
+    // Вызываем все зарегистрированные callback-функции
+    if (this.config.callbacks && this.config.callbacks.length > 0) {
+      for (const callback of this.config.callbacks) {
+        try {
+          callback(level, module, message, args);
+        } catch (err) {
+          console.error('Logger callback error:', err);
+        }
+      }
+    }
 
     // Выбор метода консоли в зависимости от уровня
     switch (level) {
@@ -198,6 +213,26 @@ class Logger {
   setModules(modules) {
     this.config.enabledModules = new Set(modules);
     this._enabledCache.clear();
+  }
+
+  // Методы для работы с callback-ами
+  addCallback(callback) {
+    if (typeof callback !== 'function') {
+      console.error('Logger.addCallback: callback must be a function');
+      return;
+    }
+    this.config.callbacks.push(callback);
+  }
+
+  removeCallback(callback) {
+    const index = this.config.callbacks.indexOf(callback);
+    if (index !== -1) {
+      this.config.callbacks.splice(index, 1);
+    }
+  }
+
+  clearCallbacks() {
+    this.config.callbacks = [];
   }
 }
 
