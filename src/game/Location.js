@@ -1,4 +1,7 @@
-import TileMap from './TileMap.js'
+import Floor from './Floor.js'
+import Wall from './Wall.js'
+import Crate from './Crate.js'
+import Fov from './Fov.js'
 import Character from './Character.js'
 import Door from './Door.js'
 import ItemTile from './ItemTile.js'
@@ -21,18 +24,23 @@ export default class Location {
     this.biomeName = biomeName || 'Неизвестная локация'
     this.name = this.biomeName
 
+    // TileMap fields
+    this.cols = config.cols
+    this.rows = config.rows
+    this.grid = []
+    this.itemsMap = new Map() // Отдельное хранилище для предметов
+    this.doorsMap = new Map() // Отдельное хранилище для дверей
+    this.fov = new Fov(this)
 
-
-    this.map = new TileMap(config.cols, config.rows)
-    this.map.fill()
-    this.map.setWalls(walls)
+    this.fill()
+    this.setWalls(walls)
 
     // Добавляем ящики на карту
     if (cratePositions && cratePositions.length > 0) {
-      this.map.setCrates(cratePositions)
+      this.setCrates(cratePositions)
     }
 
-    this.pathfinder = new Pathfinder(this.map)
+    this.pathfinder = new Pathfinder(this)
 
     this.teams = new Map()
     this.characters = []
@@ -99,13 +107,156 @@ export default class Location {
     for (const itemConfig of itemConfigs) {
       const item = new ItemTile(itemConfig.x, itemConfig.y, itemConfig.itemType || 'generic')
       this.items.push(item)
-      this.map.addItem(item)
+      this.addItem(item)
     }
 
 
     // Инициализируем очередь ходов после создания всех персонажей
     this.initializeTurnQueue()
   }
+
+  // ========== TileMap methods ==========
+
+  get map() {
+    return this;
+  }
+
+  fill() {
+    this.grid = Array.from({ length: this.rows }, (_, y) =>
+      Array.from({ length: this.cols }, (_, x) => {
+        const isBorder = y === 0 || y === this.rows - 1 || x === 0 || x === this.cols - 1
+        return isBorder ? new Wall() : new Floor()
+      })
+    )
+  }
+
+  setWalls(pillars) {
+    for (const [x, y] of pillars) {
+      if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
+        this.grid[y][x] = new Wall()
+      }
+    }
+  }
+
+  setCrates(cratePositions) {
+    for (const [x, y] of cratePositions) {
+      if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
+        const tile = this.getTile(x, y)
+        if (tile && tile.isWalkable) {
+          this.grid[y][x] = new Crate()
+        }
+      }
+    }
+  }
+
+  // Добавление предмета на карту
+  addItem(item) {
+    const key = `${item.x},${item.y}`
+    this.itemsMap.set(key, item)
+  }
+
+  // Получение предмета на клетке
+  getItemAt(x, y) {
+    const key = `${x},${y}`
+    return this.itemsMap.get(key)
+  }
+
+  // Удаление предмета (при подборе)
+  removeItemAt(x, y) {
+    const key = `${x},${y}`
+    const item = this.itemsMap.get(key)
+    if (item) {
+      this.itemsMap.delete(key)
+      return item
+    }
+    return null
+  }
+
+  // Проверка, есть ли предмет на клетке
+  hasItemAt(x, y) {
+    const key = `${x},${y}`
+    return this.itemsMap.has(key)
+  }
+
+  getTile(x, y) {
+    if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return null
+    return this.grid[y][x]
+  }
+
+  isTileWalkable(x, y) {
+    const tile = this.getTile(x, y)
+    return tile ? tile.isWalkable : false
+  }
+
+  blocksSight(x, y) {
+    const tile = this.getTile(x, y)
+    return tile ? tile.blocksSight : true
+  }
+
+  setDoors(doors) {
+    for (const door of doors) {
+      const x = door.x, y = door.y
+      if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
+        const tile = this.getTile(x, y)
+        // Дверь можно ставить только на пол (не на стену и не на ящик)
+        if (tile && tile.isWalkable && !(tile instanceof Crate)) {
+          this.grid[y][x] = door
+        }
+      }
+    }
+  }
+
+  addDoor(door) {
+    const key = `${door.x},${door.y}`
+    this.doorsMap.set(key, door)
+  }
+
+  getDoorAt(x, y) {
+    const key = `${x},${y}`
+    return this.doorsMap.get(key)
+  }
+
+  hasDoorAt(x, y) {
+    const key = `${x},${y}`
+    return this.doorsMap.has(key)
+  }
+
+  removeDoorAt(x, y) {
+    const key = `${x},${y}`
+    this.doorsMap.delete(key)
+  }
+
+  getDoors() {
+    return this.doorsMap.values()
+  }
+
+  getDoorCount() {
+    return this.doorsMap.size
+  }
+
+  computeFov(originX, originY, radius, resetVisibility = true) {
+    if (resetVisibility) {
+      for (let y = 0; y < this.rows; y++) {
+        for (let x = 0; x < this.cols; x++) {
+          const tile = this.getTile(x, y)
+          if (tile) tile.visible = false
+        }
+      }
+    }
+
+    this.fov.compute(originX | 0, originY | 0, radius)
+
+    // Mark explored for visible tiles
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        const tile = this.getTile(x, y)
+        if (tile && tile.visible) {
+          tile.explored = true
+        }
+      }
+    }
+  }
+
   setGameLoop(gameLoop) {
     this.#gameLoop = gameLoop
   }
@@ -214,6 +365,12 @@ export default class Location {
       return null
     }
 
+    // Обновляем очередь ходов
+    const switchedInQueue = this.turnQueue.setCurrentCharacter(characterId)
+    if (!switchedInQueue) {
+      console.warn(`Персонаж ${character.name} (ID: ${characterId}) не найден в очереди ходов`)
+    }
+
     this.characters.forEach(c => {
       if (c.isActive) c.clearPath()
       c.isActive = false
@@ -221,6 +378,7 @@ export default class Location {
     character.isActive = true
     character.restoreFullAP()
 
+    console.log(`Переключен на персонажа: ${character.name} (ID: ${characterId})`)
     return character
   }
 
@@ -358,7 +516,7 @@ export default class Location {
   }
 
   updateFov(centerX, centerY, radius, resetVisibility = true) {
-    this.map.computeFov(centerX, centerY, radius, resetVisibility)
+    this.computeFov(centerX, centerY, radius, resetVisibility)
   }
 
   findPath(fromX, fromY, toX, toY, activeCharacter = null) {
@@ -367,7 +525,7 @@ export default class Location {
   }
 
   isWalkable(x, y, activeCharacter = null) {
-    if (!this.map.isWalkable(x, y)) return false
+    if (!this.isTileWalkable(x, y)) return false
     return !this.characters.some(char => char !== activeCharacter && char.occupies(x, y))
   }
 
@@ -394,7 +552,7 @@ export default class Location {
 
     const tileX = Math.floor(character.x)
     const tileY = Math.floor(character.y)
-    const tile = this.map.getTile(tileX, tileY)
+    const tile = this.getTile(tileX, tileY)
 
     return tile ? tile.visible : false
   }
@@ -405,7 +563,7 @@ export default class Location {
     if (!playerTeam) {
       const tileX = Math.floor(character.x)
       const tileY = Math.floor(character.y)
-      const tile = this.map.getTile(tileX, tileY)
+      const tile = this.getTile(tileX, tileY)
       return tile ? tile.visible : false
     }
 
@@ -417,12 +575,12 @@ export default class Location {
     // Для врагов - проверяем видимость через клетку (только visible!)
     const tileX = Math.floor(character.x)
     const tileY = Math.floor(character.y)
-    const tile = this.map.getTile(tileX, tileY)
+    const tile = this.getTile(tileX, tileY)
     return tile ? tile.visible : false
   }
 
   getTileInfo(tileX, tileY) {
-    const tile = this.map.getTile(tileX, tileY)
+    const tile = this.getTile(tileX, tileY)
 
     // Неизвестная клетка (не видна и не исследована)
     if (!tile || (!tile.visible && !tile.explored)) {
@@ -447,7 +605,7 @@ export default class Location {
 
     // Проверяем предметы (только на видимых клетках)
     if (tile.visible) {
-      const item = this.map.getItemAt(tileX, tileY)
+      const item = this.getItemAt(tileX, tileY)
       if (item && !item.collected) {
         return item.getTooltipInfo()
       }
@@ -470,7 +628,7 @@ export default class Location {
   }
 
   reset() {
-    this.map.fill()
+    this.fill()
     for (const item of this.items) {
       item.collected = false
     }
@@ -692,9 +850,9 @@ export default class Location {
       crates
     )
 
-    // Добавляем двери через TileMap
+    // Добавляем двери через Location
     if (doorObjects.length) {
-      location.map.setDoors(doorObjects)
+      location.setDoors(doorObjects)
       console.log(`[Location] Добавлено ${doorObjects.length} дверей на карту`)
     }
 

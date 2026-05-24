@@ -215,6 +215,22 @@ export default class TurnQueue {
   }
 
   /**
+   * Устанавливает текущего персонажа по ID
+   * @param {number|string} characterId - ID персонажа
+   * @returns {boolean} - успешно ли установлен
+   */
+  setCurrentCharacter(characterId) {
+    const index = this.queue.findIndex(item => String(item.character.id) === String(characterId))
+    if (index !== -1) {
+      this.currentIndex = index
+      console.log(`[TurnQueue] Текущий персонаж установлен на: ${this.queue[index].character.name} (индекс: ${index})`)
+      return true
+    }
+    console.warn(`[TurnQueue] Персонаж с ID ${characterId} не найден в очереди`)
+    return false
+  }
+
+  /**
    * Возвращает информацию об очереди для отладки
    * @returns {Object}
    */

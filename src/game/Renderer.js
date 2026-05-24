@@ -31,11 +31,12 @@ export default class Renderer {
     this._visibleBoundsCache = null
   }
 
-  resize(canvasW, canvasH) {
+  resize(canvasW, canvasH, dpr = this.dpr) {
     this.canvasW = canvasW
     this.canvasH = canvasH
     this.halfW = canvasW / 2
     this.halfH = canvasH / 2
+    this.dpr = dpr
 
     const canvas = this.ctx.canvas
     canvas.width = canvasW * this.dpr

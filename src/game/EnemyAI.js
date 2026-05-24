@@ -1,4 +1,3 @@
-// src/game/EnemyAI.js
 // Система ИИ для врагов
 
 import Pathfinder from './Pathfinder.js'
@@ -232,7 +231,7 @@ export default class EnemyAI {
       Math.pow(newY - this.homePosition.y, 2)
     )
 
-    const isWalkable = map.isWalkable(newX, newY)
+    const isWalkable = map.isTileWalkable(newX, newY)
 
     if (distanceFromHome <= this.wanderRadius && isWalkable) {
       // Проверяем, не занята ли клетка другим персонажем
@@ -468,7 +467,7 @@ export default class EnemyAI {
       const newY = fromY + moveY
 
       // Проверяем, можно ли пройти
-      if (map.isWalkable(newX, newY)) {
+      if (map.isTileWalkable(newX, newY)) {
         // Проверяем, не занята ли клетка другим персонажем
         const occupied = allCharacters.some(char =>
           char !== this.character && Math.floor(char.x) === newX && Math.floor(char.y) === newY

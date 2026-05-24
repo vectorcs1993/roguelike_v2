@@ -135,7 +135,7 @@ export default class Character extends GameObject {
       return
     }
 
-    if (!tileMap.isWalkable(next.x, next.y)) {
+    if (!tileMap.isTileWalkable(next.x, next.y)) {
       this.followingPath = false
       this.path = []
       return
@@ -284,7 +284,7 @@ export default class Character extends GameObject {
       console.log(`${this.name} подобрал: ${this.target.name}`)
       this.spendAP(apCost);
       this.target.collect()
-      location.map.removeItemAt(tileX, tileY)
+      location.removeItemAt(tileX, tileY)
 
       const itemIndex = location.items.findIndex(i => i === this.target)
       if (itemIndex !== -1) location.items.splice(itemIndex, 1)

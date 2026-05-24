@@ -7,33 +7,32 @@
         <div class="text-subtitle1 text-grey-4">Тактическая пошаговая игра</div>
       </div>
       <div class="col-auto">
-        <q-btn-group rounded>
-          <q-btn color="primary" icon="play_arrow" label="Начать игру" @click="startGame" />
-          <q-btn color="secondary" icon="settings" label="Настройки" @click="showSettings = true" />
-          <q-btn color="orange" icon="help" label="Помощь" @click="showHelp = true" />
+        <q-btn-group dark>
+          <q-btn icon="play_arrow" label="Начать игру" @click="startGame" dark />
+          <q-btn icon="settings" label="Настройки" @click="showSettings = true" dark />
+          <q-btn icon="help" label="Помощь" @click="showHelp = true" dark />
         </q-btn-group>
       </div>
     </div>
 
     <!-- Main game area -->
-    <q-card class="q-mb-md" flat dark bordered>
-      <q-card-section class="bg-dark text-white">
+    <q-card class="q-mb-md" square bordered flat dark>
+      <q-card-section class="bg-dark text-white" dark>
         <div class="row items-center justify-between">
           <div class="col-auto">
-            <div class="text-h6">Игровое поле</div>
-            <div class="text-caption text-grey-4">Локация: {{ locationName }}</div>
+            <div class="text-h6">Локация: {{ locationName }}</div>
+            <!-- <div class="text-caption text-grey-4">Локация: {{ locationName }}</div> -->
           </div>
           <div class="col-auto">
-            <q-btn-group rounded>
-              <q-btn color="orange" icon="refresh" label="Обновить уровень" @click="regenerateLevel" size="sm" />
-              <q-btn color="purple" icon="map" label="Открыть карту" @click="revealFullMap" size="sm" />
-              <q-btn color="green" icon="skip_next" label="Завершить ход" @click="endTurn" size="sm" :disable="!canEndTurn" v-if="isPlayerTurn" />
+            <q-btn-group dark>
+              <q-btn icon="refresh" label="Обновить уровень" @click="regenerateLevel" dark />
+              <q-btn icon="map" label="Открыть карту" @click="revealFullMap" dark />
             </q-btn-group>
           </div>
         </div>
       </q-card-section>
 
-      <q-separator dark />
+
 
       <q-card-section class="q-pa-none bg-grey-10">
         <div class="row no-wrap" style="min-height: 500px;">
@@ -45,7 +44,7 @@
             </canvas>
             <div class="absolute-bottom-right q-pa-sm">
               <q-chip color="dark" text-color="amber" icon="place">
-                {{ locationName }}
+                11
               </q-chip>
             </div>
           </div>
@@ -55,10 +54,10 @@
 
           <div class="col-6 bg-grey-9 text-white d-flex flex-column" style="min-height: 0; flex-shrink: 1;">
             <div class="q-pa-sm bg-grey-10 text-subtitle2 flex items-center">
-              <q-icon name="terminal" size="16px" class="q-mr-sm" />
-              <span>Консоль игры</span>
+              <q-icon name="terminal" size="md" class="q-mr-sm" />
+              <span>Лог игры</span>
               <q-space />
-              <q-btn flat dense round icon="delete_sweep" size="sm" @click="clearConsole" />
+              <q-btn label="Очистить" flat icon="delete_sweep" @click="clearConsole" dark />
             </div>
 
             <div class="flex-grow min-h-0 d-flex flex-column" style="overflow: hidden;">
@@ -80,7 +79,7 @@
     </q-card>
 
     <!-- Character cards -->
-    <q-card class="q-mb-md" flat dark bordered>
+    <q-card flat dark bordered>
       <q-card-section class="bg-grey-9 text-white">
         <div class="row items-center justify-between">
           <div class="col-auto">
@@ -91,7 +90,6 @@
             </div>
           </div>
           <div class="col-auto">
-            <q-toggle v-model="showEnemies" label="Показывать врагов" color="primary" dark />
           </div>
         </div>
       </q-card-section>
@@ -99,17 +97,17 @@
       <q-separator dark />
 
       <q-card-section class="bg-grey-10">
-        <q-scroll-area horizontal dark style="height: 220px;">
-          <div class="row no-wrap q-gutter-xs">
+        <q-scroll-area horizontal dark style="height: 240px;">
+          <div class="row no-wrap q-pa-xs q-gutter-xs">
             <q-card v-for="character in charactersList" :key="character.id"
               :class="[character.isActive ? 'bg-blue-10' : character.isSelectable ? 'bg-grey-8' : 'bg-grey-9']" flat dark bordered
-              style="min-width: 280px;">
+              style="min-width: 280px; ">
               <q-card-section class="q-pa-sm">
                 <div class="row items-center q-gutter-sm">
                   <div class="col-auto">
-                    <div class="character-symbol" :style="{ backgroundColor: character.teamColor, color: 'white' }">
+                    <q-chip size="md" :style="{ backgroundColor: character.teamColor, color: 'white' }">
                       {{ character.char }}
-                    </div>
+                    </q-chip>
                   </div>
                   <div class="col">
                     <div class="text-subtitle2 text-weight-bold text-white">{{ character.name }}</div>
@@ -120,11 +118,6 @@
                       <q-icon name="favorite" size="12px" /> ОЗ: {{ character.hp }}/{{ character.maxHp }}
                       <q-icon name="bolt" size="12px" class="q-ml-sm" /> ОД: {{ character.ap }}/{{ character.maxAP }}
                     </div>
-                  </div>
-                  <div class="col-auto">
-                    <q-btn flat dense round icon="center_focus_strong" size="sm" @click="centerOnCharacter(character)" dark>
-                      <q-tooltip>Центрировать камеру</q-tooltip>
-                    </q-btn>
                   </div>
                 </div>
 
@@ -137,30 +130,40 @@
                 <!-- Combat Stats -->
                 <div class="q-mt-xs">
                   <div class="row q-col-gutter-xs q-mt-xs">
-                    <div class="col-6">
+                    <div class="col-3">
                       <div class="text-caption text-grey-5">Броня:</div>
                       <div class="text-caption text-white">{{ character.armor }}</div>
                     </div>
-                    <div class="col-6">
+                    <div class="col-3">
                       <div class="text-caption text-grey-5">Урон:</div>
                       <div class="text-caption text-white">{{ character.damageMin }}-{{ character.damageMax }}</div>
                     </div>
-                    <div class="col-6">
+                    <div class="col-3">
                       <div class="text-caption text-grey-5">Тип урона:</div>
                       <div class="text-caption text-white">{{ character.damageType }}</div>
                     </div>
-                    <div class="col-6">
+                    <div class="col-3">
                       <div class="text-caption text-grey-5">Дальность:</div>
                       <div class="text-caption text-white">{{ character.attackRange }}</div>
                     </div>
-                    <div class="col-6">
+                    <div class="col-3">
                       <div class="text-caption text-grey-5">Точность:</div>
                       <div class="text-caption text-white">{{ Math.round(character.accuracy * 100) }}%</div>
                     </div>
-                    <div class="col-6">
+                    <div class="col-3">
                       <div class="text-caption text-grey-5">Инициатива:</div>
                       <div class="text-caption text-white">{{ character.initiative }}</div>
                     </div>
+
+                  </div>
+                  <div class="row q-mt-xs q-gutter-xs">
+                    <q-btn-group flat>
+                      <q-btn label="Центрировать камеру" dense icon="center_focus_strong" @click="centerOnCharacter(character)" dark />
+                      <q-btn label="Переключиться" v-if="!character.isActive && canSwitchTo" dense icon="shortcut" @click="switchToChar(character)"
+                        dark />
+                      <q-btn label="Завершить ход" v-if="character.isActive" dense icon="restart_alt" @click="endTurn(character)" dark />
+                    </q-btn-group>
+
                   </div>
                 </div>
               </q-card-section>
@@ -256,7 +259,7 @@ const charactersList = shallowRef([])
 const turnQueue = shallowRef([])
 const isPlayerTurn = ref(false)
 const canEndTurn = ref(false)
-const showEnemies = ref(true)
+const canSwitchTo = ref(false)
 const showSettings = ref(false)
 const showHelp = ref(false)
 const activeCharacterName = ref('')
@@ -412,6 +415,7 @@ function updateTurnStatus() {
   if (!game?.currentLocation) {
     isPlayerTurn.value = false
     canEndTurn.value = false
+    canSwitchTo.value = false
     activeCharacterName.value = ''
     remainingAP.value = 0
     return
@@ -434,6 +438,7 @@ function updateTurnStatus() {
     activeCharacterName.value = ''
     remainingAP.value = 0
   }
+  canSwitchTo.value = !game?.hasEnemiesInQueue()
 }
 
 function updateCharactersList() {
@@ -457,7 +462,7 @@ function updateCharactersList() {
 
   const allCharacters = game.currentLocation.getAllCharacters()
   const visibleCharacters = allCharacters.filter(char => {
-    const tile = game.currentLocation.map.getTile(Math.floor(char.x), Math.floor(char.y))
+    const tile = game.currentLocation.getTile(Math.floor(char.x), Math.floor(char.y))
     if (char.isPlayerControlled || char.canSwitchTo) return true
     return tile && tile.visible
   })
@@ -498,6 +503,7 @@ function updateCharactersList() {
       y: char.y,
       isActive: char.isActive,
       isSelectable: char.canSwitchTo === true,
+      isPlayerControlled: char.isPlayerControlled,
       teamColor: char.team?.color || '#666666',
       teamName: char.team?.name || 'Без команды',
       ap: char.currentAP,
@@ -578,8 +584,8 @@ function initGame() {
   try {
     game = new GameLoop(canvas, config)
 
-    // Инициализируем Renderer с размерами canvas и DPR
-    game.initRenderer(canvas.width, canvas.height, dpr)
+    // Инициализируем Renderer с логическими размерами (CSS пиксели) и DPR
+    game.initRenderer(rect.width, rect.height, dpr)
 
     game.start()
     addConsoleMessage('Игровой движок инициализирован', 'success')
@@ -610,8 +616,6 @@ function regenerateLevel() {
     addConsoleMessage('Игра не инициализирована', 'error')
   }
 }
-
-// IndexPage.vue - исправленный метод revealFullMap
 
 function revealFullMap() {
   if (!game?.currentLocation) {
@@ -655,11 +659,30 @@ function revealFullMap() {
   }
 }
 
-function endTurn() {
+function switchToChar(character) {
+  if (!game?.currentLocation || !canSwitchTo.value) {
+    console.log('Cannot switch: no location or switching not allowed', {
+      hasLocation: !!game?.currentLocation,
+      canSwitchTo: canSwitchTo.value
+    })
+    return
+  }
+
+  console.log('Switching to character:', character);
+
+  if (character && character.isPlayerControlled) {
+    game.switchCharacter?.(character.id)
+    addConsoleMessage(`Активный персонаж: ${character.name}`, 'info')
+  } else {
+    console.log('Cannot switch: character not player controlled', character)
+  }
+}
+
+function endTurn(activeChar = game.currentLocation.getActiveCharacter?.()) {
+
   if (!game?.currentLocation || !canEndTurn.value) return
 
-  const activeChar = game.currentLocation.getActiveCharacter?.()
-  if (activeChar && activeChar.team?.isPlayerControlled) {
+  if (activeChar && activeChar.isPlayerControlled) {
     game.currentLocation.endTurn?.()
     addConsoleMessage(`Ход завершен: ${activeChar.name}`, 'info')
   }
@@ -782,8 +805,8 @@ function handleResize() {
         canvas.style.width = `${rect.width}px`
         canvas.style.height = `${rect.height}px`
 
-        // Call game resize with new dimensions
-        game.resize?.(canvas.width, canvas.height, dpr)
+        // Call game resize with logical dimensions (CSS pixels) and DPR
+        game.resize?.(rect.width, rect.height, dpr)
       }
     }
   }, 250)
@@ -791,7 +814,6 @@ function handleResize() {
 </script>
 
 <style lang="scss" scoped>
-// Minimal custom styles
 .dark-page {
   background-color: #121212;
 }
@@ -834,6 +856,7 @@ canvas {
 
 .console-log-item {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 24px;
 
   &:last-child {
     border-bottom: none;
@@ -842,7 +865,7 @@ canvas {
 
 .console-log-time {
   font-family: monospace;
-  font-size: 0.75rem;
+  font-size: 24px;
 }
 
 .console-log-text {

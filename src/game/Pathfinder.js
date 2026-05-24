@@ -62,7 +62,7 @@ export default class Pathfinder {
     const map = this.map
 
     if (sx === ex && sy === ey) return null
-    if (!map.isWalkable(ex, ey)) return null
+    if (!map.isTileWalkable(ex, ey)) return null
 
     // Быстрая проверка блокировки цели
     for (const b of blockedCells) {
@@ -140,12 +140,12 @@ export default class Pathfinder {
         if (closedSet.has(nKey)) continue
 
         // Проверка проходимости
-        if (!map.isWalkable(n.x, n.y)) continue
+        if (!map.isTileWalkable(n.x, n.y)) continue
 
         // Проверка диагональных препятствий
         if (n.cost > 1) {
-          const adj1 = map.isWalkable(n.x, current.y)
-          const adj2 = map.isWalkable(current.x, n.y)
+          const adj1 = map.isTileWalkable(n.x, current.y)
+          const adj2 = map.isTileWalkable(current.x, n.y)
           if (!adj1 || !adj2) continue
         }
 
@@ -198,7 +198,7 @@ export default class Pathfinder {
       }
     }
 
-    const isWalkable = this.map.isWalkable(targetX, targetY)
+    const isWalkable = this.map.isTileWalkable(targetX, targetY)
     const isBlocked = this._isCellBlocked(targetX, targetY, blockedCells)
     const canStand = isWalkable && !isBlocked
 
@@ -234,7 +234,7 @@ export default class Pathfinder {
       // Границы карты
       if (nx < 0 || nx >= this.map.cols || ny < 0 || ny >= this.map.rows) continue
 
-      const neighborWalkable = this.map.isWalkable(nx, ny)
+      const neighborWalkable = this.map.isTileWalkable(nx, ny)
       const neighborBlocked = this._isCellBlocked(nx, ny, blockedCells)
 
       if (neighborWalkable && !neighborBlocked) {
@@ -248,8 +248,8 @@ export default class Pathfinder {
             const curr = path[i]
             const isDiagonalMove = Math.abs(prev.x - curr.x) === 1 && Math.abs(prev.y - curr.y) === 1
             if (isDiagonalMove) {
-              const adj1 = this.map.isWalkable(curr.x, prev.y)
-              const adj2 = this.map.isWalkable(prev.x, curr.y)
+              const adj1 = this.map.isTileWalkable(curr.x, prev.y)
+              const adj2 = this.map.isTileWalkable(prev.x, curr.y)
               if (!adj1 || !adj2) {
                 hasInvalidDiagonal = true
                 break

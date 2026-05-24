@@ -79,7 +79,7 @@ export default class ItemTile extends Tile {
       // Если рядом - подбираем
       console.log(`[Click] Подобрать предмет: ${this.name}`);
       this.collect();
-      gameLoop.currentLocation.map.removeItemAt(this.x, this.y);
+      gameLoop.currentLocation.removeItemAt(this.x, this.y);
 
       // Удаляем из массива items
       const itemIndex = gameLoop.currentLocation.items.findIndex(i => i === this);

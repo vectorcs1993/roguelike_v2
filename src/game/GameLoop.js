@@ -70,12 +70,12 @@ export default class GameLoop {
       const tileX = Math.floor(ally.x)
       const tileY = Math.floor(ally.y)
       const resetVisibility = (i === 0)
-      this.currentLocation.map.computeFov(tileX, tileY, ally.fovRadius || 8, resetVisibility)
+      this.currentLocation.computeFov(tileX, tileY, ally.fovRadius || 8, resetVisibility)
     }
 
-    for (let y = 0; y < this.currentLocation.map.rows; y++) {
-      for (let x = 0; x < this.currentLocation.map.cols; x++) {
-        const tile = this.currentLocation.map.getTile(x, y)
+    for (let y = 0; y < this.currentLocation.rows; y++) {
+      for (let x = 0; x < this.currentLocation.cols; x++) {
+        const tile = this.currentLocation.getTile(x, y)
         if (tile && tile.visible) {
           tile.explored = true
         }
@@ -101,6 +101,8 @@ export default class GameLoop {
 
   switchCharacter(characterId) {
     const newActive = this.currentLocation.switchToCharacter(characterId)
+    console.log(newActive);
+
     if (newActive) {
       newActive.restoreFullAP()
       this.camera.setPosition(newActive.x, newActive.y)
@@ -150,17 +152,6 @@ export default class GameLoop {
 
     const clickTarget = this.getClickTarget(tileX, tileY)
 
-    // if (clickTarget?.constructor?.name === 'ItemTile' && !clickTarget.collected) {
-    //   const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
-    //     tileX, tileY, this.currentLocation.getAllCharacters(), activeChar, fromX, fromY
-    //   )
-    //   if (result?.path?.length) {
-    //     activeChar.setPath(result.path, clickTarget)
-    //     return true
-    //   }
-    //   return false
-    // }
-
     if (clickTarget?.onClick) {
       const result = clickTarget.onClick(activeChar, isAdjacent, this)
       if (result === true || result === false) return result
@@ -182,10 +173,10 @@ export default class GameLoop {
     const character = this.currentLocation.getAllCharacters().find(c => c.occupies(x, y))
     if (character) return character
 
-    const item = this.currentLocation.map.getItemAt(x, y)
+    const item = this.currentLocation.getItemAt(x, y)
     if (item && !item.collected) return item
 
-    const tile = this.currentLocation.map.getTile(x, y)
+    const tile = this.currentLocation.getTile(x, y)
     if (tile?.onClick) return tile
 
     return null
@@ -231,13 +222,13 @@ export default class GameLoop {
 
     const activeChar = this.currentLocation.getActiveCharacter()
     if (activeChar) {
-      activeChar.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
+      activeChar.update(dt, this.currentLocation, this.currentLocation.getAllCharacters())
 
       if (activeChar.team && !activeChar.team.isPlayerControlled && activeChar.currentAP > 0) {
         const enemyTeam = this.currentLocation.getTeam('creatures')
         const ai = enemyTeam?.aiInstances?.get(activeChar.id)
         if (ai) {
-          ai.update(dt, this.currentLocation.map, this.currentLocation.getAllCharacters())
+          ai.update(dt, this.currentLocation, this.currentLocation.getAllCharacters())
         }
       }
 
@@ -262,7 +253,7 @@ export default class GameLoop {
     this.renderer._pathCache = null
 
     this.renderer.draw(
-      this.currentLocation.map,
+      this.currentLocation,
       this.currentLocation.getAllCharacters(),
       this.currentLocation.items,
       this.camera,
