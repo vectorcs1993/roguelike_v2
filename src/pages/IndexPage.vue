@@ -1,314 +1,696 @@
 <template>
-  <q-page class="q-pa-md" style="background: #121212; height: 100vh; display: flex; flex-direction: column;">
+  <q-page class="page-dark">
+    <div class="game-layout">
 
-    <!-- Основная область -->
-    <div class="row q-col-gutter-md" style="flex: 1; min-height: 0;">
-      <!-- Canvas -->
-      <div class="col-7" style="display: flex; flex-direction: column;">
-        <q-card flat square bordered dark class="full-height" style="display: flex; flex-direction: column;">
-          <q-card-section class="bg-grey-9">
-            <div class="text-h6 flex items-center">
-              <q-icon name="fmd_good" class="q-mr-sm" />
-              <div class="text-h6">Локация: {{ locationName }}</div>
-              <q-space />
-              <q-btn label="Обновить" icon="refresh" @click="regenerateLevel" dark />
-              <q-btn label="Открыть карту" icon="map" @click="revealFullMap" dark />
-            </div>
-          </q-card-section>
-          <q-card-section class="q-pa-none bg-dark" style="flex: 1; display: flex;">
-            <canvas ref="canvasRef" class="full-width" style="background: #0a0a0a; border-radius: 4px; width: 100%; height: 100%;"
-              @click="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu" @mousedown="onMouseDown"
-              @mouseup="onMouseUp" @wheel.prevent="onWheel" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove"
-              @touchend.prevent="onTouchEnd"></canvas>
-          </q-card-section>
-          <div class="absolute-bottom full-width q-pa-sm">
-            <q-card-section flat bordered class="row bg-grey-9 justify-center">
-              <q-btn label="Завершить ход" icon="restart_alt" dense @click="endTurn()" />
-            </q-card-section>
-          </div>
-        </q-card>
+      <!-- Верхняя панель -->
+      <div class="top-bar">
+        <q-badge class="stat-badge">❤️ {{ hp }}/100</q-badge>
+        <q-badge class="stat-badge">⚡ {{ energy }}/100</q-badge>
+        <q-badge class="stat-badge">Ход {{ turn }}</q-badge>
+        <q-badge class="stat-badge">Рука {{ hand.length }}/{{ maxHand }}</q-badge>
       </div>
 
-      <!-- Правая панель -->
-      <div class="col-5" style="display: flex; flex-direction: column; gap: 16px; min-height: 0;">
-        <!-- Список персонажей -->
-        <q-card flat square bordered dark style="flex-shrink: 0;">
-          <q-card-section class="bg-grey-9">
-            <div class="text-h6 flex items-center">
-              <q-icon name="groups" class="q-mr-sm" />
-              Очередь
-              <q-badge color="grey-7" :label="charactersList.length" class="q-ml-sm" />
-            </div>
-          </q-card-section>
-          <q-separator dark />
-          <q-card-section style="height: 200px; overflow-y: auto;" dark>
-            <q-scroll-area v-if="charactersList.length > 0" dark style="width: 100%; height: 100%;">
-              <q-item v-for="char in charactersList" :key="char.id" :active="char.id === game?.currentLocation?.getActiveCharacter?.().id" clickable
-                dark @click="switchToChar(char)" :manual-focus="true" :focused="false" active-class="text-grey-9" style="user-select: none;">
-                <q-item-section avatar dark>
-                  <q-chip :style="{ backgroundColor: char.teamColor, color: 'white' }">
-                    {{ char.char }}
-                  </q-chip>
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>{{ char.name }} ({{ char.teamName }})</q-item-label>
-                  <q-item-label>
-                    ❤️ {{ char.hp }}/{{ char.maxHp }} | ⚡ {{ char.ap }}/{{ char.maxAP }}
-                  </q-item-label>
-                  <q-item-label v-if="char.weapon">🗡️ {{ char.weapon }}</q-item-label>
-                </q-item-section>
-                <div class="row q-gutter-sm">
-                  <q-btn icon="center_focus_strong" label="Центрировать" dense @click.stop="centerOnCharacter(char)" dark />
-                  <q-btn v-if="!char.isActive && canSwitchTo && char.isPlayerControlled" label="Переключиться" icon="shortcut" dense
-                    @click.stop="switchToChar(char)" dark />
-                  <q-btn v-if="char.isActive" label="Завершить ход" icon="restart_alt" dense @click.stop="endTurn()" dark />
-                </div>
-              </q-item>
-            </q-scroll-area>
-            <div v-else class="text-center text-grey-5 q-py-md">
-              Нет персонажей. Начните игру.
-            </div>
-          </q-card-section>
-        </q-card>
+      <!-- Рука -->
+      <div class="hand-row">
+        <template v-if="hand.length > 0 || weapon">
+          <!-- Экипированное оружие (слева, выделено) -->
+          <q-chip v-if="weapon" :label="weapon.title" :icon="weapon.icon" color="negative" text-color="white" size="sm" dense class="equipped-chip">
+            <q-tooltip>Экипировано: {{ weapon.description }}</q-tooltip>
+          </q-chip>
 
-        <!-- Лог игры -->
-        <q-card flat square bordered dark style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
-          <q-card-section class="bg-grey-9">
-            <div class="text-h6 flex items-center">
-              <q-icon name="terminal" class="q-mr-sm" />
-              Лог игры
-              <q-badge color="grey-7" :label="consoleLogs.length" class="q-ml-sm" />
-              <q-space />
-              <q-btn flat dense icon="delete_sweep" @click="clearConsole" />
-            </div>
-          </q-card-section>
-          <q-separator dark />
-          <q-scroll-area ref="consoleScrollAreaRef" dark style="flex: 1; background: #1e1e1e;">
-            <div class="q-pa-sm">
-              <div v-for="(log, idx) in consoleLogs" :key="idx" class="q-py-xs" :class="getMessageColorClass(log)">
-                <span class="text-grey-5">[{{ log.time }}]</span> {{ log.text }}
-              </div>
-              <div v-if="consoleLogs.length === 0" class="text-grey-5 text-center q-py-lg">
-                Ничего...
-              </div>
-            </div>
-          </q-scroll-area>
-        </q-card>
+          <!-- Разделитель -->
+          <span v-if="weapon && hand.length > 0" class="hand-divider">|</span>
+
+          <!-- Карты в руке -->
+          <q-chip v-for="(c, i) in hand" :key="i" :label="c.title" :icon="c.icon"
+            :color="c.type === 'weapon' ? 'warning' : c.type === 'item' ? 'positive' : 'primary'" text-color="white" size="sm" clickable
+            @click="useCard(i)" dense>
+            <q-tooltip>{{ c.description }}</q-tooltip>
+          </q-chip>
+        </template>
+        <span v-else class="hand-empty">рука пуста</span>
       </div>
+
+      <!-- Игровое поле -->
+      <div class="field-container">
+        <GameCardGrid :cards="field" :player-h-p="hp" @cell-click="onCellClick" @player-move="onPlayerMove" />
+      </div>
+
+      <!-- Лог -->
+      <div class="log-area">
+        <div v-for="(log, i) in logs" :key="i" class="log-line">{{ log }}</div>
+        <div v-if="logs.length === 0" class="log-line log-dim">действий пока нет</div>
+      </div>
+
     </div>
+
+    <!-- ЭКРАН СМЕРТИ -->
+    <q-dialog v-model="isDead" persistent>
+      <q-card class="death-card">
+        <q-card-section class="text-center">
+          <div class="death-icon">💀</div>
+          <div class="death-title">Вы погибли</div>
+          <div class="death-sub">
+            Выжил ходов: {{ turn }}<br>
+            Собрано карт: {{ collectedCards }}
+          </div>
+        </q-card-section>
+        <q-card-actions align="center">
+          <q-btn label="Начать заново" color="dark" text-color="grey-4" @click="restartGame" unelevated />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import GameLoop from 'src/game/GameLoop.js'
-import config from 'src/game/config.json'
-import { logger, LOG_LEVEL } from 'src/game/Logger.js'
+import { ref, watch } from 'vue'
+import GameCardGrid from 'src/components/GameCardGrid.vue'
+import { DECK, GAME_CONFIG, buildStacks, createField, createEnemyData } from 'src/data/gameData'
 
-const canvasRef = ref(null)
-const consoleScrollAreaRef = ref(null)
-let game = null
-let resizeTimeout = null
-let updateInterval = null
+// --- Состояние ---
+const hp = ref(GAME_CONFIG.START_HP)
+const energy = ref(GAME_CONFIG.START_ENERGY)
+const turn = ref(1)
+const hand = ref([])
+const maxHand = ref(GAME_CONFIG.MAX_HAND_SIZE)
+const logs = ref([])
+const weapon = ref(null)
+const isDead = ref(false)
+const collectedCards = ref(0)
 
-const consoleLogs = ref([])
-const charactersList = ref([])
-const canSwitchTo = ref(false)
-const locationName = ref('')
-// Лог
-function addConsoleMessage(text, type = 'info') {
-  const now = new Date()
-  const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
-  consoleLogs.value.push({ time, text: String(text), type })
-  if (consoleLogs.value.length > 500) consoleLogs.value.shift()
-  nextTick(() => {
-    if (consoleScrollAreaRef.value) {
-      const scrollArea = consoleScrollAreaRef.value
-      const target = scrollArea.getScrollTarget?.()
-      if (target) target.scrollTop = target.scrollHeight
-    }
-  })
+const addLog = (msg) => {
+  logs.value.unshift(`[${turn.value}] ${msg}`)
+  if (logs.value.length > GAME_CONFIG.LOG_MAX_LINES) logs.value.pop()
 }
 
-function clearConsole() {
-  consoleLogs.value = []
-}
+let stacks = buildStacks(DECK)
+const field = ref(createField(stacks))
 
-function getMessageColorClass(log) {
-  switch (log.type) {
-    case 'error': return 'text-red'
-    case 'warning': return 'text-orange'
-    case 'success': return 'text-green'
-    default: return 'text-white'
+// --- Watch ---
+watch(hp, (val) => {
+  if (val <= 0) {
+    hp.value = 0
+    isDead.value = true
+    addLog('💀 Вы погибли')
   }
-}
+})
 
-function loggerCallback(level, module, message) {
-  let type = 'info'
-  if (level === LOG_LEVEL.ERROR) type = 'error'
-  else if (level === LOG_LEVEL.WARN) type = 'warning'
-  else if (level === LOG_LEVEL.INFO && (module === 'combat' || module === 'turn')) type = 'success'
-  addConsoleMessage(message, type)
-}
-logger.addCallback(loggerCallback)
-onUnmounted(() => logger.removeCallback(loggerCallback))
-
-// Обновление списка персонажей и canSwitchTo
-function updateCharactersList() {
-  if (!game?.currentLocation) {
-    charactersList.value = []
-    canSwitchTo.value = false
-
-    return
+watch(field, () => {
+  if (!field.value) return
+  const allEmpty = field.value.every(c => c.isEmpty || c.isPlayer)
+  const noEnemies = field.value.every(c => !c.enemyData || c.enemyData.hp <= 0)
+  if (allEmpty && noEnemies && turn.value > 1) {
+    isDead.value = true
+    addLog('🏆 Сектор зачищен!')
   }
-  locationName.value = game.currentLocation.name
-  const all = game.currentLocation.getAllCharacters()
-  const visible = all.filter(c => {
-    const tile = game.currentLocation.getTile(Math.floor(c.x), Math.floor(c.y))
-    return c.isPlayerControlled || (tile && tile.visible)
-  })
+}, { deep: true })
 
-  charactersList.value = visible.map(c => ({
-    id: c.id,
-    name: c.name,
-    char: c.char,
-    isActive: c.isActive,
-    isPlayerControlled: c.isPlayerControlled, // важно для переключения
-    teamColor: c.team?.color || '#666',
-    teamName: c.team?.name || '?',
-    ap: c.currentAP,
-    maxAP: c.maxAP,
-    hp: c.hp,
-    maxHp: c.maxHp,
-    weapon: c.weaponName || null,
-  }))
-  // Проверяем, есть ли враги в очереди ходов – если нет, можно переключаться
-  canSwitchTo.value = !game?.hasEnemiesInQueue?.()
-}
-
-// Инициализация игры
-function initGame() {
-  if (!canvasRef.value) return
-  const canvas = canvasRef.value
-  const rect = canvas.getBoundingClientRect()
-  const dpr = window.devicePixelRatio || 1
-  canvas.width = Math.max(rect.width * dpr, 100)
-  canvas.height = Math.max(rect.height * dpr, 100)
-  canvas.style.width = `${rect.width}px`
-  canvas.style.height = `${rect.height}px`
-  try {
-    game = new GameLoop(canvas, config)
-    game.initRenderer(rect.width, rect.height, dpr)
-    game.start()
-    addConsoleMessage('Игра запущена', 'success')
-    updateCharactersList()
-    if (updateInterval) clearInterval(updateInterval)
-    updateInterval = setInterval(() => updateCharactersList(), 150)
-  } catch (e) {
-    addConsoleMessage(`Ошибка: ${e.message}`, 'error')
-  }
-}
-
-
-function regenerateLevel() {
-  if (game?.reloadLocation) {
-    game.reloadLocation()
-    addConsoleMessage('Уровень обновлён', 'info')
-  }
-}
-
-function revealFullMap() {
-  if (!game?.currentLocation?.map) return
-  const map = game.currentLocation.map
-  for (let y = 0; y < map.rows; y++) {
-    for (let x = 0; x < map.cols; x++) {
-      const tile = map.getTile(x, y)
-      if (tile) tile.visible = tile.explored = true
-    }
-  }
-  addConsoleMessage('Карта полностью открыта', 'success')
-  if (game.renderer) game.renderer.hoverTileX = game.renderer.hoverTileY = null
-}
-function centerOnCharacter(character) {
-  game?.centerOnCharacter?.(character.id)
-}
-function switchToChar(character) {
-  const active = game?.currentLocation?.getActiveCharacter?.()
-  if (active?.id === character.id) {
-    centerOnCharacter(character)
-    return
-  }
-
-  if (!canSwitchTo.value) {
-    centerOnCharacter(character)
-    addConsoleMessage('Сейчас нельзя переключить персонажа (есть враги в очереди)', 'warning')
-    return
-  }
-  if (!character?.isPlayerControlled) {
-    addConsoleMessage('Нельзя переключиться на вражеского персонажа', 'warning')
-    return
-  } else centerOnCharacter(character)
-  if (game?.switchCharacter) {
-    game.switchCharacter(character.id)
-    addConsoleMessage(`Переключено на ${character.name}`, 'success')
+// --- Логика ---
+const removeTopCard = (card) => {
+  card.stack.shift()
+  if (card.stack.length === 0) {
+    card.revealed = false
+    card.isEmpty = true
+    card.topCard = null
+    card.enemyData = null
   } else {
-    addConsoleMessage('Метод switchCharacter не найден', 'error')
+    const next = card.stack[0]
+    card.topCard = { ...next }
+    card.enemyData = createEnemyData(next)
   }
 }
 
-function endTurn() {
-  const active = game?.currentLocation?.getActiveCharacter?.()
-  if (active?.isPlayerControlled && active.currentAP > 0) {
-    game.currentLocation.endTurn?.()
-    addConsoleMessage(`Ход завершён (${active.name})`, 'info')
-  } else {
-    addConsoleMessage('Нельзя завершить ход сейчас', 'warning')
+const onCellClick = ({ card }) => {
+  if (isDead.value) return
+
+  if (card.isPlayer) {
+    if (!card.revealed && !card.isEmpty && card.stack?.length > 0) {
+      card._flipping = true
+      const top = card.stack[0]
+      card.topCard = { ...top }
+      card.enemyData = createEnemyData(top)
+      setTimeout(() => {
+        card.revealed = true
+        card._flipping = false
+      }, GAME_CONFIG.FLIP_ANIMATION_MS)
+      addLog(`Открыто: ${top.title}`)
+      endTurn()
+    } else {
+      addLog('Это вы')
+    }
+    return
   }
-}
 
+  if (!card.revealed && !card.isEmpty && card.stack?.length > 0) {
+    card._flipping = true
+    const top = card.stack[0]
+    card.topCard = { ...top }
+    card.enemyData = createEnemyData(top)
+    setTimeout(() => {
+      card.revealed = true
+      card._flipping = false
+    }, GAME_CONFIG.FLIP_ANIMATION_MS)
+    addLog(`Открыто: ${top.title}`)
+    endTurn()
+    return
+  }
 
+  if (card.revealed && !card.isEmpty && card.topCard) {
+    const top = card.topCard
 
-// Обработчики событий
-function onCanvasClick(event) { game?.onClick?.(event) }
-function onMouseMove(event) { game?.onMouseMove?.(event) }
-function onMouseLeave(event) { game?.onMouseLeave?.(event) }
-function onContextMenu(event) { game?.onContextMenu?.(event) }
-function onMouseDown(event) { game?.onMouseDown?.(event) }
-function onMouseUp(event) { game?.onMouseUp?.(event) }
-function onWheel(event) { game?.onWheel?.(event) }
-function onTouchStart(event) { game?.onTouchStart?.(event) }
-function onTouchMove(event) { game?.onTouchMove?.(event) }
-function onTouchEnd(event) { game?.onTouchEnd?.(event) }
-
-// Жизненный цикл
-onMounted(() => {
-  nextTick(initGame)
-  window.addEventListener('resize', () => {
-    if (resizeTimeout) clearTimeout(resizeTimeout)
-    resizeTimeout = setTimeout(() => {
-      if (game && canvasRef.value) {
-        const rect = canvasRef.value.getBoundingClientRect()
-        const dpr = window.devicePixelRatio || 1
-        canvasRef.value.width = rect.width * dpr
-        canvasRef.value.height = rect.height * dpr
-        canvasRef.value.style.width = `${rect.width}px`
-        canvasRef.value.style.height = `${rect.height}px`
-        game.resize?.(rect.width, rect.height, dpr)
+    if (top.type === 'item' || top.type === 'weapon') {
+      if (hand.value.length >= maxHand.value) { addLog('Рука полна!'); return }
+      hand.value.push(top)
+      collectedCards.value++
+      if (top.type === 'weapon') {
+        if (weapon.value) hand.value.push(weapon.value)
+        weapon.value = top
+        addLog(`Взято и экипировано: ${top.title}`)
+      } else {
+        addLog(`Взято: ${top.title}`)
       }
-    }, 200)
-  })
-})
+      removeTopCard(card)
+      endTurn()
+      return
+    }
 
-onUnmounted(() => {
-  game?.stop?.()
-  if (updateInterval) clearInterval(updateInterval)
-  window.removeEventListener('resize', () => { })
-})
+    if (top.type === 'enemy') {
+      const playerIndex = field.value.findIndex(c => c.isPlayer)
+      const enemyIndex = field.value.indexOf(card)
+      const isRangedWeapon = weapon.value?.ranged === true
+      const isAdjacent = isAdjacentToPlayer(enemyIndex)
+      const canCounter = card.enemyData.counterAttack !== false
+      const aoe = weapon.value?.aoe || null
+
+      // Дальнее оружие с AoE (обрез, автомат)
+      if (isRangedWeapon && isAdjacent && playerIndex !== enemyIndex) {
+        if (aoe === 'cone') {
+          const coneTargets = getConeTargets(playerIndex, enemyIndex)
+          dealAoEDamage(coneTargets, weapon.value, 'Обрез')
+        } else if (aoe === 'line') {
+          const lineTargets = getLineTargets(playerIndex, enemyIndex)
+          dealAoEDamage(lineTargets, weapon.value, 'Автомат')
+        } else {
+          // Обычный выстрел
+          const [min, max] = weapon.value.dmg
+          const dmg = min + Math.floor(Math.random() * (max - min + 1))
+          card.enemyData.hp -= dmg
+          addLog(`Выстрел: -${dmg} HP врагу`)
+          if (card.enemyData.hp <= 0) {
+            addLog('Враг убит!')
+            removeTopCard(card)
+          }
+        }
+        endTurn()
+        return
+      }
+
+      // Ближний бой (монтировка с оглушением)
+      let dmg = GAME_CONFIG.FIST_DAMAGE
+      if (weapon.value?.dmg) {
+        const [min, max] = weapon.value.dmg
+        dmg = min + Math.floor(Math.random() * (max - min + 1))
+      }
+      card.enemyData.hp -= dmg
+
+      // Оглушение монтировкой
+      if (weapon.value?.stun && card.enemyData.hp > 0) {
+        card.enemyData.stunned = true
+        card.enemyData._skipThisTurn = true  // ← сразу пропускает этот ход
+        addLog(`Атака монтировкой: -${dmg} HP. Враг оглушён!`)
+      } else {
+        addLog(`Атака: -${dmg} HP врагу`)
+      }
+
+      // Ответный удар — только если не оглушён
+      if (card.enemyData.hp > 0 && canCounter && !card.enemyData.stunned) {
+        const [min, max] = card.enemyData.dmg
+        const edmg = min + Math.floor(Math.random() * (max - min + 1))
+        hp.value -= edmg
+        addLog(`Враг бьёт в ответ: -${edmg} HP`)
+      } else if (card.enemyData.hp <= 0) {
+        addLog('Враг убит!')
+        removeTopCard(card)
+      }
+
+      endTurn()
+      return
+    }
+
+    if (top.type === 'trap') {
+      if (Math.random() < GAME_CONFIG.TRAP_DISARM_CHANCE) {
+        addLog('Ловушка обезврежена')
+      } else {
+        hp.value -= top.damage
+        addLog(`Ловушка! -${top.damage} HP`)
+      }
+      removeTopCard(card)
+      endTurn()
+      return
+    }
+
+    if (top.type === 'location') {
+      if (top.title === 'Распределитель') {
+        const rnd = DECK.filter(c => c.type === 'item')
+        if (rnd.length && hand.value.length < maxHand.value) {
+          hand.value.push({ ...rnd[Math.floor(Math.random() * rnd.length)] })
+          collectedCards.value++
+          addLog('Получен предмет!')
+        }
+      } else if (top.title === 'Гермобункер') {
+        hp.value = Math.min(GAME_CONFIG.START_HP, hp.value + 50)
+        addLog('+50 HP от отдыха')
+      } else {
+        addLog(`${top.title}: использовано`)
+      }
+      removeTopCard(card)
+      endTurn()
+      return
+    }
+
+    if (top.type === 'event') {
+      addLog(`Событие: ${top.title}`)
+      removeTopCard(card)
+      endTurn()
+      return
+    }
+  }
+}
+
+const onPlayerMove = ({ from, to }) => {
+  if (isDead.value) return
+
+  const fromCard = field.value[from]
+  const toCard = field.value[to]
+
+  if (toCard.topCard?.type === 'enemy' && toCard.enemyData?.hp > 0) {
+    addLog('Нельзя перейти на клетку с врагом')
+    return
+  }
+
+  fromCard.isPlayer = false
+  toCard.isPlayer = true
+
+  addLog(`Перемещение: ${from + 1} → ${to + 1}`)
+
+  // Автовскрытие только врагов на соседних клетках
+  field.value.forEach((card, i) => {
+    if (!card.isPlayer && !card.revealed && !card.isEmpty && card.stack?.length > 0 && isAdjacentToPlayer(i)) {
+      const top = card.stack[0]
+      if (top.type === 'enemy') {
+        card.revealed = true
+        card.topCard = { ...top }
+        card.enemyData = createEnemyData(top)
+        addLog(`Замечен враг: ${top.title}`)
+      }
+    }
+  })
+
+  endTurn()
+}
+
+const useCard = (i) => {
+  if (isDead.value) return
+  const c = hand.value[i]
+  if (c.type === 'item' && c.heal) {
+    hp.value = Math.min(GAME_CONFIG.START_HP, hp.value + c.heal)
+    addLog(`+${c.heal} HP`)
+    hand.value.splice(i, 1)
+    endTurn()
+  } else if (c.type === 'weapon') {
+    // Снять текущее — положить в руку
+    if (weapon.value) {
+      hand.value.push(weapon.value)
+    }
+    // Экипировать новое
+    weapon.value = c
+    hand.value.splice(i, 1)
+    addLog(`Экипировано: ${c.title}`)
+    endTurn()
+  }
+}
+
+// ИИ врагов
+const isAdjacentToPlayer = (index) => {
+  const pi = field.value.findIndex(c => c.isPlayer)
+  if (pi === -1) return false
+  const r1 = Math.floor(index / 3), c1 = index % 3
+  const r2 = Math.floor(pi / 3), c2 = pi % 3
+  return Math.abs(r1 - r2) <= 1 && Math.abs(c1 - c2) <= 1
+}
+
+const hasLineOfSight = (fromIndex) => {
+  const pi = field.value.findIndex(c => c.isPlayer)
+  if (pi === -1) return false
+  const r1 = Math.floor(fromIndex / 3), c1 = fromIndex % 3
+  const r2 = Math.floor(pi / 3), c2 = pi % 3
+
+  if (r1 !== r2 && c1 !== c2) return false
+
+  const minR = Math.min(r1, r2), maxR = Math.max(r1, r2)
+  const minC = Math.min(c1, c2), maxC = Math.max(c1, c2)
+
+  for (let r = minR; r <= maxR; r++) {
+    for (let c = minC; c <= maxC; c++) {
+      const idx = r * 3 + c
+      if (idx === fromIndex || idx === pi) continue
+      if (field.value[idx].enemyData && field.value[idx].enemyData.hp > 0) return false
+    }
+  }
+  return true
+}
+
+const getNeighborsToPlayer = (fromIndex) => {
+  const pi = field.value.findIndex(c => c.isPlayer)
+  if (pi === -1) return []
+  const r1 = Math.floor(fromIndex / 3), c1 = fromIndex % 3
+  const r2 = Math.floor(pi / 3), c2 = pi % 3
+
+  const result = []
+  if (r1 < r2) result.push(fromIndex + 3)
+  if (r1 > r2) result.push(fromIndex - 3)
+  if (c1 < c2) result.push(fromIndex + 1)
+  if (c1 > c2) result.push(fromIndex - 1)
+  if (r1 < r2 && c1 < c2) result.push(fromIndex + 4)
+  if (r1 < r2 && c1 > c2) result.push(fromIndex + 2)
+  if (r1 > r2 && c1 < c2) result.push(fromIndex - 2)
+  if (r1 > r2 && c1 > c2) result.push(fromIndex - 4)
+
+  const all = [fromIndex - 4, fromIndex - 3, fromIndex - 2, fromIndex - 1, fromIndex + 1, fromIndex + 2, fromIndex + 3, fromIndex + 4]
+  for (const n of all) {
+    if (!result.includes(n) && n >= 0 && n < 9) result.push(n)
+  }
+  return result.filter(n => n >= 0 && n < 9)
+}
+
+// Получить все клетки в конусе от игрока в сторону цели
+const getConeTargets = (playerIndex, targetIndex) => {
+  const pr = Math.floor(playerIndex / 3), pc = playerIndex % 3
+  const tr = Math.floor(targetIndex / 3), tc = targetIndex % 3
+
+  const targets = [targetIndex]
+
+  // Направление от игрока к цели
+  const dr = Math.sign(tr - pr)  // -1, 0, 1
+  const dc = Math.sign(tc - pc)
+
+  // Добавляем клетки за целью (если есть)
+  const beyond1 = (tr + dr) * 3 + (tc + dc)
+  if (beyond1 >= 0 && beyond1 < 9 && Math.abs((tr + dr) - pr) <= 2 && Math.abs((tc + dc) - pc) <= 2) {
+    targets.push(beyond1)
+  }
+
+  // Добавляем боковые клетки рядом с целью
+  if (dr === 0) {
+    // Горизонтальный выстрел
+    const side1 = tr * 3 + (tc - 1)
+    const side2 = tr * 3 + (tc + 1)
+    if (side1 >= 0 && side1 < 9 && Math.floor(side1 / 3) === tr) targets.push(side1)
+    if (side2 >= 0 && side2 < 9 && Math.floor(side2 / 3) === tr) targets.push(side2)
+  } else if (dc === 0) {
+    // Вертикальный выстрел
+    const side1 = (tr - 1) * 3 + tc
+    const side2 = (tr + 1) * 3 + tc
+    if (side1 >= 0 && side1 < 9) targets.push(side1)
+    if (side2 >= 0 && side2 < 9) targets.push(side2)
+  }
+
+  return [...new Set(targets)]
+}
+
+// Получить все клетки в линии от игрока до края поля
+const getLineTargets = (playerIndex, targetIndex) => {
+  const pr = Math.floor(playerIndex / 3), pc = playerIndex % 3
+  const tr = Math.floor(targetIndex / 3), tc = targetIndex % 3
+
+  const targets = []
+
+  if (pr === tr) {
+    // Горизонталь — вся строка
+    for (let c = 0; c < 3; c++) {
+      targets.push(pr * 3 + c)
+    }
+  } else if (pc === tc) {
+    // Вертикаль — весь столбец
+    for (let r = 0; r < 3; r++) {
+      targets.push(r * 3 + pc)
+    }
+  } else {
+    // Диагональ не простреливается линией
+    targets.push(targetIndex)
+  }
+
+  return targets
+}
+
+// Нанести урон по области
+const dealAoEDamage = (targets, weapon, sourceName) => {
+  const [min, max] = weapon.dmg
+
+  for (const ti of targets) {
+    const targetCard = field.value[ti]
+    if (targetCard.enemyData && targetCard.enemyData.hp > 0) {
+      const dmg = min + Math.floor(Math.random() * (max - min + 1))
+      targetCard.enemyData.hp -= dmg
+      addLog(`${sourceName}: -${dmg} HP врагу на клетке ${ti + 1}`)
+
+      if (targetCard.enemyData.hp <= 0) {
+        addLog(`Враг на клетке ${ti + 1} убит!`)
+        removeTopCard(targetCard)
+      }
+    }
+  }
+}
+
+const canEnemyMoveTo = (targetCard, targetIndex) => {
+  if (!targetCard) return false
+  if (targetIndex < 0 || targetIndex > 8) return false
+  const pi = field.value.findIndex(c => c.isPlayer)
+  if (targetIndex === pi) return false
+  if (targetCard.isPlayer) return false
+  if (targetCard.enemyData && targetCard.enemyData.hp > 0) return false
+  return true
+}
+
+const moveEnemy = (sourceCard, fromIndex, toIndex) => {
+  const targetCard = field.value[toIndex]
+
+  targetCard.enemyData = { ...sourceCard.enemyData }
+  targetCard.topCard = { ...sourceCard.topCard }
+  targetCard.revealed = true
+  targetCard.isEmpty = false
+
+  sourceCard.enemyData = null
+  sourceCard.topCard = null
+
+  if (sourceCard.stack && sourceCard.stack.length > 0) {
+    sourceCard.revealed = false
+    sourceCard.isEmpty = false
+    sourceCard.topCard = null
+    sourceCard.enemyData = null
+  } else {
+    sourceCard.isEmpty = true
+    sourceCard.revealed = false
+  }
+}
+
+const endTurn = () => {
+  turn.value++
+
+  // Сбрасываем stunned у врагов, которые не были оглушены в этом ходу
+  field.value.forEach(card => {
+    if (card.enemyData && card.enemyData.stunned && !card.enemyData._skipThisTurn) {
+      card.enemyData.stunned = false
+    }
+  })
+
+  const enemies = []
+  field.value.forEach((card, i) => {
+    if (card.enemyData && card.enemyData.hp > 0) {
+      enemies.push({ card, index: i })
+    }
+  })
+
+  for (const { card, index } of enemies) {
+    if (!card.enemyData || card.enemyData.hp <= 0) continue
+
+    // Пропускаем оглушённых (метка поставлена при ударе монтировкой)
+    if (card.enemyData._skipThisTurn) {
+      card.enemyData._skipThisTurn = false
+      card.enemyData.stunned = false
+      addLog(`${card.topCard?.title || 'Враг'} оглушён и пропускает ход`)
+      continue
+    }
+
+    const ed = card.enemyData
+    const isRanged = ed.ranged === true
+    const enemyName = card.topCard?.title || 'Враг'
+
+    if (isRanged) {
+      if (isAdjacentToPlayer(index) || hasLineOfSight(index)) {
+        const [min, max] = ed.dmg
+        const dmg = min + Math.floor(Math.random() * (max - min + 1))
+        hp.value -= dmg
+        addLog(`${enemyName} стреляет: -${dmg} HP`)
+      } else {
+        const toward = getNeighborsToPlayer(index)
+        for (const ti of toward) {
+          if (canEnemyMoveTo(field.value[ti], ti)) {
+            moveEnemy(card, index, ti)
+            break
+          }
+        }
+      }
+    } else {
+      if (isAdjacentToPlayer(index) && ed.aggro) {
+        const [min, max] = ed.dmg
+        const dmg = min + Math.floor(Math.random() * (max - min + 1))
+        hp.value -= dmg
+        addLog(`${enemyName} атакует: -${dmg} HP`)
+      } else if (ed.aggro && !isAdjacentToPlayer(index)) {
+        const toward = getNeighborsToPlayer(index)
+        for (const ti of toward) {
+          if (canEnemyMoveTo(field.value[ti], ti)) {
+            moveEnemy(card, index, ti)
+            break
+          }
+        }
+      }
+    }
+  }
+
+  // Финальный сброс всех флагов
+  field.value.forEach(card => {
+    if (card.enemyData) {
+      card.enemyData._skipThisTurn = false
+    }
+  })
+}
+
+const restartGame = () => {
+  hp.value = GAME_CONFIG.START_HP
+  energy.value = GAME_CONFIG.START_ENERGY
+  turn.value = 1
+  hand.value = []
+  weapon.value = null
+  logs.value = []
+  isDead.value = false
+  collectedCards.value = 0
+
+  stacks = buildStacks(DECK)
+  field.value = createField(stacks)
+
+  addLog('Новая игра')
+}
 </script>
 
 <style scoped>
-canvas {
-  display: block;
-  border: 1px solid #333;
+.page-dark {
+  background: #121212;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  padding: 0;
+  margin: 0;
+}
+
+.game-layout {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 500px;
+  height: 100vh;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  gap: 6px;
+}
+
+.top-bar {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-badge {
+  font-size: 0.7rem;
+  padding: 4px 8px;
+  background: #1e1e1e;
+  color: #ccc;
+}
+
+.hand-row {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  min-height: 28px;
+}
+
+.hand-empty {
+  color: #555;
+  font-size: 0.7rem;
+}
+
+.field-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.log-area {
+  flex-shrink: 0;
+  max-height: 90px;
+  overflow-y: auto;
+}
+
+.log-line {
+  font-size: 0.65rem;
+  color: #777;
+  padding: 1px 0;
+}
+
+.log-dim {
+  color: #444;
+}
+
+.death-card {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  min-width: 280px;
+}
+
+.death-icon {
+  font-size: 3rem;
+  margin-bottom: 8px;
+}
+
+.death-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #ccc;
+  margin-bottom: 4px;
+}
+
+.death-sub {
+  font-size: 0.8rem;
+  color: #666;
+  line-height: 1.6;
+}
+
+.equipped-chip {
+  border: 1px solid #f44336;
+  box-shadow: 0 0 6px rgba(244, 67, 54, 0.3);
+}
+
+.hand-divider {
+  color: #444;
+  font-size: 0.8rem;
+  margin: 0 2px;
+  user-select: none;
 }
 </style>
