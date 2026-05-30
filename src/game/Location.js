@@ -744,7 +744,6 @@ export default class Location {
     }
 
     const playerStart = Location.findEmptyTile(width, height, isPositionFree)
-    const allyStart = Location.findEmptyTile(width, height, isPositionFree, [playerStart])
 
     // ========== 5. ГЕНЕРАЦИЯ ВРАГОВ ==========
     const enemies = []
@@ -792,21 +791,12 @@ export default class Location {
         {
           x: playerStart.x, y: playerStart.y,
           char: '@', color: '#44ffaa',
-          id: generateId(), name: 'Командир',
+          id: generateId(), name: 'Игрок',
           fovRadius: 12,
           ap: { max: 12, moveCost: 1, pickupCost: 2 },
           hp: 25, armor: 1, damageMin: 3, damageMax: 6,
           damageType: 'blunt', range: 1, accuracy: 0.75, initiative: 6
         },
-        {
-          x: allyStart.x, y: allyStart.y,
-          char: '@', color: '#44ffaa',
-          id: generateId(), name: 'Спутник',
-          fovRadius: 10,
-          ap: { max: 10, moveCost: 2, pickupCost: 4 },
-          hp: 20, armor: 0, damageMin: 2, damageMax: 4,
-          damageType: 'blunt', range: 1, accuracy: 0.70, initiative: 4
-        }
       ]
     }
 

@@ -44,7 +44,7 @@
           <q-card-section style="height: 200px; overflow-y: auto;" dark>
             <q-scroll-area v-if="charactersList.length > 0" dark style="width: 100%; height: 100%;">
               <q-item v-for="char in charactersList" :key="char.id" :active="char.id === game?.currentLocation?.getActiveCharacter?.().id" clickable
-                dark @click="switchToChar(char)" :manual-focus="true" :focused="false" active-class="text-grey-9" style="user-select: none;">
+                dark @click="switchToChar(char)" :manual-focus="true" :focused="false" active-class="text-blue" style="user-select: none;">
                 <q-item-section avatar dark>
                   <q-chip :style="{ backgroundColor: char.teamColor, color: 'white' }">
                     {{ char.char }}
@@ -58,10 +58,10 @@
                   <q-item-label v-if="char.weapon">🗡️ {{ char.weapon }}</q-item-label>
                 </q-item-section>
                 <div class="row q-gutter-sm">
-                  <q-btn icon="center_focus_strong" label="Центрировать" dense @click.stop="centerOnCharacter(char)" dark />
+                  <q-btn icon="center_focus_strong" label="Центрировать" class="text-white" dense @click.stop="centerOnCharacter(char)" dark />
                   <q-btn v-if="!char.isActive && canSwitchTo && char.isPlayerControlled" label="Переключиться" icon="shortcut" dense
                     @click.stop="switchToChar(char)" dark />
-                  <q-btn v-if="char.isActive" label="Завершить ход" icon="restart_alt" dense @click.stop="endTurn()" dark />
+                  <q-btn v-if="char.isActive" label="Завершить ход" class="text-white" icon="restart_alt" dense @click.stop="endTurn()" dark />
                 </div>
               </q-item>
             </q-scroll-area>

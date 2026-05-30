@@ -280,28 +280,6 @@ export default class Renderer {
         ctx.setLineDash([])
         ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
 
-        if (this._location && (isVisible || isExplored)) {
-          const info = this._location.getTileInfo(this.hoverTileX, this.hoverTileY)
-          if (info) {
-            let tooltipText = info.name
-            if (info.type === 'character' && isVisible) {
-              tooltipText += `\n❤️ ${info.hp}/${info.maxHp} HP`
-              tooltipText += `\n⚡ ${info.currentAP}/${info.maxAP} AP`
-            }
-            if (info.type === 'item' && isVisible) {
-              tooltipText += `\n📦 Нажмите чтобы подобрать`
-            }
-            if (info.type === 'door' && isVisible) {
-              tooltipText += `\n${info.action === 'открыть' ? '🔓' : '🔒'} ${info.action} (${info.cost} AP)`
-            }
-            if (!isVisible && isExplored) {
-              tooltipText = `🌑 ${info.name} (исследовано)`
-            }
-            this.drawTooltip(tooltipText)
-          }
-        } else if (this._location && !isVisible && !isExplored) {
-          this.drawTooltip('🌑 Туман войны')
-        }
       }
     }
   }
