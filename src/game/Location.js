@@ -592,15 +592,15 @@ export default class Location {
       return biomes[Math.floor(Math.random() * biomes.length)]
     })()
 
-    // Базовые настройки генератора (новый формат)
+    // Базовые настройки генератора (классический рогалик: меньше уровень, плотнее комнаты)
     let generatorConfig = {
-      width: 100,           // ширина карты
-      height: 80,           // высота карты
-      minRoomSize: 5,
-      maxRoomSize: 10,
-      maxRooms: 25,
-      roomSpacing: 2,
-      wallClearance: 1
+      width: 60,            // ширина карты (меньше)
+      height: 40,           // высота карты (меньше)
+      minRoomSize: 4,
+      maxRoomSize: 8,
+      maxRooms: 20,
+      roomSpacing: 1,       // комнаты плотнее
+      doorChance: 0.5       // двери не везде
     }
 
     let biomeName
@@ -608,38 +608,38 @@ export default class Location {
     switch (selectedBiome) {
       case 'residential':
         biomeName = 'Жилой этаж'
-        generatorConfig.maxRooms = 45
+        generatorConfig.maxRooms = 22
         generatorConfig.minRoomSize = 4
-        generatorConfig.maxRoomSize = 6
+        generatorConfig.maxRoomSize = 7
         generatorConfig.roomSpacing = 1
-        generatorConfig.wallClearance = 0   // разрешить коридорам касаться стен
+        generatorConfig.doorChance = 0.6
         break
 
       case 'factory':
         biomeName = 'Фабрика'
-        generatorConfig.maxRooms = 10
-        generatorConfig.minRoomSize = 8
-        generatorConfig.maxRoomSize = 14
-        generatorConfig.roomSpacing = 4
-        generatorConfig.wallClearance = 1
+        generatorConfig.maxRooms = 12
+        generatorConfig.minRoomSize = 6
+        generatorConfig.maxRoomSize = 10
+        generatorConfig.roomSpacing = 2
+        generatorConfig.doorChance = 0.4
         break
 
       case 'technical':
         biomeName = 'Технический этаж'
-        generatorConfig.maxRooms = 35
+        generatorConfig.maxRooms = 18
         generatorConfig.minRoomSize = 4
-        generatorConfig.maxRoomSize = 6
-        generatorConfig.roomSpacing = 3
-        generatorConfig.wallClearance = 1
+        generatorConfig.maxRoomSize = 7
+        generatorConfig.roomSpacing = 1
+        generatorConfig.doorChance = 0.5
         break
 
       default:
         biomeName = 'Зараженная зона'
-        generatorConfig.maxRooms = 25
-        generatorConfig.minRoomSize = 5
-        generatorConfig.maxRoomSize = 10
-        generatorConfig.roomSpacing = 2
-        generatorConfig.wallClearance = 1
+        generatorConfig.maxRooms = 20
+        generatorConfig.minRoomSize = 4
+        generatorConfig.maxRoomSize = 8
+        generatorConfig.roomSpacing = 1
+        generatorConfig.doorChance = 0.5
     }
 
     // Генерация карты

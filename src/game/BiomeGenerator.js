@@ -1,6 +1,10 @@
 // BiomeGenerator.js
-// Генератор карты подземелья: комнаты + коридоры (A* с избеганием стен комнат)
-// Возвращает: стены, размеры, список комнат, данные для дверей (без создания объектов Door)
+// Классическая генерация подземелья в стиле ASCII-рогаликов (Rogue / RogueBasin).
+// Алгоритм: комнаты + L-образные коридоры.
+//   - Уровни меньше, но комнаты плотнее.
+//   - Коридоры короткие (соединяют каждую новую комнату с предыдущей).
+//   - Двери ставятся НЕ везде, а с заданной вероятностью.
+// Возвращает: стены, размеры, список комнат, данные для дверей (без создания объектов Door).
 
 export default class BiomeGenerator {
   /**
@@ -11,16 +15,16 @@ export default class BiomeGenerator {
    * @param {number} config.maxRoomSize - макс. размер комнаты
    * @param {number} config.maxRooms - сколько комнат пытаться разместить
    * @param {number} config.roomSpacing - мин. расстояние между комнатами
-   * @param {number} config.wallClearance - мин. расстояние от коридора до стен комнат (0/1)
+   * @param {number} config.doorChance - вероятность двери на входе в комнату (0..1)
    */
   constructor(config = {}) {
-    this.width = config.width || 80
-    this.height = config.height || 60
-    this.minRoomSize = config.minRoomSize || 5
-    this.maxRoomSize = config.maxRoomSize || 10
-    this.maxRooms = config.maxRooms || 25
-    this.roomSpacing = config.roomSpacing || 2
-    this.wallClearance = config.wallClearance !== undefined ? config.wallClearance : 1   // 0 или 1
+    this.width = config.width || 60
+    this.height = config.height || 40
+    this.minRoomSize = config.minRoomSize || 4
+    this.maxRoomSize = config.maxRoomSize || 8
+    this.maxRooms = config.maxRooms || 20
+    this.roomSpacing = config.roomSpacing !== undefined ? config.roomSpacing : 1
+    this.doorChance = config.doorChance !== undefined ? config.doorChance : 0.5
   }
 
   // ========================== ПУБЛИЧНЫЙ МЕТОД ==========================
@@ -31,7 +35,7 @@ export default class BiomeGenerator {
    *   walls: массив координат стен [[x,y], ...]
    *   width, height: размеры карты
    *   rooms: массив комнат { x, y, w, h }
-   *   corridorCells: Set строк "x,y" клеток коридоров (пустой, можно не использовать)
+   *   corridorCells: Set строк "x,y" клеток коридоров
    *   doors: массив { x, y, locked } для создания дверей в Location
    */
   generate() {
@@ -39,13 +43,15 @@ export default class BiomeGenerator {
     const map = Array(this.height).fill().map(() => Array(this.width).fill(true))
     const rooms = []
 
-    // 2. Размещение комнат
+    // 2. Размещение комнат (классический алгоритм: каждая новая комната
+    //    соединяется коридором с предыдущей)
     for (let i = 0; i < this.maxRooms; i++) {
       const w = this.rand(this.minRoomSize, this.maxRoomSize)
       const h = this.rand(this.minRoomSize, this.maxRoomSize)
       const x = this.rand(1, this.width - w - 1)
       const y = this.rand(1, this.height - h - 1)
       const newRoom = { x, y, w, h }
+
       let ok = true
       for (const r of rooms) {
         if (this.intersects(newRoom, r, this.roomSpacing)) {
@@ -53,26 +59,31 @@ export default class BiomeGenerator {
           break
         }
       }
+
       if (ok) {
         // Заливаем комнату полом (false)
         for (let ry = y; ry < y + h; ry++)
           for (let rx = x; rx < x + w; rx++)
             map[ry][rx] = false
+
+        // Соединяем новую комнату с предыдущей коротким L-образным коридором
+        if (rooms.length > 0) {
+          this.connectRooms(map, rooms[rooms.length - 1], newRoom)
+        }
+
         rooms.push(newRoom)
       }
     }
+
     if (rooms.length < 2) return this.emptyMap()
 
-    // 3. Соединение комнат коридорами (MST + A*)
-    this.connectRooms(map, rooms)
-
-    // 4. Сбор стен
+    // 3. Сбор стен
     const walls = []
     for (let y = 0; y < this.height; y++)
       for (let x = 0; x < this.width; x++)
         if (map[y][x] === true) walls.push([x, y])
 
-    // 5. Генерация данных о дверях (без создания объектов Door)
+    // 4. Генерация данных о дверях (не везде, с вероятностью doorChance)
     const doorData = this.placeDoors(map, rooms)
 
     console.log(`[BiomeGenerator] Комнат: ${rooms.length}, дверей: ${doorData.length}`)
@@ -98,32 +109,7 @@ export default class BiomeGenerator {
       r2.y + r2.h + spacing <= r1.y - spacing)
   }
 
-  // ========================== СОЕДИНЕНИЕ КОМНАТ (MST + перпендикулярные коридоры) ==========================
-
-  /**
-   * Построение минимального остовного дерева (алгоритм Прима) и прокладка
-   * коридоров между комнатами. Гарантирует связность всех комнат.
-   */
-  connectRooms(map, rooms) {
-    const n = rooms.length
-    const connected = new Set([0])
-    while (connected.size < n) {
-      let best = null
-      for (const i of connected) {
-        for (let j = 0; j < n; j++) {
-          if (connected.has(j)) continue
-          const ci = this.roomCenter(rooms[i])
-          const cj = this.roomCenter(rooms[j])
-          const dist = Math.abs(ci.x - cj.x) + Math.abs(ci.y - cj.y)
-          if (!best || dist < best.dist) best = { i, j, dist, ci, cj }
-        }
-      }
-      if (best) {
-        connected.add(best.j)
-        this.drawCorridor(map, rooms, best.i, best.j)
-      } else break
-    }
-  }
+  // ========================== СОЕДИНЕНИЕ КОМНАТ (L-образные коридоры) ==========================
 
   /**
    * Центр комнаты
@@ -136,105 +122,57 @@ export default class BiomeGenerator {
   }
 
   /**
-   * Точка выхода из комнаты: клетка сразу за стеной, обращённой к целевой комнате,
-   * плюс направление перпендикулярного выхода (dirX, dirY).
+   * Рисует короткий L-образный коридор между двумя комнатами
+   * (классический подход из учебников по рогаликам).
    */
-  getExitPoint(room, target) {
-    const left = room.x
-    const right = room.x + room.w - 1
-    const top = room.y
-    const bottom = room.y + room.h - 1
-    const cx = (left + right) / 2
-    const cy = (top + bottom) / 2
-    const dx = target.x - cx
-    const dy = target.y - cy
-    let x, y, dirX, dirY
-    if (Math.abs(dx) > Math.abs(dy)) {
-      // Выход через левую или правую стену (перпендикулярно)
-      if (dx > 0) { x = right + 1; y = Math.floor(cy); dirX = 1; dirY = 0 }
-      else { x = left - 1; y = Math.floor(cy); dirX = -1; dirY = 0 }
-    } else {
-      // Выход через верхнюю или нижнюю стену (перпендикулярно)
-      if (dy > 0) { y = bottom + 1; x = Math.floor(cx); dirX = 0; dirY = 1 }
-      else { y = top - 1; x = Math.floor(cx); dirX = 0; dirY = -1 }
-    }
-    // Ограничение границами карты
-    x = Math.min(Math.max(x, 1), this.width - 2)
-    y = Math.min(Math.max(y, 1), this.height - 2)
-    return { x, y, dirX, dirY }
-  }
-
-  /**
-   * Рисует коридор между двумя комнатами так, чтобы он выходил перпендикулярно
-   * из стены каждой комнаты (минимум на 1 клетку) и не шёл вдоль стен.
-   */
-  drawCorridor(map, rooms, i, j) {
-    const a = rooms[i]
-    const b = rooms[j]
+  connectRooms(map, a, b) {
     const ca = this.roomCenter(a)
     const cb = this.roomCenter(b)
-    const exitA = this.getExitPoint(a, cb)
-    const exitB = this.getExitPoint(b, ca)
 
-    const path = this.buildPerpendicularCorridor(exitA, exitB)
-    for (const { x, y } of path) {
-      if (map[y][x] === true) map[y][x] = false
-    }
-  }
-
-  /**
-   * Строит коридор, выходящий перпендикулярно из комнаты A и входящий
-   * перпендикулярно в комнату B. Использует L-образную или Z-образную форму.
-   */
-  buildPerpendicularCorridor(exitA, exitB) {
-    const cells = []
-    const ax = exitA.x, ay = exitA.y, adx = exitA.dirX, ady = exitA.dirY
-    const bx = exitB.x, by = exitB.y, bdx = exitB.dirX, bdy = exitB.dirY
-
-    if (adx !== 0 && bdx !== 0) {
-      // Оба выхода горизонтальные -> Z-образный коридор
-      const cornerX = bx - bdx
-      this.addLine(cells, ax, ay, cornerX, ay)
-      this.addLine(cells, cornerX, ay, cornerX, by)
-      this.addLine(cells, cornerX, by, bx, by)
-    } else if (ady !== 0 && bdy !== 0) {
-      // Оба выхода вертикальные -> Z-образный коридор
-      const cornerY = by - bdy
-      this.addLine(cells, ax, ay, ax, cornerY)
-      this.addLine(cells, ax, cornerY, bx, cornerY)
-      this.addLine(cells, bx, cornerY, bx, by)
-    } else if (adx !== 0) {
-      // Выход A горизонтальный, выход B вертикальный -> L-образный
-      this.addLine(cells, ax, ay, bx, ay)
-      this.addLine(cells, bx, ay, bx, by)
+    // Случайно выбираем, где сделать изгиб (горизонтальный или вертикальный первым)
+    if (Math.random() < 0.5) {
+      this.hLine(map, ca.x, cb.x, ca.y)
+      this.vLine(map, ca.y, cb.y, cb.x)
     } else {
-      // Выход A вертикальный, выход B горизонтальный -> L-образный
-      this.addLine(cells, ax, ay, ax, by)
-      this.addLine(cells, ax, by, bx, by)
+      this.vLine(map, ca.y, cb.y, ca.x)
+      this.hLine(map, ca.x, cb.x, cb.y)
     }
-    return cells
   }
 
   /**
-   * Добавляет прямую линию клеток (без дубликатов) в массив.
+   * Горизонтальная линия коридора
    */
-  addLine(cells, x1, y1, x2, y2) {
-    const stepX = x1 < x2 ? 1 : (x1 > x2 ? -1 : 0)
-    const stepY = y1 < y2 ? 1 : (y1 > y2 ? -1 : 0)
-    let x = x1, y = y1
-    while (true) {
-      const last = cells.length ? cells[cells.length - 1] : null
-      if (!last || last.x !== x || last.y !== y) cells.push({ x, y })
-      if (x === x2 && y === y2) break
-      x += stepX
-      y += stepY
+  hLine(map, x1, x2, y) {
+    const min = Math.min(x1, x2)
+    const max = Math.max(x1, x2)
+    for (let x = min; x <= max; x++) {
+      if (y > 0 && y < this.height - 1 && x > 0 && x < this.width - 1) {
+        map[y][x] = false
+      }
+    }
+  }
+
+  /**
+   * Вертикальная линия коридора
+   */
+  vLine(map, y1, y2, x) {
+    const min = Math.min(y1, y2)
+    const max = Math.max(y1, y2)
+    for (let y = min; y <= max; y++) {
+      if (y > 0 && y < this.height - 1 && x > 0 && x < this.width - 1) {
+        map[y][x] = false
+      }
     }
   }
 
   // ========================== ГЕНЕРАЦИЯ ДАННЫХ О ДВЕРЯХ ==========================
 
   /**
-   * Определяет места для дверей (стык коридора и комнаты).
+   * Определяет места для дверей.
+   * Дверь ставится ТОЛЬКО там, где она имеет смысл — в узком проёме (chokepoint),
+   * где коридор входит в комнату через одиночную клетку стены.
+   * Если рядом проложены два коридора (широкий проём / открытое пространство) —
+   * дверь не ставится. Плюс применяется вероятность doorChance.
    * Возвращает массив объектов { x, y, locked } для последующего создания Door в Location.
    * @returns {Array<{x:number, y:number, locked:boolean}>}
    */
@@ -281,12 +219,19 @@ export default class BiomeGenerator {
       }
     }
 
-    // Формируем результат, избегая дубликатов клеток
+    // Формируем результат, избегая дубликатов клеток.
+    // Дверь ставим только в узком проёме (chokepoint) и с вероятностью doorChance.
     const placed = new Set()
     for (const pos of bestDoor.values()) {
       const key = `${pos.x},${pos.y}`
-      if (!placed.has(key)) {
-        placed.add(key)
+      if (placed.has(key)) continue
+      placed.add(key)
+
+      // Дверь имеет смысл только в прямом проходе (вход -> выход по горизонтали или вертикали).
+      // Если это угол, развилка или открытое пространство — дверь не ставится.
+      if (!this.isChokepoint(map, pos.x, pos.y)) continue
+
+      if (Math.random() < this.doorChance) {
         // По умолчанию двери не заперты (locked = false). Можно добавить шанс запертой двери.
         const locked = false
         doorData.push({ x: pos.x, y: pos.y, locked })
@@ -295,6 +240,36 @@ export default class BiomeGenerator {
       }
     }
     return doorData
+  }
+
+  /**
+   * Проверяет, является ли клетка прямым проходом (вход -> выход), где дверь имеет смысл.
+   * Дверь ставится только если у клетки ровно 2 проходимых соседа, расположенных
+   * напротив друг друга — по горизонтали (влево/вправо) или по вертикали (вверх/вниз).
+   * Это прямой коридор, а не угол, не развилка и не открытое пространство.
+   * @param {boolean[][]} map - карта (true = стена)
+   * @param {number} x - координата клетки
+   * @param {number} y - координата клетки
+   * @returns {boolean}
+   */
+  isChokepoint(map, x, y) {
+    const isWalk = (nx, ny) =>
+      nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && map[ny][nx] === false
+
+    const left = isWalk(x - 1, y)
+    const right = isWalk(x + 1, y)
+    const up = isWalk(x, y - 1)
+    const down = isWalk(x, y + 1)
+
+    // Прямой проход по горизонтали: вход слева, выход справа (и наоборот),
+    // при этом сверху и снизу — стены.
+    if (left && right && !up && !down) return true
+
+    // Прямой проход по вертикали: вход сверху, выход снизу (и наоборот),
+    // при этом слева и справа — стены.
+    if (up && down && !left && !right) return true
+
+    return false
   }
 
   // ========================== ВСПОМОГАТЕЛЬНЫЕ ==========================
