@@ -1,21 +1,19 @@
 export default class Team {
-  constructor(id, name, config) {
+  constructor(id, name, config = {}) {
     this.id = id
     this.name = name
-    this.config = config
     this.characters = []
     this.color = config.color || '#ffffff'
     this.isPlayerControlled = config.isPlayerControlled || false
     this.canSwitchTo = config.canSwitchTo || false
     this.visibleInFog = config.visibleInFog || false
-    /**
-     * @type  {import('./Location.js').default}
-     */
     this.location = null
   }
+
   setLocation(location) {
     this.location = location
   }
+
   addCharacter(character) {
     this.characters.push(character)
     character.team = this
@@ -28,20 +26,15 @@ export default class Team {
 
   isCharacterVisible(character, map) {
     const tile = map.getTile(Math.floor(character.x), Math.floor(character.y))
-
     if (this.visibleInFog) {
-      // Всегда видны (даже в explored)
       return tile && (tile.visible || tile.explored)
-    } else {
-      // Только в зоне видимости
-      return tile && tile.visible
     }
+    return tile && tile.visible
   }
 
   getBlockedCells(excludeCharacter = null) {
-    // По умолчанию персонажи команды блокируют путь
     return this.characters
       .filter(c => c !== excludeCharacter)
-      .map(c => ({ x: c.x | 0, y: c.y | 0 }))
+      .map(c => ({ x: Math.floor(c.x), y: Math.floor(c.y) }))
   }
 }

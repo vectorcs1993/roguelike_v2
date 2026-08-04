@@ -7,7 +7,6 @@ export default class Camera {
     this.viewportHeight = 0
     this.tileSize = 48
 
-    // Флаг для следования за персонажем
     this.followCharacter = null
   }
 
@@ -25,25 +24,15 @@ export default class Camera {
     this.followCharacter = null
   }
 
-  update(dt, input) {
-    // Если есть персонаж за которым нужно следить - обновляем позицию камеры
+  update() {
     if (this.followCharacter) {
-      // Свободное следование - БЕЗ ОГРАНИЧЕНИЙ!
+      // Плавное следование за персонажем
       const targetX = this.followCharacter.x
       const targetY = this.followCharacter.y
 
-      // Плавное движение камеры к цели
       const lerpFactor = 0.15
       this.x = this.x + (targetX - this.x) * lerpFactor
       this.y = this.y + (targetY - this.y) * lerpFactor
-      return
-    }
-
-    // Свободная камера - БЕЗ ОГРАНИЧЕНИЙ
-    const dir = input.getDirection()
-    if (dir) {
-      this.x += dir.x * this.speed * dt
-      this.y += dir.y * this.speed * dt
     }
   }
 

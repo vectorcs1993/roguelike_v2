@@ -1,129 +1,107 @@
 import Floor from './Floor.js'
 import Wall from './Wall.js'
-import Crate from './Crate.js'
+import Door from './Door.js'
 import Fov from './Fov.js'
 import Character from './Character.js'
-import Door from './Door.js'
-import ItemTile from './ItemTile.js'
 import Pathfinder from './Pathfinder.js'
-import PlayerTeam from './PlayerTeam.js'
-import EnemyTeam from './EnemyTeam.js'
+import Team from './Team.js'
 import BiomeGenerator from './BiomeGenerator.js'
-import TurnQueue from './TurnQueue.js'
 import { ENEMIES } from './EnemyData.js'
+import Tile from './Tile.js'
 
 export default class Location {
-  /**
-   * @type  {import('./GameLoop.js').default}
-   */
   #gameLoop = null
 
   constructor(config, walls, teamConfigs = [], itemConfigs = [], biomeName = null, cratePositions = []) {
     this.config = config
-
     this.biomeName = biomeName || 'Неизвестная локация'
     this.name = this.biomeName
 
-    // TileMap fields
     this.cols = config.cols
     this.rows = config.rows
     this.grid = []
-    this.itemsMap = new Map() // Отдельное хранилище для предметов
-    this.doorsMap = new Map() // Отдельное хранилище для дверей
+    this.itemsMap = new Map()
+    this.doorsMap = new Map()
     this.fov = new Fov(this)
 
     this.fill()
     this.setWalls(walls)
-
-    // Добавляем ящики на карту
-    if (cratePositions && cratePositions.length > 0) {
+    if (cratePositions?.length) {
       this.setCrates(cratePositions)
     }
 
     this.pathfinder = new Pathfinder(this)
-
     this.teams = new Map()
     this.characters = []
 
-    // Инициализация очереди ходов
-    this.turnQueue = new TurnQueue()
-
     for (const teamConfig of teamConfigs) {
-      let team
-
-      switch (teamConfig.type) {
-        case 'player':
-          team = new PlayerTeam(teamConfig)
-          break
-        case 'enemy':
-          team = new EnemyTeam(teamConfig)
-          break
-        default:
-          console.warn(`Unknown team type: ${teamConfig.type}`)
-          continue
-      }
-      team.setLocation(this);
+      const team = new Team(
+        teamConfig.id,
+        teamConfig.name,
+        {
+          color: teamConfig.color,
+          isPlayerControlled: teamConfig.type === 'player',
+          canSwitchTo: teamConfig.type === 'player',
+          visibleInFog: false
+        }
+      )
+      team.setLocation(this)
 
       for (const charConfig of teamConfig.characters) {
-
-        const fovRadius = charConfig.fovRadius || 8
-
-        const apConfig = charConfig.ap || {}
-        const maxAP = apConfig.max || 12
-        const moveAPCost = apConfig.moveCost !== undefined ? apConfig.moveCost : 1
-        const pickupAPCost = apConfig.pickupCost !== undefined ? apConfig.pickupCost : 1
-
-        // Создаем combatConfig из полей charConfig
-        const combatConfig = {
-          hp: charConfig.hp,
-          maxHp: charConfig.maxHp || charConfig.hp,
-          armor: charConfig.armor,
-          damageMin: charConfig.damageMin,
-          damageMax: charConfig.damageMax,
-          damageType: charConfig.damageType,
-          attackRange: charConfig.range,
-          accuracy: charConfig.accuracy,
-          initiative: charConfig.initiative
-        }
-
         const character = new Character(
           charConfig.x, charConfig.y,
           charConfig.char,
           charConfig.id,
           charConfig.name,
           team,
-          fovRadius,
-          { maxAP, moveAPCost, pickupAPCost },
-          combatConfig
+          charConfig.fovRadius || 8,
+          {
+            hp: charConfig.hp,
+            maxHp: charConfig.maxHp || charConfig.hp,
+            armor: charConfig.armor || 0,
+            damageMin: charConfig.damageMin || 1,
+            damageMax: charConfig.damageMax || 3,
+            damageType: charConfig.damageType || 'blunt',
+            attackRange: charConfig.range || 1,
+            accuracy: charConfig.accuracy || 0.7,
+            initiative: charConfig.initiative || 5
+          }
         )
         team.addCharacter(character)
         this.characters.push(character)
       }
-
       this.teams.set(team.id, team)
     }
 
+    // Предметы
     this.items = []
     for (const itemConfig of itemConfigs) {
-      const item = new ItemTile(itemConfig.x, itemConfig.y, itemConfig.itemType || 'generic')
-      this.items.push(item)
-      this.addItem(item)
+      const tile = Tile.createItem(itemConfig.x, itemConfig.y, itemConfig.itemType || 'generic')
+      this.items.push(tile)
+      this.itemsMap.set(`${tile.x},${tile.y}`, tile)
     }
 
+    // ★★★ ОТКРЫВАЕМ ВСЮ КАРТУ ★★★
+    this.revealAll()
 
-    // Инициализируем очередь ходов после создания всех персонажей
-    this.initializeTurnQueue()
+    console.log(`[Location] Создана: ${this.name}, персонажей: ${this.characters.length}`)
   }
 
-  // ========== TileMap methods ==========
-
-  get map() {
-    return this;
+  revealAll() {
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        const tile = this.getTile(x, y)
+        if (tile) {
+          const tile = this.map.getTile(x, y)
+          if (tile) tile.visible = tile.explored = true
+        }
+      }
+    }
   }
+
+  get map() { return this }
 
   fill() {
-    // Внешние стены по периметру не создаём — генератор сам решает, где стены.
-    // Это позволяет убрать рамку уровня (стены комнат при этом не трогаются).
     this.grid = Array.from({ length: this.rows }, () =>
       Array.from({ length: this.cols }, () => new Floor())
     )
@@ -132,7 +110,7 @@ export default class Location {
   setWalls(pillars) {
     for (const [x, y] of pillars) {
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
-        this.grid[y][x] = new Wall()
+        this.grid[y][x] = new Wall(false)
       }
     }
   }
@@ -141,40 +119,31 @@ export default class Location {
     for (const [x, y] of cratePositions) {
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
         const tile = this.getTile(x, y)
-        if (tile && tile.isWalkable) {
-          this.grid[y][x] = new Crate()
+        if (tile?.isWalkable) {
+          this.grid[y][x] = new Wall(true)
         }
       }
     }
   }
 
-  // Добавление предмета на карту
   addItem(item) {
-    const key = `${item.x},${item.y}`
-    this.itemsMap.set(key, item)
+    this.itemsMap.set(`${item.x},${item.y}`, item)
   }
 
-  // Получение предмета на клетке
   getItemAt(x, y) {
-    const key = `${x},${y}`
-    return this.itemsMap.get(key)
+    return this.itemsMap.get(`${x},${y}`)
   }
 
-  // Удаление предмета (при подборе)
   removeItemAt(x, y) {
     const key = `${x},${y}`
     const item = this.itemsMap.get(key)
     if (item) {
       this.itemsMap.delete(key)
+      const idx = this.items.indexOf(item)
+      if (idx !== -1) this.items.splice(idx, 1)
       return item
     }
     return null
-  }
-
-  // Проверка, есть ли предмет на клетке
-  hasItemAt(x, y) {
-    const key = `${x},${y}`
-    return this.itemsMap.has(key)
   }
 
   getTile(x, y) {
@@ -194,25 +163,14 @@ export default class Location {
 
   setDoors(doors) {
     for (const door of doors) {
-      const x = door.x, y = door.y
+      const { x, y } = door
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
         const tile = this.getTile(x, y)
-        // Дверь можно ставить только на пол (не на стену и не на ящик)
-        if (tile && tile.isWalkable && !(tile instanceof Crate)) {
+        if (tile?.isWalkable && !tile.isItem) {
           this.grid[y][x] = door
         }
       }
     }
-  }
-
-  addDoor(door) {
-    const key = `${door.x},${door.y}`
-    this.doorsMap.set(key, door)
-  }
-
-  getDoorAt(x, y) {
-    const key = `${x},${y}`
-    return this.doorsMap.get(key)
   }
 
   computeFov(originX, originY, radius, resetVisibility = true) {
@@ -224,286 +182,35 @@ export default class Location {
         }
       }
     }
-
     this.fov.compute(originX | 0, originY | 0, radius)
-
-    // Mark explored for visible tiles
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         const tile = this.getTile(x, y)
-        if (tile && tile.visible) {
-          tile.explored = true
-        }
+        if (tile?.visible) tile.explored = true
       }
     }
   }
 
-  setGameLoop(gameLoop) {
-    this.#gameLoop = gameLoop
-  }
-  getGameLoop() {
-    return this.#gameLoop
-  }
-  getAllCharacters() {
-    return this.characters
-  }
+  setGameLoop(gameLoop) { this.#gameLoop = gameLoop }
+  getGameLoop() { return this.#gameLoop }
 
-  getTeam(teamId) {
-    return this.teams.get(teamId)
-  }
+  getAllCharacters() { return this.characters }
+  getTeam(teamId) { return this.teams.get(teamId) }
+  getAllTeams() { return Array.from(this.teams.values()) }
 
-  getAllTeams() {
-    return Array.from(this.teams.values())
-  }
-
-  getActiveCharacter() {
-    // Используем очередь ходов для определения активного персонажа
-    const activeFromQueue = this.turnQueue.getCurrentCharacter()
-
-    if (!activeFromQueue) {
-      const fallback = this.characters.find(c => c.isActive) || null
-      return fallback
-    }
-
-    return activeFromQueue
-  }
-
-  /**
-   * Инициализирует очередь ходов
-   */
-  initializeTurnQueue() {
-    // Только персонажи, управляемые игроком (isPlayerControlled === true)
-    const playerCharacters = this.characters.filter(char =>
-      char.team && char.team.isPlayerControlled === true
-    )
-
-    if (playerCharacters.length === 0) {
-      console.warn('[Location] Нет персонажей игрока для инициализации очереди!')
-      // Не добавляем врагов в очередь - оставляем пустую очередь
-      this.turnQueue.initialize([])
-    } else {
-      this.turnQueue.initialize(playerCharacters)
-    }
-
-    // Упрощенная система: добавляем всех врагов в очередь с самого начала
-    // Простой способ: все персонажи, не управляемые игроком
-    const enemyCharacters = this.characters.filter(char =>
-      char.team && !char.team.isPlayerControlled
-    )
-
-    let addedCount = 0
-    for (const enemy of enemyCharacters) {
-      // Находим команду врага
-      const enemyTeam = enemy.team
-      if (enemyTeam && enemyTeam.aiInstances) {
-        const ai = enemyTeam.aiInstances.get(enemy.id)
-        if (ai) {
-          this.turnQueue.addCharacter(enemy, true)
-          addedCount++
-        } else {
-          // Если AI не найден, всё равно добавляем врага в очередь
-          this.turnQueue.addCharacter(enemy, true)
-          addedCount++
-        }
-      } else {
-        // Если команда не имеет aiInstances, всё равно добавляем
-        this.turnQueue.addCharacter(enemy, true)
-        addedCount++
-      }
-    }
-
-    if (addedCount > 0) {
-      console.log(`[Location] Добавлено ${addedCount} врагов в очередь ходов`)
-    } else {
-      console.log('[Location] Врагов для добавления в очередь не найдено')
-    }
-
-    // Принудительно устанавливаем активного персонажа (первого в очереди)
-    const firstCharacter = this.turnQueue.queue.length > 0 ? this.turnQueue.queue[0].character : null
-    if (firstCharacter) {
-      this.characters.forEach(c => {
-        if (c.isActive) c.clearPath()
-        c.isActive = false
-      })
-      firstCharacter.isActive = true
-      firstCharacter.restoreFullAP()
-    } else {
-      console.warn('[Location] Нет активного персонажа после инициализации очереди')
-    }
-  }
-
-  switchToCharacter(characterId) {
-    const character = this.characters.find(c => String(c.id) === String(characterId))
-
-    if (!character || !character.canSwitchTo) {
-      console.warn(`Cannot switch to character ID: ${characterId}`)
-      return null
-    }
-
-    // Запрещаем переключение на врагов
-    if (character.team && !character.team.isPlayerControlled) {
-      console.warn(`Cannot switch to enemy character: ${character.name}`)
-      return null
-    }
-
-    // Обновляем очередь ходов
-    const switchedInQueue = this.turnQueue.setCurrentCharacter(characterId)
-    if (!switchedInQueue) {
-      console.warn(`Персонаж ${character.name} (ID: ${characterId}) не найден в очереди ходов`)
-    }
-
-    this.characters.forEach(c => {
-      if (c.isActive) c.clearPath()
-      c.isActive = false
-    })
-    character.isActive = true
-    character.restoreFullAP()
-
-    console.log(`Переключен на персонажа: ${character.name} (ID: ${characterId})`)
-    return character
-  }
-
-  updateTeams(dt) {
-    for (const team of this.teams.values()) {
-      if (team.update && typeof team.update === 'function') {
-        team.update(dt, this.map, this.characters)
-      }
-    }
-
-    // Удаляем мертвых персонажей и проверяем условие завершения игры
-    return this.removeDeadCharacters()
-  }
-
-  /**
-   * Удаляет мертвых персонажей из игры
-   * Удаляет из: массива characters, команды, очереди ходов
-   * @returns {boolean} true если все игроки мертвы (игра окончена)
-   */
   removeDeadCharacters() {
-    const deadCharacters = this.characters.filter(char => char.isDead)
-
-    if (deadCharacters.length === 0) {
-      return this.checkGameOver()
+    const dead = this.characters.filter(c => c.isDead)
+    for (const char of dead) {
+      char.team?.removeCharacter(char)
+      const idx = this.characters.indexOf(char)
+      if (idx !== -1) this.characters.splice(idx, 1)
     }
-
-    console.log(`[Location] Удаляем ${deadCharacters.length} мертвых персонажей`)
-
-    for (const deadChar of deadCharacters) {
-      // Удаляем из команды
-      if (deadChar.team) {
-        deadChar.team.removeCharacter(deadChar)
-      }
-
-      // Удаляем из очереди ходов
-      this.turnQueue.removeCharacter(deadChar)
-
-      // Удаляем из массива characters
-      const index = this.characters.indexOf(deadChar)
-      if (index !== -1) {
-        this.characters.splice(index, 1)
-      }
-
-      console.log(`[Location] Удален мертвый персонаж: ${deadChar.name}`)
-    }
-
-    // Проверяем условие завершения игры
-    return this.checkGameOver()
-  }
-
-  /**
-   * Проверяет условие завершения игры
-   * @returns {boolean} true если все игроки мертвы (игра окончена)
-   */
-  checkGameOver() {
-    // Находим всех персонажей игрока (управляемых игроком)
-    const playerCharacters = this.characters.filter(char =>
-      char.team && char.team.isPlayerControlled === true
-    )
-
-    if (playerCharacters.length === 0) {
-      console.log('[Location] ИГРА ОКОНЧЕНА: Все персонажи игрока мертвы!')
-      return true
-    }
-
-    return false
-  }
-
-  /**
-   * Переходит к следующему ходу в очереди
-   * @returns {import('./Character.js').default} следующий персонаж
-   */
-  nextTurn() {
-    const nextCharacter = this.turnQueue.next()
-    if (!nextCharacter) {
-      return null
-    }
-
-    // Активируем следующего персонажа (игроки и враги)
-    const prevActive = this.getActiveCharacter()
-    if (prevActive) {
-      prevActive.currentAP = 0 // сбрасываем ОД предыдущего персонажа
-    }
-    this.characters.forEach(c => {
-      if (c.isActive) c.clearPath()
-      c.isActive = false
-    })
-    nextCharacter.isActive = true
-    nextCharacter.restoreFullAP() // восстанавливаем полные ОД новому активному персонажу
-
-    if (nextCharacter.isPlayerControlled) this.getGameLoop().centerOnCharacter(nextCharacter.id);
-    return nextCharacter
-  }
-
-  /**
-   * Проверяет, нужно ли переходить к следующему ходу
-   * (текущий персонаж израсходовал все AP)
-   * @returns {boolean}
-   */
-  shouldAdvanceTurn() {
-    const currentChar = this.getActiveCharacter();
-    if (!currentChar) return false;
-
-    // Если у персонажа ещё есть AP – ход не заканчиваем
-    if (currentChar.currentAP > 0) return false;
-
-    // Если персонаж игрока и нет врагов – не переключаем ход, а восстанавливаем AP
-    if (currentChar.team?.isPlayerControlled) {
-      const hasEnemies = this.getGameLoop() ? this.getGameLoop().hasEnemiesInQueue() : true;
-      if (!hasEnemies) {
-        currentChar.restoreFullAP();  // Вне боя: восстанавливаем AP и остаёмся с тем же персонажем
-        console.log(`${currentChar.name} AP восстановлены, ход продолжается`);
-        return false; // ход не переключается
-      }
-    }
-
-    // В бою или для врагов – переключаем ход
-    return true;
-  }
-
-  /**
-   * Принудительно завершает ход текущего персонажа и переходит к следующему
-   * @returns {Object|null} следующий персонаж
-   */
-  endTurn() {
-    const currentChar = this.getActiveCharacter()
-    if (!currentChar) {
-      return null
-    }
-
-    // Сбрасываем оставшиеся AP у текущего персонажа
-    currentChar.currentAP = 0
-
-    return this.nextTurn();
+    return this.characters.filter(c => c.team?.isPlayerControlled).length === 0
   }
 
   findPath(fromX, fromY, toX, toY, activeCharacter = null) {
     const blocked = this.getBlockedCells(activeCharacter)
     return this.pathfinder.find(fromX, fromY, toX, toY, blocked)
-  }
-
-  isWalkable(x, y, activeCharacter = null) {
-    if (!this.isTileWalkable(x, y)) return false
-    return !this.characters.some(char => char !== activeCharacter && char.occupies(x, y))
   }
 
   getBlockedCells(activeCharacter = null) {
@@ -515,21 +222,6 @@ export default class Location {
   }
 
   isCharacterVisibleForPlayerTeam(character) {
-    // Находим команду игрока
-    const playerTeam = Array.from(this.teams.values()).find(team => team.isPlayerControlled)
-    if (!playerTeam) {
-      const tileX = Math.floor(character.x)
-      const tileY = Math.floor(character.y)
-      const tile = this.getTile(tileX, tileY)
-      return tile ? tile.visible : false
-    }
-
-    // Если персонаж из команды игрока - всегда виден
-    if (character.team === playerTeam) {
-      return true
-    }
-
-    // Для врагов - проверяем видимость через клетку (только visible!)
     const tileX = Math.floor(character.x)
     const tileY = Math.floor(character.y)
     const tile = this.getTile(tileX, tileY)
@@ -538,29 +230,18 @@ export default class Location {
 
   getTileInfo(tileX, tileY) {
     const tile = this.getTile(tileX, tileY)
-
-    // Неизвестная клетка (не видна и не исследована)
     if (!tile || (!tile.visible && !tile.explored)) {
-      return {
-        type: 'unknown',
-        name: '🌑 Туман войны'
-      }
+      return { type: 'unknown', name: '🌑 Туман войны' }
     }
 
-    // Проверяем персонажей ТОЛЬКО если клетка видима (не explored!)
     if (tile.visible) {
-      for (const character of this.characters) {
-        if (character.occupies(tileX, tileY)) {
-          // Для врагов показываем информацию только если они видны
-          const isVisible = this.isCharacterVisibleForPlayerTeam(character)
-          if (isVisible) {
-            return character.getTooltipInfo()
-          }
+      for (const char of this.characters) {
+        if (char.occupies(tileX, tileY) && this.isCharacterVisibleForPlayerTeam(char)) {
+          return char.getTooltipInfo()
         }
       }
     }
 
-    // Проверяем предметы (только на видимых клетках)
     if (tile.visible) {
       const item = this.getItemAt(tileX, tileY)
       if (item && !item.collected) {
@@ -568,249 +249,162 @@ export default class Location {
       }
     }
 
-    // Возвращаем информацию о тайле
-    if (tile) {
-      const tileInfo = tile.getTooltipInfo()
-      tileInfo.pos = { x: tileX, y: tileY }
-      if (!tile.visible && tile.explored) {
-        tileInfo.name = '🌑 ' + tileInfo.name + ' (исследовано)'
-      }
-      return tileInfo
+    const info = tile.getTooltipInfo()
+    if (!tile.visible && tile.explored) {
+      info.name = '🌑 ' + info.name + ' (исследовано)'
     }
-
-    return {
-      type: 'unknown',
-      name: '❓ Неизвестно'
-    }
+    return info
   }
 
+  // ========== ГЕНЕРАЦИЯ ==========
+
   static generateProcedural(config, biomeType = null) {
-    // Выбор биома
     const selectedBiome = biomeType || (() => {
       const biomes = ['residential', 'factory', 'technical']
       return biomes[Math.floor(Math.random() * biomes.length)]
     })()
 
-    // Базовые настройки генератора (классический рогалик: меньше уровень, плотнее комнаты)
     let generatorConfig = {
-      width: 60,            // ширина карты (меньше)
-      height: 40,           // высота карты (меньше)
-      minRoomSize: 4,
-      maxRoomSize: 8,
-      maxRooms: 20,
-      roomSpacing: 1,       // комнаты плотнее
-      doorChance: 0.5       // двери не везде
+      width: 60, height: 40,
+      minRoomSize: 4, maxRoomSize: 8,
+      maxRooms: 20, roomSpacing: 1, doorChance: 0.5
     }
 
-    let biomeName
+    const biomeNames = {
+      residential: 'Жилой этаж',
+      factory: 'Фабрика',
+      technical: 'Технический этаж'
+    }
+    const biomeName = biomeNames[selectedBiome] || 'Зараженная зона'
 
-    switch (selectedBiome) {
-      case 'residential':
-        biomeName = 'Жилой этаж'
-        generatorConfig.maxRooms = 22
-        generatorConfig.minRoomSize = 4
-        generatorConfig.maxRoomSize = 7
-        generatorConfig.roomSpacing = 1
-        generatorConfig.doorChance = 0.6
-        break
-
-      case 'factory':
-        biomeName = 'Фабрика'
-        generatorConfig.maxRooms = 12
-        generatorConfig.minRoomSize = 6
-        generatorConfig.maxRoomSize = 10
-        generatorConfig.roomSpacing = 2
-        generatorConfig.doorChance = 0.4
-        break
-
-      case 'technical':
-        biomeName = 'Технический этаж'
-        generatorConfig.maxRooms = 18
-        generatorConfig.minRoomSize = 4
-        generatorConfig.maxRoomSize = 7
-        generatorConfig.roomSpacing = 1
-        generatorConfig.doorChance = 0.5
-        break
-
-      default:
-        biomeName = 'Зараженная зона'
-        generatorConfig.maxRooms = 20
-        generatorConfig.minRoomSize = 4
-        generatorConfig.maxRoomSize = 8
-        generatorConfig.roomSpacing = 1
-        generatorConfig.doorChance = 0.5
+    if (selectedBiome === 'residential') {
+      generatorConfig.maxRooms = 22
+      generatorConfig.minRoomSize = 4
+      generatorConfig.maxRoomSize = 7
+      generatorConfig.doorChance = 0.6
+    } else if (selectedBiome === 'factory') {
+      generatorConfig.maxRooms = 12
+      generatorConfig.minRoomSize = 6
+      generatorConfig.maxRoomSize = 10
+      generatorConfig.roomSpacing = 2
+      generatorConfig.doorChance = 0.4
     }
 
-    // Генерация карты
     const generator = new BiomeGenerator(generatorConfig)
     const { walls, width, height, rooms, doors: doorData } = generator.generate()
 
-    // ========== 2. ГЕНЕРАЦИЯ ЯЩИКОВ ==========
-    const crates = []
-    const crateCells = new Set()
     const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
-
-    const roomCells = new Set()
+    const roomCells = []
     for (const room of rooms) {
       for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
         for (let x = room.x + 1; x < room.x + room.w - 1; x++) {
-          roomCells.add(`${x},${y}`)
+          roomCells.push(`${x},${y}`)
         }
       }
     }
 
-    const availableForCrates = Array.from(roomCells)
-    for (let i = availableForCrates.length - 1; i > 0; i--) {
+    for (let i = roomCells.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
-        ;[availableForCrates[i], availableForCrates[j]] = [availableForCrates[j], availableForCrates[i]]
+        ;[roomCells[i], roomCells[j]] = [roomCells[j], roomCells[i]]
     }
 
-    const crateCount = Math.min(15, availableForCrates.length)
-    for (let i = 0; i < crateCount; i++) {
-      const [x, y] = availableForCrates[i].split(',').map(Number)
-      crates.push([x, y])
-      crateCells.add(`${x},${y}`)
-    }
+    const isFree = (x, y) => !wallSet.has(`${x},${y}`)
 
-    // ========== 3. ГЕНЕРАЦИЯ ПРЕДМЕТОВ ==========
-    const items = []
-    const availableForItems = availableForCrates.filter(cell => !crateCells.has(cell))
-    const itemCount = Math.min(20, availableForItems.length)
+    const crateCount = Math.min(15, roomCells.length)
+    const crates = roomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
+    const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`))
+
+    const available = roomCells.filter(c => !crateSet.has(c))
+    const itemCount = Math.min(20, available.length)
     const itemTypes = ['generic', 'health', 'mana', 'weapon', 'armor']
+    const items = []
     for (let i = 0; i < itemCount; i++) {
-      const [x, y] = availableForItems[i].split(',').map(Number)
-      const randomType = itemTypes[Math.floor(Math.random() * itemTypes.length)]
-      items.push({ x, y, itemType: randomType })
+      const [x, y] = available[i].split(',').map(Number)
+      items.push({ x, y, itemType: itemTypes[Math.floor(Math.random() * itemTypes.length)] })
     }
 
-    // ========== 4. ПОИСК ПОЗИЦИЙ ДЛЯ ИГРОКА И СПУТНИКА ==========
-    const isPositionFree = (x, y) => {
-      const key = `${x},${y}`
-      return !wallSet.has(key) && !crateCells.has(key) && !items.some(i => i.x === x && i.y === y)
-    }
+    const playerStart = this.findStartInRoom(rooms, isFree)
 
-    // Игрок должен стартовать ВНУТРИ одной из комнат (не в коридоре и не в
-    // пустоте от снесённых стен), чтобы гарантированно попасть в проходимую зону.
-    const playerStart = Location.findStartInRoom(rooms, isPositionFree)
-
-    // ========== 5. ГЕНЕРАЦИЯ ВРАГОВ ==========
-    const enemies = []
     const enemyTypes = ['groaner', 'crawler', 'runner', 'mold', 'sticker']
-    const availableForEnemies = availableForCrates.filter(cell => {
-      const [x, y] = cell.split(',').map(Number)
-      const distToPlayer = Math.abs(x - playerStart.x) + Math.abs(y - playerStart.y)
-      return !crateCells.has(cell) && distToPlayer > 5
-    })
-    const enemyCount = Math.min(10, availableForEnemies.length)
-    for (let i = 0; i < enemyCount; i++) {
-      const [x, y] = availableForEnemies[i].split(',').map(Number)
+    const enemyPositions = available
+      .filter(c => {
+        const [x, y] = c.split(',').map(Number)
+        return Math.abs(x - playerStart.x) + Math.abs(y - playerStart.y) > 5
+      })
+      .slice(0, 10)
+
+    const enemies = []
+    let id = 1
+    for (const pos of enemyPositions) {
+      const [x, y] = pos.split(',').map(Number)
       const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)]
-      const enemyData = ENEMIES[type]
-      if (enemyData) {
+      const data = ENEMIES[type]
+      if (data) {
         enemies.push({
           x, y, type,
-          name: enemyData.name,
-          char: enemyData.char,
-          color: enemyData.color,
-          hp: enemyData.hp,
-          armor: enemyData.armor,
-          damageMin: enemyData.damageMin,
-          damageMax: enemyData.damageMax,
-          damageType: enemyData.damageType,
-          range: enemyData.range,
-          initiative: enemyData.initiative,
-          accuracy: enemyData.accuracy,
-          fovRadius: enemyData.fovRadius,
-          ap: { max: 10, moveCost: 1 }
+          id: id++,
+          name: data.name,
+          char: data.char,
+          color: data.color,
+          hp: data.hp,
+          armor: data.armor || 0,
+          damageMin: data.damageMin,
+          damageMax: data.damageMax,
+          damageType: data.damageType,
+          range: data.range || 1,
+          initiative: data.initiative || 5,
+          accuracy: data.accuracy || 0.7,
+          fovRadius: data.fovRadius || 8
         })
       }
     }
 
-    // ========== 6. ФОРМИРОВАНИЕ КОНФИГОВ ==========
-    let nextId = 1
-    const generateId = () => nextId++
-
-    const playerTeamConfig = {
+    const playerTeam = {
       type: 'player',
       id: 'liquidators',
       name: 'Ликвидаторы',
       color: '#44aaff',
-      characters: [
-        {
-          x: playerStart.x, y: playerStart.y,
-          char: '@', color: '#44ffaa',
-          id: generateId(), name: 'Игрок',
-          fovRadius: 12,
-          ap: { max: 12, moveCost: 1, pickupCost: 2 },
-          hp: 25, armor: 1, damageMin: 3, damageMax: 6,
-          damageType: 'blunt', range: 1, accuracy: 0.75, initiative: 6
-        },
-      ]
+      characters: [{
+        x: playerStart.x, y: playerStart.y,
+        char: '@', color: '#44ffaa',
+        id: 999, name: 'Игрок',
+        fovRadius: 12,
+        hp: 25, armor: 1,
+        damageMin: 3, damageMax: 6,
+        damageType: 'blunt', range: 1,
+        accuracy: 0.75, initiative: 6
+      }]
     }
 
-    const enemyTeamConfig = {
+    const enemyTeam = {
       type: 'enemy',
       id: 'creatures',
       name: 'Твари',
       color: '#ff4444',
-      characters: enemies.map((enemy) => ({
-        x: enemy.x, y: enemy.y,
-        char: enemy.char, color: enemy.color,
-        id: generateId(), name: enemy.name,
-        fovRadius: enemy.fovRadius || 8,
-        ap: enemy.ap || { max: 10, moveCost: 1 },
-        hp: enemy.hp, armor: enemy.armor,
-        damageMin: enemy.damageMin, damageMax: enemy.damageMax,
-        damageType: enemy.damageType, range: enemy.range,
-        initiative: enemy.initiative, accuracy: enemy.accuracy,
-        features: enemy.features || []
-      }))
+      characters: enemies
     }
 
-    const itemConfigs = items.map((item) => ({
-      x: item.x,
-      y: item.y,
-      itemType: item.itemType,
-      apRestore: 2 + Math.floor(Math.random() * 8)
-    }))
-
-
-    // Создаём объекты дверей
-    const doorObjects = (doorData || []).map(d => new Door(d.x, d.y, d.locked))
-
-    // Создаём локацию
     const location = new Location(
       { ...config, cols: width, rows: height },
       walls,
-      [playerTeamConfig, enemyTeamConfig],
-      itemConfigs,
+      [playerTeam, enemyTeam],
+      items,
       biomeName,
       crates
     )
 
-    // Добавляем двери через Location
-    if (doorObjects.length) {
-      location.setDoors(doorObjects)
-      console.log(`[Location] Добавлено ${doorObjects.length} дверей на карту`)
+    if (doorData?.length) {
+      const doors = doorData.map(d => new Door(d.x, d.y, d.locked))
+      location.setDoors(doors)
     }
 
-    console.log(`[Location] Сгенерирована локация: ${biomeName}, размер ${width}x${height}`)
-    console.log(`  - Комнат: ${rooms.length}, дверей: ${doorObjects.length}`)
-    console.log(`  - Ящиков: ${crates.length}, предметов: ${items.length}, врагов: ${enemies.length}`)
+    console.log(`[Location] Генерация: ${biomeName} ${width}x${height}, комнат:${rooms.length}, врагов:${enemies.length}`)
 
+    location.revealAll()
     return location
   }
 
-  /**
-   * Находит стартовую позицию игрока ВНУТРИ одной из комнат.
-   * Гарантирует, что игрок появляется в проходимой зоне (комнате),
-   * а не в коридоре или в пустоте от снесённых стен.
-   * @param {Array<{x:number,y:number,w:number,h:number}>} rooms - список комнат
-   * @param {Function} isPositionFree - проверка свободной клетки (x, y) => boolean
-   * @returns {{x:number, y:number}}
-   */
-  static findStartInRoom(rooms, isPositionFree) {
-    // Перемешиваем комнаты, чтобы старт был случайным
+  static findStartInRoom(rooms, isFree) {
     const shuffled = [...rooms]
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
@@ -818,74 +412,22 @@ export default class Location {
     }
 
     for (const room of shuffled) {
-      // Собираем свободные клетки внутри комнаты (с отступом от стен)
       const candidates = []
       for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
         for (let x = room.x + 1; x < room.x + room.w - 1; x++) {
-          if (isPositionFree(x, y)) candidates.push({ x, y })
+          if (isFree(x, y)) candidates.push({ x, y })
         }
       }
-      if (candidates.length > 0) {
-        // Предпочитаем центр комнаты
+      if (candidates.length) {
         const cx = Math.floor(room.x + room.w / 2)
         const cy = Math.floor(room.y + room.h / 2)
         const center = candidates.find(c => c.x === cx && c.y === cy)
-        if (center) return center
-        return candidates[Math.floor(Math.random() * candidates.length)]
+        return center || candidates[0]
       }
     }
-
-    // Запасной вариант: любая свободная клетка
-    console.warn('[Location] Не найдена свободная клетка в комнатах, ищем любую')
-    return Location.findEmptyTile(rooms[0]?.w + 10 || 60, rooms[0]?.h + 10 || 40, isPositionFree)
+    return { x: 10, y: 10 }
   }
 
-  static findEmptyTile(width, height, isPositionFree, occupied = []) {
-    const occupiedSet = new Set(occupied.map(o => `${o.x},${o.y}`))
-
-    // Собираем все возможные позиции
-    const candidates = []
-    for (let y = 2; y < height - 2; y++) {
-      for (let x = 2; x < width - 2; x++) {
-        const key = `${x},${y}`
-        if (isPositionFree(x, y) && !occupiedSet.has(key)) {
-          // Даем предпочтение клеткам подальше от стен
-          let wallDistance = 0
-          for (let dy = -2; dy <= 2; dy++) {
-            for (let dx = -2; dx <= 2; dx++) {
-              if (!isPositionFree(x + dx, y + dy)) wallDistance++
-            }
-          }
-          candidates.push({ x, y, wallDistance })
-        }
-      }
-    }
-
-    if (candidates.length === 0) {
-      // Если нет свободных клеток, ищем хотя бы какую-нибудь
-      for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-          if (isPositionFree(x, y) && !occupiedSet.has(`${x},${y}`)) {
-            console.warn(`Использована запасная позиция (${x}, ${y})`)
-            return { x, y }
-          }
-        }
-      }
-      console.error(`НЕТ СВОБОДНЫХ ПОЗИЦИЙ! Возвращаем (10, 10)`)
-      return { x: 10, y: 10 }
-    }
-
-    // Сортируем по удаленности от стен (чем дальше, тем лучше)
-    candidates.sort((a, b) => b.wallDistance - a.wallDistance)
-
-    // Берем случайную из топ-10 лучших позиций
-    const topCandidates = candidates.slice(0, Math.min(10, candidates.length))
-    const randomIndex = Math.floor(Math.random() * topCandidates.length)
-
-    return { x: topCandidates[randomIndex].x, y: topCandidates[randomIndex].y }
-  }
-
-  // Старый метод createDefault оставляем для совместимости
   static createDefault(config) {
     return Location.generateProcedural(config)
   }

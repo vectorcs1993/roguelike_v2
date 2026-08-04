@@ -1,27 +1,23 @@
-// Door.js
-import { LOG_MODULES, logger } from './Logger.js'
 import Tile from './Tile.js'
+import { LOG_MODULES, logger } from './Logger.js'
 
 export default class Door extends Tile {
   constructor(x, y, isLocked = false) {
     super(4, '+', {
       name: isLocked ? '🚪 Запертая дверь' : '🚪 Дверь',
       isWalkable: false,
-      blocksSight: true
+      blocksSight: true,
+      color: '#aa8866',
+      exploredColor: '#443322'
     })
-
     this.x = x
     this.y = y
     this.isOpen = false
     this.isLocked = isLocked
-    this.openCost = 5      // Стоимость открытия/закрытия в AP
   }
 
-  // Открыть дверь
   open() {
-    if (this.isOpen) return false
-    if (this.isLocked) return false
-
+    if (this.isOpen || this.isLocked) return false
     this.isOpen = true
     this._isWalkable = true
     this._blocksSight = false
@@ -30,10 +26,8 @@ export default class Door extends Tile {
     return true
   }
 
-  // Закрыть дверь
   close() {
     if (!this.isOpen) return false
-
     this.isOpen = false
     this._isWalkable = false
     this._blocksSight = true
@@ -42,62 +36,29 @@ export default class Door extends Tile {
     return true
   }
 
-  // Переключить состояние (открыть/закрыть)
   toggle() {
-    if (this.isOpen) {
-      return this.close()
-    } else {
-      return this.open()
-    }
+    return this.isOpen ? this.close() : this.open()
   }
 
-  /**
-  * Взаимодействие, вызывается при клике на дверь
-  * @param {Object} activeCharacter - активный персонаж
-  * @param {boolean} isAdjacent - является ли персонаж соседним
-  * @param {import('./GameLoop.js').default} gameLoop - игровой цикл
-  */
-  onClick(activeCharacter, isAdjacent, gameLoop) {
-    if (!isAdjacent) return null // нужно подойти
-
-
-    if (gameLoop.hasEnemiesInQueue(activeCharacter) && !activeCharacter.canAffordAP(this.openCost)) {
-      logger.info(LOG_MODULES.ACTION, `${activeCharacter.name} не хватает очков действий`)
-      return false
-    }
-
-    // Тратим AP
-    if (gameLoop.hasEnemiesInQueue(activeCharacter)) activeCharacter.spendAP(this.openCost)
-
-    // Переключаем состояние
+  onClick(activeCharacter, isAdjacent) {
+    if (!isAdjacent) return null
     const action = this.toggle()
-
     if (action) {
-      if (this.isOpen) {
-        logger.info(LOG_MODULES.ACTION, `${activeCharacter.name} открыл дверь`)
-      } else {
-        logger.info(LOG_MODULES.ACTION, `${activeCharacter.name} закрыл дверь`)
-      }
+      logger.info(LOG_MODULES.ACTION, `${activeCharacter.name} ${this.isOpen ? 'открыл' : 'закрыл'} дверь`)
     }
-
     return true
   }
 
   getTooltipInfo() {
     let status = ''
-    if (this.isOpen) {
-      status = ' (открыта)'
-    } else if (this.isLocked) {
-      status = ' (заперта)'
-    }
-
+    if (this.isOpen) status = ' (открыта)'
+    else if (this.isLocked) status = ' (заперта)'
     return {
       name: this.name + status,
       type: 'door',
       isOpen: this.isOpen,
       isLocked: this.isLocked,
-      action: this.isOpen ? 'закрыть' : 'открыть',
-      cost: this.openCost
+      action: this.isOpen ? 'закрыть' : 'открыть'
     }
   }
 }

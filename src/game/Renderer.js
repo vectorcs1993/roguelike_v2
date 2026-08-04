@@ -22,7 +22,6 @@ export default class Renderer {
     this.dpr = window.devicePixelRatio || 1
     this.fontFamily = Renderer.DEFAULT_FONT_FAMILY
 
-    // Кэширование для оптимизации рендера
     this._lastCameraX = null
     this._lastCameraY = null
     this._lastTileSize = null
@@ -68,7 +67,6 @@ export default class Renderer {
     const ox = this.halfW - camera.x * ts
     const oy = this.halfH - camera.y * ts
 
-    // Проверяем, нужно ли пересчитывать видимую область
     if (this._lastCameraX !== camera.x || this._lastCameraY !== camera.y || this._lastTileSize !== ts) {
       this._lastCameraX = camera.x
       this._lastCameraY = camera.y
@@ -92,7 +90,7 @@ export default class Renderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    // СОЗДАЁМ МНОЖЕСТВО КЛЕТОК, ГДЕ СТОЯТ ПЕРСОНАЖИ
+    // Множество клеток с персонажами
     const occupiedCells = new Set()
     for (const char of characters) {
       const tileX = Math.floor(char.x)
@@ -100,7 +98,7 @@ export default class Renderer {
       occupiedCells.add(`${tileX},${tileY}`)
     }
 
-    // 1. РИСУЕМ ТАЙЛЫ (стены, полы, ящики, ДВЕРИ)
+    // 1. РИСУЕМ ТАЙЛЫ (только если на клетке НЕТ персонажа)
     const tilesByColor = new Map()
 
     for (let y = startY; y < endY; y++) {
@@ -109,26 +107,19 @@ export default class Renderer {
         if (!tile) continue
         if (!tile.visible && !tile.explored) continue
 
-        // ★★★ ЕСЛИ НА КЛЕТКЕ СТОИТ ПЕРСОНАЖ — НЕ РИСУЕМ ТАЙЛ (включая двери) ★★★
         const cellKey = `${x},${y}`
         if (occupiedCells.has(cellKey)) continue
 
-        // Обработка символа (для всех типов тайлов, включая двери)
         if (tile.char !== ' ' && tile.char !== undefined) {
           const drawX = x * ts + ox
           const drawY = y * ts + oy
 
-          // Определяем цвет в зависимости от видимости
-          let color
-          if (tile.visible) {
-            color = '#888888'
-          } else {
-            color = '#333333'
-          }
-
-          // ОСОБЫЙ СЛУЧАЙ: ДВЕРИ — можно сделать их чуть заметнее
+          let color = tile.visible ? '#888888' : '#333333'
           if (tile.constructor?.name === 'Door' && tile.visible) {
-            color = '#aa8866'  // Коричневатый оттенок для дверей
+            color = '#aa8866'
+          }
+          if (tile.isCrate) {
+            color = tile.visible ? '#aa8844' : '#554422'
           }
 
           if (!tilesByColor.has(color)) {
@@ -146,7 +137,7 @@ export default class Renderer {
       }
     }
 
-    // 2. РИСУЕМ ПРЕДМЕТЫ (только если на клетке НЕТ персонажа)
+    // 2. РИСУЕМ ПРЕДМЕТЫ
     if (this._location?.items) {
       const itemsByColor = new Map()
       for (const item of this._location.items) {
@@ -182,28 +173,33 @@ export default class Renderer {
 
     // 3. РИСУЕМ ПЕРСОНАЖЕЙ
     for (const char of characters) {
+      // Проверяем видимость персонажа
       const tile = map.getTile(Math.floor(char.x), Math.floor(char.y))
       const isVisible = this._location?.isCharacterVisibleForPlayerTeam(char) ?? (tile && tile.visible)
-      if (isVisible) {
+
+      // ВСЕГДА рисуем игрока, даже если не виден (он всегда виден)
+      const isPlayer = char.team?.isPlayerControlled
+      if (isVisible || isPlayer) {
         const drawX = char.vx * ts + ox
         const drawY = char.vy * ts + oy
+
         let color
         if (char === this._activeCharacter) {
           color = char.isPlayerControlled ? '#88ff88' : '#d83232'
         } else if (char.isPlayerControlled) {
           color = '#5272b6'
         } else {
-          color = '#d83232'
+          color = isVisible ? '#d83232' : '#442222'
         }
+
         ctx.fillStyle = color
         ctx.fillText(char.char, drawX + ts / 2, drawY + ts / 2)
       }
     }
 
-    // 3.5 ПРЕВЬЮ ПУТИ (при наведении мыши)
+    // 4. ПРЕВЬЮ ПУТИ
     if (this._previewPath?.length) {
       ctx.fillStyle = '#4a9eff'
-      // Пропускаем первую клетку (позицию персонажа) и последнюю (цель)
       for (let i = 1; i < this._previewPath.length - 1; i++) {
         const p = this._previewPath[i]
         const pathTile = map.getTile(p.x, p.y)
@@ -215,7 +211,7 @@ export default class Renderer {
       }
     }
 
-    // 4. ПУТЬ АКТИВНОГО ПЕРСОНАЖА
+    // 5. ПУТЬ АКТИВНОГО ПЕРСОНАЖА
     if (this._activeCharacter?.path?.length) {
       const activeTile = map.getTile(Math.floor(this._activeCharacter.x), Math.floor(this._activeCharacter.y))
       if (activeTile && activeTile.visible) {
@@ -231,7 +227,7 @@ export default class Renderer {
       }
     }
 
-    // 5. КУРСОР
+    // 6. КУРСОР
     if (!input.isCameraMovingNow() && this.hoverTileX !== null && (!this._activeCharacter || this._activeCharacter.isPlayerControlled)) {
       const x = this.hoverTileX * ts + ox
       const y = this.hoverTileY * ts + oy
@@ -254,7 +250,6 @@ export default class Renderer {
         ctx.lineWidth = 1
         ctx.setLineDash([])
         ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
-
       }
     }
   }

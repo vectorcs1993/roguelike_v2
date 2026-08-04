@@ -1,19 +1,32 @@
-
 import Tile from './Tile.js'
 
 export default class Wall extends Tile {
-  constructor() {
-    const wallConfig = {
-      name: '🧱 Стена',
-      isWalkable: false,
-      blocksSight: true
+  constructor(isCrate = false) {
+    if (isCrate) {
+      super(2, '■', {
+        name: '📦 Ящик',
+        isWalkable: false,
+        blocksSight: false,
+        color: '#aa8844',
+        exploredColor: '#554422'
+      })
+    } else {
+      super(1, '#', {
+        name: '🧱 Стена',
+        isWalkable: false,
+        blocksSight: true,
+        color: '#666666',
+        exploredColor: '#222222'
+      })
     }
-
-    super(1, '#', wallConfig)
+    this.isCrate = isCrate
   }
 
-  onClick() {
-    console.log('Невозможно пройти через стену')
-    return false;
+  onClick(activeCharacter, isAdjacent) {
+    if (this.isCrate && isAdjacent) {
+      console.log(`${activeCharacter.name} открыл ящик`)
+      return true
+    }
+    return null
   }
 }

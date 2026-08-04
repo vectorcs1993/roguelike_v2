@@ -1,10 +1,9 @@
 <template>
-  <q-page class="q-pa-md" style="background: #121212; height: 100vh; display: flex; flex-direction: column;">
+  <q-page class="q-pa-md" style="background: #121212; height: 100vh; display: flex; flex-direction: column;" ref="pageRef">
 
-    <!-- Основная область -->
     <div class="row q-col-gutter-md" style="flex: 1; min-height: 0;">
       <!-- Canvas -->
-      <div class="col-7" style="display: flex; flex-direction: column;">
+      <div class="col-8" style="display: flex; flex-direction: column;">
         <q-card flat square bordered dark class="full-height" style="display: flex; flex-direction: column;">
           <q-card-section class="bg-grey-9">
             <div class="text-h6 flex items-center">
@@ -16,62 +15,59 @@
             </div>
           </q-card-section>
           <q-card-section class="q-pa-none bg-dark" style="flex: 1; display: flex;">
-            <canvas ref="canvasRef" class="full-width" style="background: #0a0a0a; border-radius: 4px; width: 100%; height: 100%;"
-              @click="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @contextmenu.prevent="onContextMenu" @mousedown="onMouseDown"
-              @mouseup="onMouseUp" @wheel.prevent="onWheel" @touchstart.prevent="onTouchStart" @touchmove.prevent="onTouchMove"
-              @touchend.prevent="onTouchEnd"></canvas>
+            <canvas ref="canvasRef" class="full-width" style="background: #0a0a0a; border-radius: 4px; width: 100%; height: 100%; outline: none;"
+              @click="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @touchstart.prevent="onTouchStart"
+              @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd">
+            </canvas>
           </q-card-section>
           <div class="absolute-bottom full-width q-pa-sm">
             <q-card-section flat bordered class="row bg-grey-9 justify-center">
-              <q-btn label="Завершить ход" icon="restart_alt" dense @click="endTurn()" />
+              <div class="row q-gutter-sm">
+                <q-btn label="⬆" @click="move(0, -1)" />
+                <q-btn label="⬇" @click="move(0, 1)" />
+                <q-btn label="⬅" @click="move(-1, 0)" />
+                <q-btn label="➡" @click="move(1, 0)" />
+                <q-btn label="Атака" @click="attack" />
+                <q-btn label="Взаимодействие" @click="interact" />
+              </div>
             </q-card-section>
           </div>
         </q-card>
       </div>
 
       <!-- Правая панель -->
-      <div class="col-5" style="display: flex; flex-direction: column; gap: 16px; min-height: 0;">
-        <!-- Список персонажей -->
+      <div class="col-4" style="display: flex; flex-direction: column; gap: 16px; min-height: 0;">
         <q-card flat square bordered dark style="flex-shrink: 0;">
           <q-card-section class="bg-grey-9">
             <div class="text-h6 flex items-center">
               <q-icon name="groups" class="q-mr-sm" />
-              Очередь
+              Отряд
               <q-badge color="grey-7" :label="charactersList.length" class="q-ml-sm" />
             </div>
           </q-card-section>
           <q-separator dark />
           <q-card-section style="height: 200px; overflow-y: auto;" dark>
             <q-scroll-area v-if="charactersList.length > 0" dark style="width: 100%; height: 100%;">
-              <q-item v-for="char in charactersList" :key="char.id" :active="char.id === game?.currentLocation?.getActiveCharacter?.().id" clickable
-                dark @click="switchToChar(char)" :manual-focus="true" :focused="false" active-class="text-blue" style="user-select: none;">
+              <q-item v-for="(char, idx) in charactersList" :key="char.id" :active="char.id === selectedCharId" clickable dark
+                @click="switchToCharacter(idx)">
                 <q-item-section avatar dark>
                   <q-chip :style="{ backgroundColor: char.teamColor, color: 'white' }">
                     {{ char.char }}
                   </q-chip>
                 </q-item-section>
                 <q-item-section>
-                  <q-item-label>{{ char.name }} ({{ char.teamName }})</q-item-label>
-                  <q-item-label>
-                    ❤️ {{ char.hp }}/{{ char.maxHp }} | ⚡ {{ char.ap }}/{{ char.maxAP }}
-                  </q-item-label>
-                  <q-item-label v-if="char.weapon">🗡️ {{ char.weapon }}</q-item-label>
+                  <q-item-label>{{ char.name }}</q-item-label>
+                  <q-item-label>❤️ {{ char.hp }}/{{ char.maxHp }}</q-item-label>
                 </q-item-section>
                 <div class="row q-gutter-sm">
-                  <q-btn icon="center_focus_strong" label="Центрировать" class="text-white" dense @click.stop="centerOnCharacter(char)" dark />
-                  <q-btn v-if="!char.isActive && canSwitchTo && char.isPlayerControlled" label="Переключиться" icon="shortcut" dense
-                    @click.stop="switchToChar(char)" dark />
-                  <q-btn v-if="char.isActive" label="Завершить ход" class="text-white" icon="restart_alt" dense @click.stop="endTurn()" dark />
+                  <q-btn icon="center_focus_strong" label="Центр" dense @click.stop="centerOnCharacter(char.id)" dark />
                 </div>
               </q-item>
             </q-scroll-area>
-            <div v-else class="text-center text-grey-5 q-py-md">
-              Нет персонажей. Начните игру.
-            </div>
+            <div v-else class="text-center text-grey-5 q-py-md">Нет персонажей</div>
           </q-card-section>
         </q-card>
 
-        <!-- Лог игры -->
         <q-card flat square bordered dark style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
           <q-card-section class="bg-grey-9">
             <div class="text-h6 flex items-center">
@@ -88,9 +84,7 @@
               <div v-for="(log, idx) in consoleLogs" :key="idx" class="q-py-xs" :class="getMessageColorClass(log)">
                 <span class="text-grey-5">[{{ log.time }}]</span> {{ log.text }}
               </div>
-              <div v-if="consoleLogs.length === 0" class="text-grey-5 text-center q-py-lg">
-                Ничего...
-              </div>
+              <div v-if="consoleLogs.length === 0" class="text-grey-5 text-center q-py-lg">Ничего...</div>
             </div>
           </q-scroll-area>
         </q-card>
@@ -107,14 +101,46 @@ import { logger, LOG_LEVEL } from 'src/game/Logger.js'
 
 const canvasRef = ref(null)
 const consoleScrollAreaRef = ref(null)
+const pageRef = ref(null)
 let game = null
 let resizeTimeout = null
 let updateInterval = null
 
 const consoleLogs = ref([])
 const charactersList = ref([])
-const canSwitchTo = ref(false)
 const locationName = ref('')
+const selectedCharId = ref(null)
+
+// ★★★ ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ КЛАВИАТУРЫ ★★★
+function onGlobalKeyDown(event) {
+  // Игнорируем если ввод в полях
+  if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+    return
+  }
+  // Игнорируем если нажата кнопка на кнопке (чтобы не конфликтовать)
+  if (event.target.tagName === 'BUTTON') {
+    return
+  }
+
+  // Проксируем в GameLoop
+  if (game?.onKeyDown) {
+    game.onKeyDown(event)
+  }
+}
+
+function onGlobalKeyUp(event) {
+  if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+    return
+  }
+  if (event.target.tagName === 'BUTTON') {
+    return
+  }
+
+  if (game?.onKeyUp) {
+    game.onKeyUp(event)
+  }
+}
+
 // Лог
 function addConsoleMessage(text, type = 'info') {
   const now = new Date()
@@ -123,16 +149,13 @@ function addConsoleMessage(text, type = 'info') {
   if (consoleLogs.value.length > 500) consoleLogs.value.shift()
   nextTick(() => {
     if (consoleScrollAreaRef.value) {
-      const scrollArea = consoleScrollAreaRef.value
-      const target = scrollArea.getScrollTarget?.()
+      const target = consoleScrollAreaRef.value.getScrollTarget?.()
       if (target) target.scrollTop = target.scrollHeight
     }
   })
 }
 
-function clearConsole() {
-  consoleLogs.value = []
-}
+function clearConsole() { consoleLogs.value = [] }
 
 function getMessageColorClass(log) {
   switch (log.type) {
@@ -153,12 +176,9 @@ function loggerCallback(level, module, message) {
 logger.addCallback(loggerCallback)
 onUnmounted(() => logger.removeCallback(loggerCallback))
 
-// Обновление списка персонажей и canSwitchTo
 function updateCharactersList() {
   if (!game?.currentLocation) {
     charactersList.value = []
-    canSwitchTo.value = false
-
     return
   }
   locationName.value = game.currentLocation.name
@@ -173,20 +193,27 @@ function updateCharactersList() {
     name: c.name,
     char: c.char,
     isActive: c.isActive,
-    isPlayerControlled: c.isPlayerControlled, // важно для переключения
+    isPlayerControlled: c.isPlayerControlled,
     teamColor: c.team?.color || '#666',
     teamName: c.team?.name || '?',
-    ap: c.currentAP,
-    maxAP: c.maxAP,
     hp: c.hp,
     maxHp: c.maxHp,
-    weapon: c.weaponName || null,
   }))
-  // Проверяем, есть ли враги в очереди ходов – если нет, можно переключаться
-  canSwitchTo.value = !game?.hasEnemiesInQueue?.()
+
+  const selected = game.selectedCharacter
+  if (selected) selectedCharId.value = selected.id
 }
 
-// Инициализация игры
+function move(dx, dy) { game?.moveCharacter(dx, dy) }
+
+function attack() {
+  const result = game?.attackNearestEnemy()
+  if (result) addConsoleMessage('Атака выполнена!', 'success')
+  else addConsoleMessage('Нет цели для атаки', 'warning')
+}
+
+function interact() { game?.interact() }
+
 function initGame() {
   if (!canvasRef.value) return
   const canvas = canvasRef.value
@@ -196,6 +223,7 @@ function initGame() {
   canvas.height = Math.max(rect.height * dpr, 100)
   canvas.style.width = `${rect.width}px`
   canvas.style.height = `${rect.height}px`
+
   try {
     game = new GameLoop(canvas, config)
     game.initRenderer(rect.width, rect.height, dpr)
@@ -203,12 +231,16 @@ function initGame() {
     addConsoleMessage('Игра запущена', 'success')
     updateCharactersList()
     if (updateInterval) clearInterval(updateInterval)
-    updateInterval = setInterval(() => updateCharactersList(), 150)
+    updateInterval = setInterval(updateCharactersList, 100)
+
+    // ★★★ РЕГИСТРИРУЕМ ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ ★★★
+    document.addEventListener('keydown', onGlobalKeyDown)
+    document.addEventListener('keyup', onGlobalKeyUp)
+
   } catch (e) {
     addConsoleMessage(`Ошибка: ${e.message}`, 'error')
   }
 }
-
 
 function regenerateLevel() {
   if (game?.reloadLocation) {
@@ -226,59 +258,36 @@ function revealFullMap() {
       if (tile) tile.visible = tile.explored = true
     }
   }
-  addConsoleMessage('Карта полностью открыта', 'success')
-  if (game.renderer) game.renderer.hoverTileX = game.renderer.hoverTileY = null
-}
-function centerOnCharacter(character) {
-  game?.centerOnCharacter?.(character.id)
-}
-function switchToChar(character) {
-  const active = game?.currentLocation?.getActiveCharacter?.()
-  if (active?.id === character.id) {
-    centerOnCharacter(character)
-    return
-  }
-
-  if (!canSwitchTo.value) {
-    centerOnCharacter(character)
-    addConsoleMessage('Сейчас нельзя переключить персонажа (есть враги в очереди)', 'warning')
-    return
-  }
-  if (!character?.isPlayerControlled) {
-    addConsoleMessage('Нельзя переключиться на вражеского персонажа', 'warning')
-    return
-  } else centerOnCharacter(character)
-  if (game?.switchCharacter) {
-    game.switchCharacter(character.id)
-    addConsoleMessage(`Переключено на ${character.name}`, 'success')
-  } else {
-    addConsoleMessage('Метод switchCharacter не найден', 'error')
-  }
+  addConsoleMessage('Карта открыта', 'success')
 }
 
-function endTurn() {
-  const active = game?.currentLocation?.getActiveCharacter?.()
-  if (active?.isPlayerControlled && active.currentAP > 0) {
-    game.currentLocation.endTurn?.()
-    addConsoleMessage(`Ход завершён (${active.name})`, 'info')
-  } else {
-    addConsoleMessage('Нельзя завершить ход сейчас', 'warning')
-  }
+function centerOnCharacter(characterId) { game?.centerOnCharacter(characterId) }
+function switchToCharacter(index) { game?.switchToCharacter(index) }
+
+
+function onCanvasClick(event) {
+  game?.onClick?.(event)
 }
 
+function onMouseMove(event) {
+  game?.onMouseMove?.(event)
+}
 
+function onMouseLeave(event) {
+  game?.onMouseLeave?.(event)
+}
 
-// Обработчики событий
-function onCanvasClick(event) { game?.onClick?.(event) }
-function onMouseMove(event) { game?.onMouseMove?.(event) }
-function onMouseLeave(event) { game?.onMouseLeave?.(event) }
-function onContextMenu(event) { game?.onContextMenu?.(event) }
-function onMouseDown(event) { game?.onMouseDown?.(event) }
-function onMouseUp(event) { game?.onMouseUp?.(event) }
-function onWheel(event) { game?.onWheel?.(event) }
-function onTouchStart(event) { game?.onTouchStart?.(event) }
-function onTouchMove(event) { game?.onTouchMove?.(event) }
-function onTouchEnd(event) { game?.onTouchEnd?.(event) }
+function onTouchStart(event) {
+  game?.onTouchStart?.(event)
+}
+
+function onTouchMove(event) {
+  game?.onTouchMove?.(event)
+}
+
+function onTouchEnd(event) {
+  game?.onTouchEnd?.(event)
+}
 
 // Жизненный цикл
 onMounted(() => {
@@ -302,7 +311,9 @@ onMounted(() => {
 onUnmounted(() => {
   game?.stop?.()
   if (updateInterval) clearInterval(updateInterval)
-  window.removeEventListener('resize', () => { })
+  // ★★★ УДАЛЯЕМ ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ ★★★
+  document.removeEventListener('keydown', onGlobalKeyDown)
+  document.removeEventListener('keyup', onGlobalKeyUp)
 })
 </script>
 
@@ -310,5 +321,10 @@ onUnmounted(() => {
 canvas {
   display: block;
   border: 1px solid #333;
+  outline: none;
+}
+
+:deep(.q-page) {
+  outline: none;
 }
 </style>

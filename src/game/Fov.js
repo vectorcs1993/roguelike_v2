@@ -1,34 +1,26 @@
-// src/game/Fov.js
-
 export default class Fov {
   constructor(map) {
     this.map = map
   }
 
   compute(originX, originY, radius) {
-    const map = this.map
-
-    // Исходная клетка всегда видна
-    const originTile = map.getTile(originX, originY)
-    if (originTile) originTile.visible = true
-
-    // 8 октантов
     for (let octant = 0; octant < 8; octant++) {
       this._cast(originX, originY, 1, 1.0, 0.0, radius, this._getTransform(octant))
     }
   }
 
   _getTransform(octant) {
-    switch (octant) {
-      case 0: return (x, y) => ({ x: x, y: -y })
-      case 1: return (x, y) => ({ x: y, y: -x })
-      case 2: return (x, y) => ({ x: y, y: x })
-      case 3: return (x, y) => ({ x: x, y: y })
-      case 4: return (x, y) => ({ x: -x, y: y })
-      case 5: return (x, y) => ({ x: -y, y: x })
-      case 6: return (x, y) => ({ x: -y, y: -x })
-      case 7: return (x, y) => ({ x: -x, y: -y })
-    }
+    const transforms = [
+      (x, y) => ({ x, y: -y }),
+      (x, y) => ({ x: y, y: -x }),
+      (x, y) => ({ x: y, y }),
+      (x, y) => ({ x, y }),
+      (x, y) => ({ x: -x, y }),
+      (x, y) => ({ x: -y, y: x }),
+      (x, y) => ({ x: -y, y: -x }),
+      (x, y) => ({ x: -x, y: -y })
+    ]
+    return transforms[octant]
   }
 
   _cast(originX, originY, row, startSlope, endSlope, radius, transform) {
@@ -52,17 +44,14 @@ export default class Fov {
         const worldX = originX + world.x
         const worldY = originY + world.y
 
-        // КЛЮЧЕВОЕ: проверка на радиус - КРУГ, а не ромб
         if (dx * dx + dy * dy < radius * radius) {
           const tile = map.getTile(worldX, worldY)
-          if (tile) {
-            tile.visible = true
-          }
+          if (tile) tile.visible = true
         }
 
         if (blocked) {
           const tile = map.getTile(worldX, worldY)
-          if (tile && tile.blocksSight) {
+          if (tile?.blocksSight) {
             nextStartSlope = rightSlope
           } else {
             blocked = false
@@ -70,14 +59,13 @@ export default class Fov {
           }
         } else {
           const tile = map.getTile(worldX, worldY)
-          if (tile && tile.blocksSight && i < radius) {
+          if (tile?.blocksSight && i < radius) {
             blocked = true
             this._cast(originX, originY, i + 1, startSlope, leftSlope, radius, transform)
             nextStartSlope = rightSlope
           }
         }
       }
-
       if (blocked) break
     }
   }

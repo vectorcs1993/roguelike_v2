@@ -1,22 +1,4 @@
-// BiomeGenerator.js
-// Классическая генерация подземелья в стиле ASCII-рогаликов (Rogue / RogueBasin).
-// Алгоритм: комнаты + L-образные коридоры.
-//   - Уровни меньше, но комнаты плотнее.
-//   - Коридоры короткие (соединяют каждую новую комнату с предыдущей).
-//   - Двери ставятся НЕ везде, а с заданной вероятностью.
-// Возвращает: стены, размеры, список комнат, данные для дверей (без создания объектов Door).
-
 export default class BiomeGenerator {
-  /**
-   * @param {Object} config - настройки генерации
-   * @param {number} config.width - ширина карты (клеток)
-   * @param {number} config.height - высота карты (клеток)
-   * @param {number} config.minRoomSize - мин. размер комнаты
-   * @param {number} config.maxRoomSize - макс. размер комнаты
-   * @param {number} config.maxRooms - сколько комнат пытаться разместить
-   * @param {number} config.roomSpacing - мин. расстояние между комнатами
-   * @param {number} config.doorChance - вероятность двери на входе в комнату (0..1)
-   */
   constructor(config = {}) {
     this.width = config.width || 60
     this.height = config.height || 40
@@ -25,33 +7,26 @@ export default class BiomeGenerator {
     this.maxRooms = config.maxRooms || 20
     this.roomSpacing = config.roomSpacing !== undefined ? config.roomSpacing : 1
     this.doorChance = config.doorChance !== undefined ? config.doorChance : 0.5
+    this.padding = config.padding !== undefined ? config.padding : 2
   }
 
-  // ========================== ПУБЛИЧНЫЙ МЕТОД ==========================
-
-  /**
-   * Генерирует подземелье
-   * @returns {Object} Результат:
-   *   walls: массив координат стен [[x,y], ...]
-   *   width, height: размеры карты
-   *   rooms: массив комнат { x, y, w, h }
-   *   corridorCells: Set строк "x,y" клеток коридоров
-   *   doors: массив { x, y, locked } для создания дверей в Location
-   */
   generate() {
-    // 1. Инициализация карты (true = стена)
     const map = Array(this.height).fill().map(() => Array(this.width).fill(true))
     const rooms = []
 
-    // 2. Размещение комнат (классический алгоритм: каждая новая комната
-    //    соединяется коридором с предыдущей)
-    // Паддинг 1 клетка от краёв уровня, чтобы комнаты не касались границы
-    const pad = 1
     for (let i = 0; i < this.maxRooms; i++) {
       const w = this.rand(this.minRoomSize, this.maxRoomSize)
       const h = this.rand(this.minRoomSize, this.maxRoomSize)
-      const x = this.rand(pad, this.width - w - 1 - pad)
-      const y = this.rand(pad, this.height - h - 1 - pad)
+
+      const maxX = this.width - w - this.padding
+      const maxY = this.height - h - this.padding
+      const minX = this.padding
+      const minY = this.padding
+
+      if (maxX <= minX || maxY <= minY) continue
+
+      const x = this.rand(minX, maxX)
+      const y = this.rand(minY, maxY)
       const newRoom = { x, y, w, h }
 
       let ok = true
@@ -63,51 +38,41 @@ export default class BiomeGenerator {
       }
 
       if (ok) {
-        // Заливаем комнату полом (false)
-        for (let ry = y; ry < y + h; ry++)
-          for (let rx = x; rx < x + w; rx++)
+        for (let ry = y; ry < y + h; ry++) {
+          for (let rx = x; rx < x + w; rx++) {
             map[ry][rx] = false
+          }
+        }
 
-        // Соединяем новую комнату с предыдущей коротким L-образным коридором
         if (rooms.length > 0) {
           this.connectRooms(map, rooms[rooms.length - 1], newRoom)
         }
-
         rooms.push(newRoom)
       }
     }
 
     if (rooms.length < 2) return this.emptyMap()
 
-    // 3. Снос недостижимых стен (клетки #, которые игрок никогда не увидит —
-    //    полностью окружённые другими стенами, без соседнего пола)
-    this.removeInaccessibleWalls(map)
+    this.removeInaccessibleWalls(map, rooms)
 
-    // 4. Сбор стен
     const walls = []
-    for (let y = 0; y < this.height; y++)
-      for (let x = 0; x < this.width; x++)
-        if (map[y][x] === true) walls.push([x, y])
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (map[y][x]) walls.push([x, y])
+      }
+    }
 
-    // 5. Генерация данных о дверях (не везде, с вероятностью doorChance)
     const doorData = this.placeDoors(map, rooms)
 
-    console.log(`[BiomeGenerator] Комнат: ${rooms.length}, дверей: ${doorData.length}`)
     return {
       walls,
       width: this.width,
       height: this.height,
       rooms,
-      corridorCells: new Set(),
       doors: doorData
     }
   }
 
-  // ========================== РАЗМЕЩЕНИЕ КОМНАТ ==========================
-
-  /**
-   * Проверка пересечения двух прямоугольников с отступом spacing
-   */
   intersects(r1, r2, spacing) {
     return !(r1.x + r1.w + spacing <= r2.x - spacing ||
       r2.x + r2.w + spacing <= r1.x - spacing ||
@@ -115,11 +80,6 @@ export default class BiomeGenerator {
       r2.y + r2.h + spacing <= r1.y - spacing)
   }
 
-  // ========================== СОЕДИНЕНИЕ КОМНАТ (L-образные коридоры) ==========================
-
-  /**
-   * Центр комнаты
-   */
   roomCenter(room) {
     return {
       x: Math.floor(room.x + room.w / 2),
@@ -127,15 +87,10 @@ export default class BiomeGenerator {
     }
   }
 
-  /**
-   * Рисует короткий L-образный коридор между двумя комнатами
-   * (классический подход из учебников по рогаликам).
-   */
   connectRooms(map, a, b) {
     const ca = this.roomCenter(a)
     const cb = this.roomCenter(b)
 
-    // Случайно выбираем, где сделать изгиб (горизонтальный или вертикальный первым)
     if (Math.random() < 0.5) {
       this.hLine(map, ca.x, cb.x, ca.y)
       this.vLine(map, ca.y, cb.y, cb.x)
@@ -145,9 +100,6 @@ export default class BiomeGenerator {
     }
   }
 
-  /**
-   * Горизонтальная линия коридора
-   */
   hLine(map, x1, x2, y) {
     const min = Math.min(x1, x2)
     const max = Math.max(x1, x2)
@@ -158,9 +110,6 @@ export default class BiomeGenerator {
     }
   }
 
-  /**
-   * Вертикальная линия коридора
-   */
   vLine(map, y1, y2, x) {
     const min = Math.min(y1, y2)
     const max = Math.max(y1, y2)
@@ -171,24 +120,15 @@ export default class BiomeGenerator {
     }
   }
 
-  // ========================== ГЕНЕРАЦИЯ ДАННЫХ О ДВЕРЯХ ==========================
-
-  /**
-   * Определяет места для дверей.
-   * Дверь ставится ТОЛЬКО там, где она имеет смысл — в узком проёме (chokepoint),
-   * где коридор входит в комнату через одиночную клетку стены.
-   * Если рядом проложены два коридора (широкий проём / открытое пространство) —
-   * дверь не ставится. Плюс применяется вероятность doorChance.
-   * Возвращает массив объектов { x, y, locked } для последующего создания Door в Location.
-   * @returns {Array<{x:number, y:number, locked:boolean}>}
-   */
   placeDoors(map, rooms) {
     const doorData = []
     const roomSet = new Set()
     for (const r of rooms) {
-      for (let y = r.y; y < r.y + r.h; y++)
-        for (let x = r.x; x < r.x + r.w; x++)
+      for (let y = r.y; y < r.y + r.h; y++) {
+        for (let x = r.x; x < r.x + r.w; x++) {
           roomSet.add(`${x},${y}`)
+        }
+      }
     }
 
     const corridorSet = new Set()
@@ -200,13 +140,16 @@ export default class BiomeGenerator {
       }
     }
 
-    // Для каждой стороны комнаты храним лучшую клетку для двери
-    const bestDoor = new Map() // key = `${roomIdx},${side}`
+    const bestDoor = new Map()
+
     for (const cell of corridorSet) {
       const [x, y] = cell.split(',').map(Number)
-      for (const [dx, dy, side] of [[-1, 0, 'left'], [1, 0, 'right'], [0, -1, 'top'], [0, 1, 'bottom']]) {
+      const dirs = [[-1, 0, 'left'], [1, 0, 'right'], [0, -1, 'top'], [0, 1, 'bottom']]
+
+      for (const [dx, dy, side] of dirs) {
         const nx = x + dx, ny = y + dy
         const nkey = `${nx},${ny}`
+
         if (roomSet.has(nkey) && !corridorSet.has(nkey)) {
           let roomIdx = -1
           for (let i = 0; i < rooms.length; i++) {
@@ -225,39 +168,22 @@ export default class BiomeGenerator {
       }
     }
 
-    // Формируем результат, избегая дубликатов клеток.
-    // Дверь ставим только в узком проёме (chokepoint) и с вероятностью doorChance.
     const placed = new Set()
     for (const pos of bestDoor.values()) {
       const key = `${pos.x},${pos.y}`
       if (placed.has(key)) continue
       placed.add(key)
 
-      // Дверь имеет смысл только в прямом проходе (вход -> выход по горизонтали или вертикали).
-      // Если это угол, развилка или открытое пространство — дверь не ставится.
       if (!this.isChokepoint(map, pos.x, pos.y)) continue
 
       if (Math.random() < this.doorChance) {
-        // По умолчанию двери не заперты (locked = false). Можно добавить шанс запертой двери.
-        const locked = false
-        doorData.push({ x: pos.x, y: pos.y, locked })
-        // На карте временно кладём пол, позже Location заменит на дверь
+        doorData.push({ x: pos.x, y: pos.y, locked: false })
         map[pos.y][pos.x] = false
       }
     }
     return doorData
   }
 
-  /**
-   * Проверяет, является ли клетка прямым проходом (вход -> выход), где дверь имеет смысл.
-   * Дверь ставится только если у клетки ровно 2 проходимых соседа, расположенных
-   * напротив друг друга — по горизонтали (влево/вправо) или по вертикали (вверх/вниз).
-   * Это прямой коридор, а не угол, не развилка и не открытое пространство.
-   * @param {boolean[][]} map - карта (true = стена)
-   * @param {number} x - координата клетки
-   * @param {number} y - координата клетки
-   * @returns {boolean}
-   */
   isChokepoint(map, x, y) {
     const isWalk = (nx, ny) =>
       nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && map[ny][nx] === false
@@ -267,37 +193,30 @@ export default class BiomeGenerator {
     const up = isWalk(x, y - 1)
     const down = isWalk(x, y + 1)
 
-    // Прямой проход по горизонтали: вход слева, выход справа (и наоборот),
-    // при этом сверху и снизу — стены.
-    if (left && right && !up && !down) return true
-
-    // Прямой проход по вертикали: вход сверху, выход снизу (и наоборот),
-    // при этом слева и справа — стены.
-    if (up && down && !left && !right) return true
-
-    return false
+    return (left && right && !up && !down) || (up && down && !left && !right)
   }
 
-  // ========================== СНОС НЕДОСТИЖИМЫХ СТЕН ==========================
+  removeInaccessibleWalls(map, rooms) {
+    const roomWalls = new Set()
+    for (const room of rooms) {
+      for (let x = room.x - 1; x <= room.x + room.w; x++) {
+        if (x >= 0 && x < this.width) {
+          if (room.y - 1 >= 0) roomWalls.add(`${x},${room.y - 1}`)
+          if (room.y + room.h < this.height) roomWalls.add(`${x},${room.y + room.h}`)
+        }
+      }
+      for (let y = room.y - 1; y <= room.y + room.h; y++) {
+        if (y >= 0 && y < this.height) {
+          if (room.x - 1 >= 0) roomWalls.add(`${room.x - 1},${y}`)
+          if (room.x + room.w < this.width) roomWalls.add(`${room.x + room.w},${y}`)
+        }
+      }
+    }
 
-  /**
-   * Удаляет стены, которые игрок никогда не увидит: клетки #, не граничащие
-   * с достижимым полом (комнаты и коридоры). Такие "мёртвые" стены находятся
-   * между коридорами и комнатами и не имеют смысла — они сносятся
-   * (превращаются в пол) после полной генерации.
-   *
-   * Используется flood fill от исходного пола: достижимой считается только
-   * область, связанная с комнатами/коридорами. Вновь созданный пол НЕ
-   * добавляется в достижимую область, поэтому не возникает "шахматного"
-   * каскада, когда снесённая стена делает соседнюю стену "видимой".
-   * @param {boolean[][]} map - карта (true = стена, false = пол)
-   */
-  removeInaccessibleWalls(map) {
     const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]]
-
-    // 1. Собираем исходные достижимые клетки пола (комнаты + коридоры)
     const reachable = new Set()
     const queue = []
+
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         if (map[y][x] === false) {
@@ -308,7 +227,6 @@ export default class BiomeGenerator {
       }
     }
 
-    // 2. Flood fill: расширяем достижимую область через пол
     while (queue.length) {
       const [x, y] = queue.pop()
       for (const [dx, dy] of dirs) {
@@ -322,17 +240,17 @@ export default class BiomeGenerator {
       }
     }
 
-    // 3. Сносим стены, не граничащие с достижимым полом
     for (let y = 1; y < this.height - 1; y++) {
       for (let x = 1; x < this.width - 1; x++) {
         if (map[y][x] !== true) continue
+        const key = `${x},${y}`
+        if (roomWalls.has(key)) continue
         if (!this.hasReachableNeighbor(reachable, x, y)) {
           map[y][x] = false
         }
       }
     }
 
-    // 4. Сносим внешние стены по периметру уровня (стены комнат не трогаем)
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         if (x === 0 || x === this.width - 1 || y === 0 || y === this.height - 1) {
@@ -342,14 +260,6 @@ export default class BiomeGenerator {
     }
   }
 
-  /**
-   * Проверяет, есть ли у клетки хотя бы один соседний достижимый пол
-   * (8 направлений, включая диагонали — чтобы сохранить углы комнат).
-   * @param {Set<string>} reachable - множество достижимых клеток пола "x,y"
-   * @param {number} x - координата клетки
-   * @param {number} y - координата клетки
-   * @returns {boolean}
-   */
   hasReachableNeighbor(reachable, x, y) {
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
@@ -360,25 +270,17 @@ export default class BiomeGenerator {
     return false
   }
 
-  // ========================== ВСПОМОГАТЕЛЬНЫЕ ==========================
-
-  /**
-   * Случайное целое в диапазоне [min, max]
-   */
   rand(min, max) {
+    if (min > max) { const t = min; min = max; max = t }
     return Math.floor(Math.random() * (max - min + 1)) + min
   }
 
-  /**
-   * Возвращает пустую карту на случай ошибки
-   */
   emptyMap() {
     return {
       walls: [],
-      width: 20,
-      height: 20,
+      width: this.width || 20,
+      height: this.height || 20,
       rooms: [],
-      corridorCells: new Set(),
       doors: []
     }
   }

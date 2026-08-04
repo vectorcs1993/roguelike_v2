@@ -2,6 +2,7 @@ import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
 import Location from './Location.js'
+import { logger, LOG_MODULES } from './Logger.js'
 
 export default class GameLoop {
   constructor(canvas, config, initialLocation = null, biomeType = null) {
@@ -9,35 +10,16 @@ export default class GameLoop {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
-    if (biomeType && !initialLocation) {
-      this.currentLocation = Location.generateProcedural(config, biomeType)
-      this.currentLocation.setGameLoop(this)
-    } else {
-      this.currentLocation = initialLocation || Location.createDefault(config)
-      this.currentLocation.setGameLoop(this)
-    }
+    this.currentLocation = initialLocation || Location.generateProcedural(config, biomeType)
+    this.currentLocation.setGameLoop(this)
+
     const characters = this.currentLocation.getAllCharacters()
-    let activeCharacter = null
+    const playerChars = characters.filter(c => c.team?.isPlayerControlled)
+    playerChars.forEach(c => c.isActive = true)
 
-    if (characters.length > 0) {
-      const playerChar = characters.find(c => c.canSwitchTo === true) || characters[0]
-      if (playerChar && playerChar.canSwitchTo) {
-        playerChar.isActive = true
-        activeCharacter = playerChar
-      }
-    }
-
-    // Получаем размеры карты для камеры
-    const mapWidth = this.currentLocation.cols
-    const mapHeight = this.currentLocation.rows
-
-    if (activeCharacter) {
-      this.camera = new Camera(activeCharacter.x, activeCharacter.y, config.cameraSpeed, mapWidth, mapHeight, 6)
-      // Камера НЕ следует за персонажем по умолчанию (только при команде движения)
-      // this.camera.follow(activeCharacter) - убираем!
-    } else {
-      this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, config.cameraSpeed, mapWidth, mapHeight, 6)
-    }
+    const mainChar = playerChars[0] || characters[0]
+    this.camera = new Camera(mainChar.x, mainChar.y, config.cameraSpeed)
+    this.camera.follow(mainChar)
 
     this.input = new InputManager(config.swipeThreshold)
     this.renderer = null
@@ -46,280 +28,411 @@ export default class GameLoop {
     this.lastTime = 0
     this.hoverTileX = null
     this.hoverTileY = null
-    this._previewPath = null
-    this._lastPreviewTileX = null
-    this._lastPreviewTileY = null
-
-    this.debugMode = false
-
-    this.targetFPS = 100
-    this.frameInterval = 1000 / this.targetFPS
+    this.frameInterval = 1000 / 60
     this.lastFrameTime = 0
-
-    this.frameCount = 0
-    this.lastFpsUpdate = 0
-    this.currentFps = 100
-
     this._lastRenderTime = 0
-    this._renderInterval = 1000 / 100
 
-    // Флаг для отслеживания режима следования камеры
-    this.cameraFollowing = false
+    this.selectedCharIndex = 0
+    this.isPlayerTurn = true
+    this.enemyTurnIndex = 0
+    this.enemyList = []
+    this.isProcessingEnemyTurn = false
 
     this.initializeFovForAllAllies()
+    this.updateEnemyList()
+  }
+
+  get selectedCharacter() {
+    const playerChars = this.getPlayerCharacters()
+    if (playerChars.length === 0) return null
+    if (this.selectedCharIndex >= playerChars.length) this.selectedCharIndex = 0
+    return playerChars[this.selectedCharIndex]
+  }
+
+  getPlayerCharacters() {
+    return this.currentLocation.getAllCharacters().filter(c => c.team?.isPlayerControlled && !c.isDead)
+  }
+
+  updateEnemyList() {
+    this.enemyList = this.currentLocation.getAllCharacters().filter(
+      c => c.team && !c.team.isPlayerControlled && !c.isDead
+    )
   }
 
   initializeFovForAllAllies() {
-    const allies = this.currentLocation.getAllCharacters().filter(
-      c => c.isPlayerControlled || c.canSwitchTo
-    )
-
-    if (allies.length === 0) return
+    const allies = this.currentLocation.getAllCharacters().filter(c => c.isPlayerControlled || c.canSwitchTo)
+    if (!allies.length) return
 
     for (let i = 0; i < allies.length; i++) {
       const ally = allies[i]
-      const tileX = Math.floor(ally.x)
-      const tileY = Math.floor(ally.y)
-      const resetVisibility = (i === 0)
-      this.currentLocation.computeFov(tileX, tileY, ally.fovRadius || 8, resetVisibility)
+      this.currentLocation.computeFov(
+        Math.floor(ally.x), Math.floor(ally.y),
+        ally.fovRadius || 8,
+        i === 0
+      )
     }
+  }
 
-    for (let y = 0; y < this.currentLocation.rows; y++) {
-      for (let x = 0; x < this.currentLocation.cols; x++) {
-        const tile = this.currentLocation.getTile(x, y)
-        if (tile && tile.visible) {
-          tile.explored = true
-        }
+  initRenderer(canvasWidth, canvasHeight, dpr) {
+    this.renderer = new Renderer(this.ctx, this.config)
+    this.renderer.dpr = dpr || window.devicePixelRatio || 1
+    this.renderer.resize(canvasWidth, canvasHeight, this.renderer.dpr)
+    if (this.camera) {
+      this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
+    }
+  }
+
+  resize(canvasWidth, canvasHeight, dpr) {
+    if (this.renderer) {
+      this.renderer.dpr = dpr || window.devicePixelRatio || 1
+      this.renderer.resize(canvasWidth, canvasHeight, this.renderer.dpr)
+      if (this.camera) {
+        this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
       }
     }
   }
 
-  // проверяет, есть ли враги в очереди
-  hasEnemiesInQueue() {
-    const queue = this.currentLocation.turnQueue?.queue || []
-    for (const item of queue) {
-      const char = item.character
-      // Живой враг (не мёртв, есть команда, не игрок)
-      if (char && !char.isDead && char.team && !char.team.isPlayerControlled) {
-        // Проверяем, видит ли игрок этого врага
-        if (this.currentLocation.isCharacterVisibleForPlayerTeam(char)) {
-          return true   // есть видимый живой враг
-        }
-      }
-    }
-    return false  // нет видимых живых врагов
+  switchToNextCharacter() {
+    const playerChars = this.getPlayerCharacters()
+    if (playerChars.length <= 1) return
+    this.selectedCharIndex = (this.selectedCharIndex + 1) % playerChars.length
+    this.camera.follow(playerChars[this.selectedCharIndex])
+    this.initializeFovForAllAllies()
   }
 
-  switchCharacter(characterId) {
-    const newActive = this.currentLocation.switchToCharacter(characterId)
-    console.log(newActive);
-
-    if (newActive) {
-      newActive.restoreFullAP()
-      // Отключаем следование при переключении
-      this.cameraFollowing = false
-      this.camera.stopFollowing()
-      this.camera.setPosition(newActive.x, newActive.y)
-      this.initializeFovForAllAllies()
-    }
+  switchToCharacter(index) {
+    const playerChars = this.getPlayerCharacters()
+    if (index < 0 || index >= playerChars.length) return
+    this.selectedCharIndex = index
+    this.camera.follow(playerChars[index])
+    this.initializeFovForAllAllies()
   }
 
-  /**
-   * Принудительно центрирует камеру на персонаже с characterId
-   * @param {number} characterId  - id персонажа
-   */
   centerOnCharacter(characterId) {
-    const character = this.currentLocation.getAllCharacters().find(c => c.id === characterId)
-    if (character) {
-      this.cameraFollowing = false
-      this.camera.stopFollowing()
-      this.camera.setPosition(character.x, character.y)
+    const char = this.currentLocation.getAllCharacters().find(c => c.id === characterId)
+    if (char) {
+      this.camera.setPosition(char.x, char.y)
+      this.camera.follow(char)
     }
   }
 
-  // Включить следование камеры за активным персонажем
-  startCameraFollowing() {
-    const activeChar = this.currentLocation.getActiveCharacter()
-    if (activeChar) {
-      this.cameraFollowing = true
-      this.camera.follow(activeChar)
-      console.log('Camera following started')
-    }
-  }
+  moveCharacter(dx, dy) {
+    if (!this.isPlayerTurn) return false
+    const char = this.selectedCharacter
+    if (!char || char.isDead) return false
 
-  // Выключить следование камеры
-  stopCameraFollowing() {
-    this.cameraFollowing = false
-    this.camera.stopFollowing()
-    console.log('Camera following stopped')
-  }
+    const newX = Math.floor(char.x) + dx
+    const newY = Math.floor(char.y) + dy
 
-  getBlockedCells() {
-    const activeChar = this.currentLocation.getActiveCharacter()
-    return this.currentLocation.getBlockedCells(activeChar)
-  }
+    if (newX < 0 || newX >= this.currentLocation.cols ||
+      newY < 0 || newY >= this.currentLocation.rows) return false
 
-  handleClick(screenX, screenY) {
-    if (this.input.isCameraMovingNow()) return false
+    const allChars = this.currentLocation.getAllCharacters()
 
-    const activeChar = this.currentLocation.getActiveCharacter()
-    if (!activeChar) return false
-    if (!activeChar.team?.isPlayerControlled) return false
-    if (activeChar.currentAP <= 0) return false
-
-    const worldX = (screenX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x
-    const worldY = (screenY - this.renderer.halfH) / this.renderer.tileSize + this.camera.y
-    const tileX = worldX | 0
-    const tileY = worldY | 0
-    const fromX = Math.floor(activeChar.x)
-    const fromY = Math.floor(activeChar.y)
-    const isAdjacent = Math.abs(fromX - tileX) <= 1 && Math.abs(fromY - tileY) <= 1
-
-    const clickTarget = this.getClickTarget(tileX, tileY)
-
-    if (clickTarget?.onClick) {
-      const result = clickTarget.onClick(activeChar, isAdjacent, this)
-      if (result === true || result === false) return result
+    for (const other of allChars) {
+      if (other === char) continue
+      if (Math.floor(other.x) === newX && Math.floor(other.y) === newY) {
+        if (!other.team?.isPlayerControlled && !other.isDead) {
+          const success = char.attack(other)
+          if (success) {
+            logger.info(LOG_MODULES.COMBAT, `${char.name} атаковал ${other.name}!`)
+            this.endPlayerTurn()
+            return true
+          }
+        }
+        return false
+      }
     }
 
-    const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
-      tileX, tileY, this.currentLocation.getAllCharacters(), activeChar, fromX, fromY
-    )
+    if (!this.currentLocation.isTileWalkable(newX, newY)) {
+      const tile = this.currentLocation.getTile(newX, newY)
+      if (tile?.constructor?.name === 'Door' && tile.onClick(char, true, this)) {
+        this.endPlayerTurn()
+        return true
+      }
+      return false
+    }
 
-    if (result?.path?.length) {
-      activeChar.setPath(result.path, null)
-      // ВКЛЮЧАЕМ СЛЕДОВАНИЕ КАМЕРЫ при движении персонажа
-      this.startCameraFollowing()
+    char.moveTo(newX, newY, allChars)
+    this.endPlayerTurn()
+    return true
+  }
+
+  attackNearestEnemy() {
+    if (!this.isPlayerTurn) return false
+    const char = this.selectedCharacter
+    if (!char || char.isDead) return false
+
+    let nearest = null, minDist = Infinity
+    for (const other of this.currentLocation.getAllCharacters()) {
+      if (other === char || other.team?.isPlayerControlled || other.isDead) continue
+      const dist = char.getChebyshevDistanceTo(other)
+      if (dist < minDist && dist <= char.attackRange + 1) {
+        minDist = dist
+        nearest = other
+      }
+    }
+
+    if (!nearest) return false
+    const success = char.attack(nearest)
+    if (success) {
+      logger.info(LOG_MODULES.COMBAT, `${char.name} атаковал ${nearest.name}!`)
+      this.endPlayerTurn()
       return true
+    }
+    return false
+  }
+
+  interact() {
+    if (!this.isPlayerTurn) return false
+    const char = this.selectedCharacter
+    if (!char || char.isDead) return false
+
+    const cx = Math.floor(char.x), cy = Math.floor(char.y)
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue
+        const tile = this.currentLocation.getTile(cx + dx, cy + dy)
+        if (tile?.onClick && tile.onClick(char, true, this)) {
+          this.endPlayerTurn()
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  endPlayerTurn() {
+    if (!this.isPlayerTurn) return
+    this.isPlayerTurn = false
+    this.enemyTurnIndex = 0
+    this.updateEnemyList()
+    this.startEnemyTurn()
+  }
+
+  startEnemyTurn() {
+    if (this.isPlayerTurn || this.isProcessingEnemyTurn) return
+    this.updateEnemyList()
+    this.enemyList = this.enemyList.filter(e => e && !e.isDead)
+
+    if (!this.enemyList.length) {
+      this.endEnemyTurn()
+      return
+    }
+
+    this.isProcessingEnemyTurn = true
+    this.enemyTurnIndex = 0
+    this.processEnemyTurn()
+  }
+
+  processEnemyTurn() {
+    if (this.isPlayerTurn) {
+      this.isProcessingEnemyTurn = false
+      return
+    }
+
+    this.updateEnemyList()
+    this.enemyList = this.enemyList.filter(e => e && !e.isDead)
+
+    if (!this.enemyList.length || this.enemyTurnIndex >= this.enemyList.length) {
+      this.isProcessingEnemyTurn = false
+      this.endEnemyTurn()
+      return
+    }
+
+    const enemy = this.enemyList[this.enemyTurnIndex]
+    if (!enemy || enemy.isDead) {
+      this.enemyTurnIndex++
+      this.processEnemyTurn()
+      return
+    }
+
+    const actionDone = this.performEnemyAction(enemy)
+    if (actionDone) {
+      logger.debug(LOG_MODULES.AI, `${enemy.name} сделал ход`)
+    }
+
+    this.enemyTurnIndex++
+    this.processEnemyTurn()
+  }
+
+  performEnemyAction(enemy) {
+    if (enemy.isDead) return false
+
+    const allChars = this.currentLocation.getAllCharacters()
+    const players = allChars.filter(c => c.team?.isPlayerControlled && !c.isDead)
+
+    if (players.length === 0) return false
+
+    let nearestPlayer = null
+    let minDist = Infinity
+
+    for (const player of players) {
+      const dist = enemy.getChebyshevDistanceTo(player)
+      if (dist < minDist) {
+        minDist = dist
+        nearestPlayer = player
+      }
+    }
+
+    if (!nearestPlayer) return this.enemyWander(enemy)
+
+    if (minDist <= enemy.attackRange) {
+      enemy.attack(nearestPlayer)
+      return true
+    }
+
+    const moved = this.enemyMoveToPlayer(enemy, nearestPlayer)
+    if (!moved) {
+      return this.enemyWander(enemy)
+    }
+
+    return true
+  }
+
+  enemyMoveToPlayer(enemy, target) {
+    const fromX = Math.floor(enemy.x)
+    const fromY = Math.floor(enemy.y)
+    const toX = Math.floor(target.x)
+    const toY = Math.floor(target.y)
+
+    if (fromX === toX && fromY === toY) return false
+
+    const allChars = this.currentLocation.getAllCharacters()
+
+    const path = this.currentLocation.findPath(fromX, fromY, toX, toY, enemy)
+
+    if (path && path.length > 1) {
+      const nextStep = path[1]
+
+      const isOccupied = allChars.some(c => c !== enemy && Math.floor(c.x) === nextStep.x && Math.floor(c.y) === nextStep.y)
+      const isWalkable = this.currentLocation.isTileWalkable(nextStep.x, nextStep.y)
+
+      if (!isOccupied && isWalkable) {
+        enemy.moveTo(nextStep.x, nextStep.y, allChars)
+        return true
+      }
+    }
+
+    return this.enemyMoveSimple(enemy, target)
+  }
+
+  enemyMoveSimple(enemy, target) {
+    const allChars = this.currentLocation.getAllCharacters()
+    const fromX = Math.floor(enemy.x)
+    const fromY = Math.floor(enemy.y)
+    const toX = Math.floor(target.x)
+    const toY = Math.floor(target.y)
+
+    const dx = Math.sign(toX - fromX)
+    const dy = Math.sign(toY - fromY)
+
+    const moves = []
+
+    if (dx !== 0 && dy !== 0) {
+      moves.push([dx, dy])
+      moves.push([dx, 0])
+      moves.push([0, dy])
+    } else if (dx !== 0) {
+      moves.push([dx, 0])
+      moves.push([0, dy])
+      moves.push([dx, dy])
+    } else if (dy !== 0) {
+      moves.push([0, dy])
+      moves.push([dx, 0])
+      moves.push([dx, dy])
+    }
+
+    for (const [mx, my] of moves) {
+      const nx = fromX + mx
+      const ny = fromY + my
+
+      if (nx < 0 || nx >= this.currentLocation.cols ||
+        ny < 0 || ny >= this.currentLocation.rows) continue
+
+      if (this.currentLocation.isTileWalkable(nx, ny)) {
+        const occupied = allChars.some(c => c !== enemy && Math.floor(c.x) === nx && Math.floor(c.y) === ny)
+        if (!occupied) {
+          enemy.moveTo(nx, ny, allChars)
+          return true
+        }
+      }
     }
 
     return false
   }
 
-  getClickTarget(x, y) {
-    const character = this.currentLocation.getAllCharacters().find(c => c.occupies(x, y))
-    if (character) return character
+  enemyWander(enemy) {
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+    for (let i = dirs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+        ;[dirs[i], dirs[j]] = [dirs[j], dirs[i]]
+    }
 
-    const item = this.currentLocation.getItemAt(x, y)
-    if (item && !item.collected) return item
+    const allChars = this.currentLocation.getAllCharacters()
+    for (const [mx, my] of dirs) {
+      const nx = Math.floor(enemy.x) + mx
+      const ny = Math.floor(enemy.y) + my
 
-    const tile = this.currentLocation.getTile(x, y)
-    if (tile?.onClick) return tile
+      if (nx < 0 || nx >= this.currentLocation.cols ||
+        ny < 0 || ny >= this.currentLocation.rows) continue
 
-    return null
+      if (this.currentLocation.isTileWalkable(nx, ny)) {
+        const occupied = allChars.some(c => c !== enemy && Math.floor(c.x) === nx && Math.floor(c.y) === ny)
+        if (!occupied) {
+          enemy.moveTo(nx, ny, allChars)
+          return true
+        }
+      }
+    }
+    return false
   }
 
-  updateHoverTile(mouseX, mouseY) {
-    if (!mouseX || !mouseY || !this.renderer) {
-      this.hoverTileX = null
-      this.hoverTileY = null
-      this._previewPath = null
-      this._lastPreviewTileX = null
-      this._lastPreviewTileY = null
-      return
-    }
+  endEnemyTurn() {
+    this.isPlayerTurn = true
+    this.enemyTurnIndex = 0
+    this.isProcessingEnemyTurn = false
 
-    const worldX = (mouseX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x
-    const worldY = (mouseY - this.renderer.halfH) / this.renderer.tileSize + this.camera.y
-    const tileX = worldX | 0
-    const tileY = worldY | 0
+    this.initializeFovForAllAllies()
 
-    // Пересчитываем превью только если клетка под курсором изменилась
-    if (tileX !== this.hoverTileX || tileY !== this.hoverTileY) {
-      this.hoverTileX = tileX
-      this.hoverTileY = tileY
-      this.updatePreviewPath()
-    }
-  }
-
-  // Вычисляет превью пути от активного персонажа к клетке под курсором
-  updatePreviewPath() {
-    this._previewPath = null
-
-    const activeChar = this.currentLocation.getActiveCharacter()
-    if (!activeChar) return
-    if (!activeChar.team?.isPlayerControlled) return
-    if (activeChar.currentAP <= 0) return
-    if (this.hoverTileX === null || this.hoverTileY === null) return
-
-    const fromX = Math.floor(activeChar.x)
-    const fromY = Math.floor(activeChar.y)
-    const toX = this.hoverTileX
-    const toY = this.hoverTileY
-
-    // Не показываем превью на клетке самого персонажа
-    if (fromX === toX && fromY === toY) return
-
-    const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
-      toX, toY, this.currentLocation.getAllCharacters(), activeChar, fromX, fromY
-    )
-
-    if (result?.path?.length) {
-      this._previewPath = result.path
-    }
-  }
-
-  update(dt) {
-    const click = this.input.consumeClick()
-    if (click) {
-      this.handleClick(click.x, click.y)
-    }
-
-    if (this.input.mouseOnCanvas && this.renderer) {
-      this.updateHoverTile(this.input.mouseX, this.input.mouseY)
-    }
-
-    const isGameOver = this.currentLocation.updateTeams(dt)
-    if (isGameOver) {
+    const playerChars = this.getPlayerCharacters()
+    if (!playerChars.length) {
+      logger.info(LOG_MODULES.SYSTEM, 'Игрок мёртв! Перезагрузка...')
       this.reloadLocation()
       return
     }
 
-    if (this.currentLocation.shouldAdvanceTurn()) {
-      const nextChar = this.currentLocation.nextTurn()
+    logger.info(LOG_MODULES.TURN, `Ход игрока: ${this.selectedCharacter?.name}`)
+  }
 
-      // Центрируем камеру на следующем союзнике ТОЛЬКО если есть враги в очереди
-      if (this.hasEnemiesInQueue()) {
-        this.centerOnCharacter(nextChar.id)
-      }
+  update(dt) {
+    const allChars = this.currentLocation.getAllCharacters()
+    for (const c of allChars) {
+      if (!c.isDead) c.update(dt, this.currentLocation, allChars)
     }
 
-    const activeChar = this.currentLocation.getActiveCharacter()
-    if (activeChar) {
-      activeChar.update(dt, this.currentLocation, this.currentLocation.getAllCharacters())
+    if (this.currentLocation.removeDeadCharacters()) {
+      this.reloadLocation()
+      return
+    }
 
-      // Проверяем, закончилось ли движение персонажа
-      if (this.cameraFollowing && !activeChar.followingPath && !activeChar.moving) {
-        // Персонаж закончил движение - отключаем следование камеры
-        this.stopCameraFollowing()
-      }
-
-      if (activeChar.team && !activeChar.team.isPlayerControlled && activeChar.currentAP > 0) {
-        const enemyTeam = this.currentLocation.getTeam('creatures')
-        const ai = enemyTeam?.aiInstances?.get(activeChar.id)
-        if (ai) {
-          ai.update(dt, this.currentLocation, this.currentLocation.getAllCharacters())
-        }
-      }
-
+    if (this.selectedCharacter && !this.selectedCharacter.isDead) {
       this.initializeFovForAllAllies()
-      activeChar.checkAndCollectTarget(this.currentLocation)
     }
 
-    // Обновляем камеру
     this.camera.update(dt, this.input)
   }
 
   render() {
     if (!this.renderer) return
-
+    const char = this.selectedCharacter
     this.renderer.hoverTileX = this.hoverTileX
     this.renderer.hoverTileY = this.hoverTileY
     this.renderer.mouseScreenX = this.input.mouseX
     this.renderer.mouseScreenY = this.input.mouseY
     this.renderer._location = this.currentLocation
-    this.renderer._activeCharacter = this.currentLocation.getActiveCharacter()
-    this.renderer._previewPath = this._previewPath
+    this.renderer._activeCharacter = char
+    this.renderer._previewPath = null
 
     this.renderer.draw(
       this.currentLocation,
@@ -332,55 +445,22 @@ export default class GameLoop {
 
   gameLoop(now) {
     if (this.lastFrameTime && (now - this.lastFrameTime) < this.frameInterval) {
-      this.animationId = requestAnimationFrame((t) => this.gameLoop(t))
+      this.animationId = requestAnimationFrame(t => this.gameLoop(t))
       return
     }
-
     this.lastFrameTime = now
 
-    const dt = this.lastTime ? Math.min((now - this.lastTime) * 0.001, 0.01) : 0.01
+    const dt = this.lastTime ? Math.min((now - this.lastTime) * 0.001, 0.05) : 0.016
     this.lastTime = now
 
     this.update(dt)
 
-    if (now - this._lastRenderTime >= this._renderInterval) {
+    if (now - this._lastRenderTime >= this.frameInterval) {
       this.render()
       this._lastRenderTime = now
     }
 
-    if (this.debugMode) {
-      this.frameCount++
-      const nowSec = performance.now()
-      if (nowSec - this.lastFpsUpdate >= 1000) {
-        this.currentFps = this.frameCount
-        this.frameCount = 0
-        this.lastFpsUpdate = nowSec
-        console.log(`FPS: ${this.currentFps}`)
-      }
-    }
-
-    this.animationId = requestAnimationFrame((t) => this.gameLoop(t))
-  }
-
-  initRenderer(canvasWidth, canvasHeight, dpr) {
-    this.renderer = new Renderer(this.ctx, this.config)
-    this.renderer.dpr = dpr
-    this.renderer.resize(canvasWidth, canvasHeight, dpr)
-
-    if (this.camera) {
-      this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
-    }
-  }
-
-  resize(canvasWidth, canvasHeight, dpr) {
-    if (this.renderer) {
-      this.renderer.dpr = dpr
-      this.renderer.resize(canvasWidth, canvasHeight, dpr)
-
-      if (this.camera) {
-        this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
-      }
-    }
+    this.animationId = requestAnimationFrame(t => this.gameLoop(t))
   }
 
   start() {
@@ -397,134 +477,49 @@ export default class GameLoop {
     }
   }
 
-  onTouchStart(e) { this.input.handleTouchStart(e) }
-  onTouchMove(e) { this.input.handleTouchMove(e) }
-  onTouchEnd() { this.input.handleTouchEnd() }
-  onClick(e) {
-    if (!this.input.isCameraMovingNow()) {
-      this.input.handleClick(e)
-    }
-  }
-
-  onKeyDown(e) {
-    this.input.handleKeyDown(e)
-
-    if (e.code === 'F7') {
-      this.debugMode = !this.debugMode
-      console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`)
-    }
-
-    // При ручном управлении камерой отключаем следование
-    const cameraKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyS', 'KeyA', 'KeyD']
-    if (cameraKeys.includes(e.code)) {
-      if (this.cameraFollowing) {
-        this.stopCameraFollowing()
-      }
-    }
-  }
-
-  onKeyUp(e) { this.input.handleKeyUp(e) }
-
-  onMouseMove(e) {
-    this.input.handleMouseMove(e)
-    if (this.input.isRightButtonDown()) {
-      // При панорамировании отключаем следование
-      if (this.cameraFollowing) {
-        this.stopCameraFollowing()
-      }
-      this.input.updatePan(e, this.camera, this.renderer)
-    }
-  }
-
-  onMouseLeave() {
-    this.input.handleMouseLeave()
-    this.hoverTileX = null
-    this.hoverTileY = null
-    this._previewPath = null
-    this._lastPreviewTileX = null
-    this._lastPreviewTileY = null
-  }
-
-  onWheel(e) {
-    if (!this.renderer) return
-
-    e.preventDefault()
-
-    const delta = e.deltaY > 0 ? -5 : 5
-
-    const rect = this.canvas.getBoundingClientRect()
-    const mouseX = e.clientX - rect.left
-    const mouseY = e.clientY - rect.top
-
-    const worldX = (mouseX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x
-    const worldY = (mouseY - this.renderer.halfH) / this.renderer.tileSize + this.camera.y
-
-    if (this.renderer.zoom(delta, mouseX, mouseY)) {
-      if (this.camera) {
-        this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, this.renderer.tileSize)
-      }
-
-      this.camera.x = worldX - (mouseX - this.renderer.halfW) / this.renderer.tileSize
-      this.camera.y = worldY - (mouseY - this.renderer.halfH) / this.renderer.tileSize
-
-      this.renderer._lastCameraX = null
-      this.renderer._lastCameraY = null
-      this.renderer._lastTileSize = null
-    }
-  }
-
-  onContextMenu(e) { e.preventDefault(); return false }
-
-  onMouseDown(e) {
-    if (e.button === 2) {
-      this.input.startPan(e, this.camera)
-    }
-  }
-
-  onMouseUp(e) {
-    if (e.button === 2) {
-      this.input.endPan(e)
-    }
-  }
-
   reloadLocation() {
-    console.log('[GameLoop] Перезагрузка локации...')
     this.currentLocation = Location.generateProcedural(this.config)
     this.currentLocation.setGameLoop(this)
-    const characters = this.currentLocation.getAllCharacters()
-    let activeCharacter = null
 
-    if (characters.length > 0) {
-      const playerChar = characters.find(c => c.canSwitchTo === true) || characters[0]
-      if (playerChar && playerChar.canSwitchTo) {
-        playerChar.isActive = true
-        activeCharacter = playerChar
-      }
-    }
+    const playerChars = this.currentLocation.getAllCharacters().filter(c => c.team?.isPlayerControlled)
+    playerChars.forEach(c => c.isActive = true)
 
-    const mapWidth = this.currentLocation.cols
-    const mapHeight = this.currentLocation.rows
-
-    if (this.camera) {
-      this.cameraFollowing = false
-      this.camera.stopFollowing()
-      if (activeCharacter) {
-        this.camera.setPosition(activeCharacter.x, activeCharacter.y)
-      }
-    } else if (activeCharacter) {
-      this.camera = new Camera(activeCharacter.x, activeCharacter.y, this.config.cameraSpeed, mapWidth, mapHeight, 6)
-    } else {
-      this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, this.config.cameraSpeed, mapWidth, mapHeight, 6)
-    }
+    const mainChar = playerChars[0] || this.currentLocation.getAllCharacters()[0]
+    this.camera.setPosition(mainChar.x, mainChar.y)
+    this.camera.follow(mainChar)
 
     if (this.renderer && this.camera) {
       this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, this.renderer.tileSize)
     }
 
     this.initializeFovForAllAllies()
+    this.isPlayerTurn = true
+    this.enemyTurnIndex = 0
+    this.isProcessingEnemyTurn = false
+    this.updateEnemyList()
+  }
 
-    if (this.currentLocation.pathfinder) {
-      this.currentLocation.pathfinder.clearCache()
+  onTouchStart(e) { this.input.handleTouchStart(e) }
+  onTouchMove(e) { this.input.handleTouchMove(e) }
+  onTouchEnd() { this.input.handleTouchEnd() }
+  onClick(e) { this.input.handleClick(e) }
+
+  onKeyDown(e) {
+    this.input.handleKeyDown(e)
+    if (e.key >= '1' && e.key <= '9') {
+      this.switchToCharacter(parseInt(e.key) - 1)
+    }
+
+    if (this.isPlayerTurn) {
+      const dir = this.input.getDirection()
+      if (dir) {
+        this.moveCharacter(dir.x, dir.y)
+      }
     }
   }
+
+  onKeyUp(e) { this.input.handleKeyUp(e) }
+  onMouseMove(e) { this.input.handleMouseMove(e) }
+  onMouseLeave() { this.input.handleMouseLeave(); this.hoverTileX = null; this.hoverTileY = null }
+  onContextMenu(e) { e.preventDefault(); return false }
 }
