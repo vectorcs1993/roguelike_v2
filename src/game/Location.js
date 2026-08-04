@@ -122,11 +122,10 @@ export default class Location {
   }
 
   fill() {
-    this.grid = Array.from({ length: this.rows }, (_, y) =>
-      Array.from({ length: this.cols }, (_, x) => {
-        const isBorder = y === 0 || y === this.rows - 1 || x === 0 || x === this.cols - 1
-        return isBorder ? new Wall() : new Floor()
-      })
+    // Внешние стены по периметру не создаём — генератор сам решает, где стены.
+    // Это позволяет убрать рамку уровня (стены комнат при этом не трогаются).
+    this.grid = Array.from({ length: this.rows }, () =>
+      Array.from({ length: this.cols }, () => new Floor())
     )
   }
 
@@ -690,7 +689,9 @@ export default class Location {
       return !wallSet.has(key) && !crateCells.has(key) && !items.some(i => i.x === x && i.y === y)
     }
 
-    const playerStart = Location.findEmptyTile(width, height, isPositionFree)
+    // Игрок должен стартовать ВНУТРИ одной из комнат (не в коридоре и не в
+    // пустоте от снесённых стен), чтобы гарантированно попасть в проходимую зону.
+    const playerStart = Location.findStartInRoom(rooms, isPositionFree)
 
     // ========== 5. ГЕНЕРАЦИЯ ВРАГОВ ==========
     const enemies = []
@@ -798,6 +799,45 @@ export default class Location {
     console.log(`  - Ящиков: ${crates.length}, предметов: ${items.length}, врагов: ${enemies.length}`)
 
     return location
+  }
+
+  /**
+   * Находит стартовую позицию игрока ВНУТРИ одной из комнат.
+   * Гарантирует, что игрок появляется в проходимой зоне (комнате),
+   * а не в коридоре или в пустоте от снесённых стен.
+   * @param {Array<{x:number,y:number,w:number,h:number}>} rooms - список комнат
+   * @param {Function} isPositionFree - проверка свободной клетки (x, y) => boolean
+   * @returns {{x:number, y:number}}
+   */
+  static findStartInRoom(rooms, isPositionFree) {
+    // Перемешиваем комнаты, чтобы старт был случайным
+    const shuffled = [...rooms]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
+
+    for (const room of shuffled) {
+      // Собираем свободные клетки внутри комнаты (с отступом от стен)
+      const candidates = []
+      for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
+        for (let x = room.x + 1; x < room.x + room.w - 1; x++) {
+          if (isPositionFree(x, y)) candidates.push({ x, y })
+        }
+      }
+      if (candidates.length > 0) {
+        // Предпочитаем центр комнаты
+        const cx = Math.floor(room.x + room.w / 2)
+        const cy = Math.floor(room.y + room.h / 2)
+        const center = candidates.find(c => c.x === cx && c.y === cy)
+        if (center) return center
+        return candidates[Math.floor(Math.random() * candidates.length)]
+      }
+    }
+
+    // Запасной вариант: любая свободная клетка
+    console.warn('[Location] Не найдена свободная клетка в комнатах, ищем любую')
+    return Location.findEmptyTile(rooms[0]?.w + 10 || 60, rooms[0]?.h + 10 || 40, isPositionFree)
   }
 
   static findEmptyTile(width, height, isPositionFree, occupied = []) {

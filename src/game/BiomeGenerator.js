@@ -45,11 +45,13 @@ export default class BiomeGenerator {
 
     // 2. Размещение комнат (классический алгоритм: каждая новая комната
     //    соединяется коридором с предыдущей)
+    // Паддинг 1 клетка от краёв уровня, чтобы комнаты не касались границы
+    const pad = 1
     for (let i = 0; i < this.maxRooms; i++) {
       const w = this.rand(this.minRoomSize, this.maxRoomSize)
       const h = this.rand(this.minRoomSize, this.maxRoomSize)
-      const x = this.rand(1, this.width - w - 1)
-      const y = this.rand(1, this.height - h - 1)
+      const x = this.rand(pad, this.width - w - 1 - pad)
+      const y = this.rand(pad, this.height - h - 1 - pad)
       const newRoom = { x, y, w, h }
 
       let ok = true
@@ -77,13 +79,17 @@ export default class BiomeGenerator {
 
     if (rooms.length < 2) return this.emptyMap()
 
-    // 3. Сбор стен
+    // 3. Снос недостижимых стен (клетки #, которые игрок никогда не увидит —
+    //    полностью окружённые другими стенами, без соседнего пола)
+    this.removeInaccessibleWalls(map)
+
+    // 4. Сбор стен
     const walls = []
     for (let y = 0; y < this.height; y++)
       for (let x = 0; x < this.width; x++)
         if (map[y][x] === true) walls.push([x, y])
 
-    // 4. Генерация данных о дверях (не везде, с вероятностью doorChance)
+    // 5. Генерация данных о дверях (не везде, с вероятностью doorChance)
     const doorData = this.placeDoors(map, rooms)
 
     console.log(`[BiomeGenerator] Комнат: ${rooms.length}, дверей: ${doorData.length}`)
@@ -269,6 +275,88 @@ export default class BiomeGenerator {
     // при этом слева и справа — стены.
     if (up && down && !left && !right) return true
 
+    return false
+  }
+
+  // ========================== СНОС НЕДОСТИЖИМЫХ СТЕН ==========================
+
+  /**
+   * Удаляет стены, которые игрок никогда не увидит: клетки #, не граничащие
+   * с достижимым полом (комнаты и коридоры). Такие "мёртвые" стены находятся
+   * между коридорами и комнатами и не имеют смысла — они сносятся
+   * (превращаются в пол) после полной генерации.
+   *
+   * Используется flood fill от исходного пола: достижимой считается только
+   * область, связанная с комнатами/коридорами. Вновь созданный пол НЕ
+   * добавляется в достижимую область, поэтому не возникает "шахматного"
+   * каскада, когда снесённая стена делает соседнюю стену "видимой".
+   * @param {boolean[][]} map - карта (true = стена, false = пол)
+   */
+  removeInaccessibleWalls(map) {
+    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+
+    // 1. Собираем исходные достижимые клетки пола (комнаты + коридоры)
+    const reachable = new Set()
+    const queue = []
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (map[y][x] === false) {
+          const key = `${x},${y}`
+          reachable.add(key)
+          queue.push([x, y])
+        }
+      }
+    }
+
+    // 2. Flood fill: расширяем достижимую область через пол
+    while (queue.length) {
+      const [x, y] = queue.pop()
+      for (const [dx, dy] of dirs) {
+        const nx = x + dx, ny = y + dy
+        if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue
+        const key = `${nx},${ny}`
+        if (map[ny][nx] === false && !reachable.has(key)) {
+          reachable.add(key)
+          queue.push([nx, ny])
+        }
+      }
+    }
+
+    // 3. Сносим стены, не граничащие с достижимым полом
+    for (let y = 1; y < this.height - 1; y++) {
+      for (let x = 1; x < this.width - 1; x++) {
+        if (map[y][x] !== true) continue
+        if (!this.hasReachableNeighbor(reachable, x, y)) {
+          map[y][x] = false
+        }
+      }
+    }
+
+    // 4. Сносим внешние стены по периметру уровня (стены комнат не трогаем)
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (x === 0 || x === this.width - 1 || y === 0 || y === this.height - 1) {
+          map[y][x] = false
+        }
+      }
+    }
+  }
+
+  /**
+   * Проверяет, есть ли у клетки хотя бы один соседний достижимый пол
+   * (8 направлений, включая диагонали — чтобы сохранить углы комнат).
+   * @param {Set<string>} reachable - множество достижимых клеток пола "x,y"
+   * @param {number} x - координата клетки
+   * @param {number} y - координата клетки
+   * @returns {boolean}
+   */
+  hasReachableNeighbor(reachable, x, y) {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue
+        if (reachable.has(`${x + dx},${y + dy}`)) return true
+      }
+    }
     return false
   }
 
