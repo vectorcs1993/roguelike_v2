@@ -98,49 +98,12 @@ export default class BiomeGenerator {
       r2.y + r2.h + spacing <= r1.y - spacing)
   }
 
-  /**
-   * Точка выхода из комнаты: отступ от углов на 2 клетки, от стены наружу на 1.
-   * Гарантирует, что коридор не начнётся из угла.
-   * @param {Object} room - комната {x,y,w,h}
-   * @param {Object} target - целевая точка (центр другой комнаты)
-   * @returns {Object} { x, y }
-   */
-  getExitPoint(room, target) {
-    const left = room.x
-    const right = room.x + room.w - 1
-    const top = room.y
-    const bottom = room.y + room.h - 1
-    const cx = (left + right) / 2
-    const cy = (top + bottom) / 2
-    const dx = target.x - cx
-    const dy = target.y - cy
-    let x, y
-    if (Math.abs(dx) > Math.abs(dy)) {
-      // Горизонтальная сторона
-      if (dx > 0) x = right + 1
-      else x = left - 1
-      let midY = Math.floor(cy)
-      // Отступ от углов: не ближе 2 от top и bottom
-      midY = Math.min(Math.max(midY, top + 2), bottom - 2)
-      y = midY
-    } else {
-      // Вертикальная сторона
-      if (dy > 0) y = bottom + 1
-      else y = top - 1
-      let midX = Math.floor(cx)
-      midX = Math.min(Math.max(midX, left + 2), right - 2)
-      x = midX
-    }
-    // Ограничение границами карты
-    x = Math.min(Math.max(x, 2), this.width - 3)
-    y = Math.min(Math.max(y, 2), this.height - 3)
-    return { x, y }
-  }
-
-  // ========================== СОЕДИНЕНИЕ КОМНАТ (MST + A*) ==========================
+  // ========================== СОЕДИНЕНИЕ КОМНАТ (MST + L-образные коридоры) ==========================
 
   /**
-   * Построение минимального остовного дерева (алгоритм Прима) и прокладка коридоров
+   * Построение минимального остовного дерева (алгоритм Прима) и прокладка
+   * логичных L-образных коридоров между центрами комнат.
+   * Гарантирует связность всех комнат.
    */
   connectRooms(map, rooms) {
     const n = rooms.length
@@ -150,131 +113,69 @@ export default class BiomeGenerator {
       for (const i of connected) {
         for (let j = 0; j < n; j++) {
           if (connected.has(j)) continue
-          const target = { x: rooms[j].x + rooms[j].w / 2, y: rooms[j].y + rooms[j].h / 2 }
-          const p1 = this.getExitPoint(rooms[i], target)
-          const target2 = { x: rooms[i].x + rooms[i].w / 2, y: rooms[i].y + rooms[i].h / 2 }
-          const p2 = this.getExitPoint(rooms[j], target2)
-          const dist = Math.abs(p1.x - p2.x) + Math.abs(p1.y - p2.y)
-          if (!best || dist < best.dist) best = { i, j, dist, p1, p2 }
+          const ci = this.roomCenter(rooms[i])
+          const cj = this.roomCenter(rooms[j])
+          const dist = Math.abs(ci.x - cj.x) + Math.abs(ci.y - cj.y)
+          if (!best || dist < best.dist) best = { i, j, dist, ci, cj }
         }
       }
       if (best) {
         connected.add(best.j)
-        const path = this.findPathAStar(map, best.p1, best.p2, rooms)
-        if (path) {
-          for (const { x, y } of path) {
-            if (map[y][x] === true) map[y][x] = false
-          }
-        } else {
-          // fallback: прямой L-образный путь с проверкой
-          this.drawCorridorFallback(map, best.p1, best.p2, rooms)
-        }
+        this.drawCorridor(map, best.ci, best.cj, rooms, best.i, best.j)
       } else break
     }
   }
 
   /**
-   * A* поиск пути с запретом на проход вблизи комнат (кроме старта/финиша)
-   * @returns {Array<{x,y}>|null}
+   * Центр комнаты (целевая точка коридора)
    */
-  findPathAStar(map, start, goal, rooms) {
-    const openSet = [{ ...start, g: 0, f: this.heur(start, goal) }]
-    const cameFrom = new Map()
-    const gScore = new Map()
-    gScore.set(this.key(start), 0)
-
-    while (openSet.length) {
-      openSet.sort((a, b) => a.f - b.f)
-      const current = openSet.shift()
-      if (current.x === goal.x && current.y === goal.y) {
-        const path = []
-        let cur = current
-        while (cur) {
-          path.unshift({ x: cur.x, y: cur.y })
-          cur = cameFrom.get(this.key(cur))
-        }
-        return path
-      }
-      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
-        const nx = current.x + dx, ny = current.y + dy
-        if (nx < 0 || nx >= this.width || ny < 0 || ny >= this.height) continue
-        // Нельзя ходить по стенам (только по полу true/false, но тут false = пол)
-        if (map[ny][nx] !== true && map[ny][nx] !== false) continue
-        // Проверка близости к комнатам (кроме старта/цели)
-        let tooClose = false
-        if (!((nx === start.x && ny === start.y) || (nx === goal.x && ny === goal.y))) {
-          for (const room of rooms) {
-            for (let dy2 = -this.wallClearance; dy2 <= this.wallClearance; dy2++) {
-              for (let dx2 = -this.wallClearance; dx2 <= this.wallClearance; dx2++) {
-                const tx = nx + dx2, ty = ny + dy2
-                if (tx >= room.x && tx < room.x + room.w && ty >= room.y && ty < room.y + room.h) {
-                  tooClose = true
-                  break
-                }
-              }
-              if (tooClose) break
-            }
-            if (tooClose) break
-          }
-        }
-        if (tooClose) continue
-        const tentativeG = gScore.get(this.key(current)) + 1
-        const key = this.key({ x: nx, y: ny })
-        if (!gScore.has(key) || tentativeG < gScore.get(key)) {
-          gScore.set(key, tentativeG)
-          const f = tentativeG + this.heur({ x: nx, y: ny }, goal)
-          openSet.push({ x: nx, y: ny, g: tentativeG, f })
-          cameFrom.set(key, current)
-        }
-      }
+  roomCenter(room) {
+    return {
+      x: Math.floor(room.x + room.w / 2),
+      y: Math.floor(room.y + room.h / 2)
     }
-    return null
   }
 
-  heur(a, b) { return Math.abs(a.x - b.x) + Math.abs(a.y - b.y) }
-  key(p) { return `${p.x},${p.y}` }
+  /**
+   * Рисует L-образный коридор между двумя центрами комнат.
+   * Выбирает ориентацию (горизонталь-вертикаль или вертикаль-горизонталь),
+   * которая меньше всего пересекает чужие комнаты — коридоры получаются
+   * прямыми и логичными, а не хаотичными.
+   */
+  drawCorridor(map, a, b, rooms, startRoomIdx, endRoomIdx) {
+    const hFirst = this.buildPath(a.x, a.y, b.x, b.y, true)
+    const vFirst = this.buildPath(a.x, a.y, b.x, b.y, false)
+
+    const scoreH = this.corridorScore(hFirst, rooms, startRoomIdx, endRoomIdx)
+    const scoreV = this.corridorScore(vFirst, rooms, startRoomIdx, endRoomIdx)
+
+    // Выбираем путь с меньшим числом пересечений чужих комнат
+    let path = hFirst
+    if (scoreV < scoreH) path = vFirst
+    else if (scoreV === scoreH) path = Math.random() < 0.5 ? hFirst : vFirst
+
+    for (const { x, y } of path) {
+      if (map[y][x] === true) map[y][x] = false
+    }
+  }
 
   /**
-   * Fallback: L-образный путь с проверкой близости к комнатам
+   * Оценка коридора: сколько клеток попадает внутрь чужих комнат.
+   * Чем меньше — тем лучше (0 — идеально).
    */
-  drawCorridorFallback(map, p1, p2, rooms) {
-    const paths = [
-      this.buildPath(p1.x, p1.y, p2.x, p2.y, true),
-      this.buildPath(p1.x, p1.y, p2.x, p2.y, false)
-    ]
-    for (const path of paths) {
-      let ok = true
-      for (const { x, y } of path) {
-        if ((x === p1.x && y === p1.y) || (x === p2.x && y === p2.y)) continue
-        for (const room of rooms) {
-          for (let dy = -this.wallClearance; dy <= this.wallClearance; dy++) {
-            for (let dx = -this.wallClearance; dx <= this.wallClearance; dx++) {
-              const nx = x + dx, ny = y + dy
-              if (nx >= room.x && nx < room.x + room.w && ny >= room.y && ny < room.y + room.h) {
-                ok = false
-                break
-              }
-            }
-            if (!ok) break
-          }
-          if (!ok) break
+  corridorScore(path, rooms, startRoomIdx, endRoomIdx) {
+    let score = 0
+    for (const { x, y } of path) {
+      for (let i = 0; i < rooms.length; i++) {
+        if (i === startRoomIdx || i === endRoomIdx) continue
+        const r = rooms[i]
+        if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) {
+          score++
+          break
         }
-        if (!ok) break
-      }
-      if (ok) {
-        for (const { x, y } of path) {
-          if (map[y][x] === true) map[y][x] = false
-        }
-        return
       }
     }
-    // Если ни один не подошёл — рисуем первый попавшийся
-    const fallbackPath = paths[0] || paths[1]
-    if (fallbackPath) {
-      for (const { x, y } of fallbackPath) {
-        if (map[y][x] === true) map[y][x] = false
-      }
-    }
+    return score
   }
 
   /**
