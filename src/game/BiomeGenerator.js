@@ -98,12 +98,11 @@ export default class BiomeGenerator {
       r2.y + r2.h + spacing <= r1.y - spacing)
   }
 
-  // ========================== СОЕДИНЕНИЕ КОМНАТ (MST + L-образные коридоры) ==========================
+  // ========================== СОЕДИНЕНИЕ КОМНАТ (MST + перпендикулярные коридоры) ==========================
 
   /**
    * Построение минимального остовного дерева (алгоритм Прима) и прокладка
-   * логичных L-образных коридоров между центрами комнат.
-   * Гарантирует связность всех комнат.
+   * коридоров между комнатами. Гарантирует связность всех комнат.
    */
   connectRooms(map, rooms) {
     const n = rooms.length
@@ -121,13 +120,13 @@ export default class BiomeGenerator {
       }
       if (best) {
         connected.add(best.j)
-        this.drawCorridor(map, best.ci, best.cj, rooms, best.i, best.j)
+        this.drawCorridor(map, rooms, best.i, best.j)
       } else break
     }
   }
 
   /**
-   * Центр комнаты (целевая точка коридора)
+   * Центр комнаты
    */
   roomCenter(room) {
     return {
@@ -137,70 +136,99 @@ export default class BiomeGenerator {
   }
 
   /**
-   * Рисует L-образный коридор между двумя центрами комнат.
-   * Выбирает ориентацию (горизонталь-вертикаль или вертикаль-горизонталь),
-   * которая меньше всего пересекает чужие комнаты — коридоры получаются
-   * прямыми и логичными, а не хаотичными.
+   * Точка выхода из комнаты: клетка сразу за стеной, обращённой к целевой комнате,
+   * плюс направление перпендикулярного выхода (dirX, dirY).
    */
-  drawCorridor(map, a, b, rooms, startRoomIdx, endRoomIdx) {
-    const hFirst = this.buildPath(a.x, a.y, b.x, b.y, true)
-    const vFirst = this.buildPath(a.x, a.y, b.x, b.y, false)
+  getExitPoint(room, target) {
+    const left = room.x
+    const right = room.x + room.w - 1
+    const top = room.y
+    const bottom = room.y + room.h - 1
+    const cx = (left + right) / 2
+    const cy = (top + bottom) / 2
+    const dx = target.x - cx
+    const dy = target.y - cy
+    let x, y, dirX, dirY
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Выход через левую или правую стену (перпендикулярно)
+      if (dx > 0) { x = right + 1; y = Math.floor(cy); dirX = 1; dirY = 0 }
+      else { x = left - 1; y = Math.floor(cy); dirX = -1; dirY = 0 }
+    } else {
+      // Выход через верхнюю или нижнюю стену (перпендикулярно)
+      if (dy > 0) { y = bottom + 1; x = Math.floor(cx); dirX = 0; dirY = 1 }
+      else { y = top - 1; x = Math.floor(cx); dirX = 0; dirY = -1 }
+    }
+    // Ограничение границами карты
+    x = Math.min(Math.max(x, 1), this.width - 2)
+    y = Math.min(Math.max(y, 1), this.height - 2)
+    return { x, y, dirX, dirY }
+  }
 
-    const scoreH = this.corridorScore(hFirst, rooms, startRoomIdx, endRoomIdx)
-    const scoreV = this.corridorScore(vFirst, rooms, startRoomIdx, endRoomIdx)
+  /**
+   * Рисует коридор между двумя комнатами так, чтобы он выходил перпендикулярно
+   * из стены каждой комнаты (минимум на 1 клетку) и не шёл вдоль стен.
+   */
+  drawCorridor(map, rooms, i, j) {
+    const a = rooms[i]
+    const b = rooms[j]
+    const ca = this.roomCenter(a)
+    const cb = this.roomCenter(b)
+    const exitA = this.getExitPoint(a, cb)
+    const exitB = this.getExitPoint(b, ca)
 
-    // Выбираем путь с меньшим числом пересечений чужих комнат
-    let path = hFirst
-    if (scoreV < scoreH) path = vFirst
-    else if (scoreV === scoreH) path = Math.random() < 0.5 ? hFirst : vFirst
-
+    const path = this.buildPerpendicularCorridor(exitA, exitB)
     for (const { x, y } of path) {
       if (map[y][x] === true) map[y][x] = false
     }
   }
 
   /**
-   * Оценка коридора: сколько клеток попадает внутрь чужих комнат.
-   * Чем меньше — тем лучше (0 — идеально).
+   * Строит коридор, выходящий перпендикулярно из комнаты A и входящий
+   * перпендикулярно в комнату B. Использует L-образную или Z-образную форму.
    */
-  corridorScore(path, rooms, startRoomIdx, endRoomIdx) {
-    let score = 0
-    for (const { x, y } of path) {
-      for (let i = 0; i < rooms.length; i++) {
-        if (i === startRoomIdx || i === endRoomIdx) continue
-        const r = rooms[i]
-        if (x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h) {
-          score++
-          break
-        }
-      }
+  buildPerpendicularCorridor(exitA, exitB) {
+    const cells = []
+    const ax = exitA.x, ay = exitA.y, adx = exitA.dirX, ady = exitA.dirY
+    const bx = exitB.x, by = exitB.y, bdx = exitB.dirX, bdy = exitB.dirY
+
+    if (adx !== 0 && bdx !== 0) {
+      // Оба выхода горизонтальные -> Z-образный коридор
+      const cornerX = bx - bdx
+      this.addLine(cells, ax, ay, cornerX, ay)
+      this.addLine(cells, cornerX, ay, cornerX, by)
+      this.addLine(cells, cornerX, by, bx, by)
+    } else if (ady !== 0 && bdy !== 0) {
+      // Оба выхода вертикальные -> Z-образный коридор
+      const cornerY = by - bdy
+      this.addLine(cells, ax, ay, ax, cornerY)
+      this.addLine(cells, ax, cornerY, bx, cornerY)
+      this.addLine(cells, bx, cornerY, bx, by)
+    } else if (adx !== 0) {
+      // Выход A горизонтальный, выход B вертикальный -> L-образный
+      this.addLine(cells, ax, ay, bx, ay)
+      this.addLine(cells, bx, ay, bx, by)
+    } else {
+      // Выход A вертикальный, выход B горизонтальный -> L-образный
+      this.addLine(cells, ax, ay, ax, by)
+      this.addLine(cells, ax, by, bx, by)
     }
-    return score
+    return cells
   }
 
   /**
-   * Построить L-образный путь (горизонталь-вертикаль или вертикаль-горизонталь)
+   * Добавляет прямую линию клеток (без дубликатов) в массив.
    */
-  buildPath(x1, y1, x2, y2, horizontalFirst) {
-    const cells = []
-    if (horizontalFirst) {
-      const stepX = x1 < x2 ? 1 : -1
-      for (let x = x1; x !== x2 + stepX; x += stepX) cells.push({ x, y: y1 })
-      const stepY = y1 < y2 ? 1 : -1
-      for (let y = y1; y !== y2 + stepY; y += stepY) cells.push({ x: x2, y })
-    } else {
-      const stepY = y1 < y2 ? 1 : -1
-      for (let y = y1; y !== y2 + stepY; y += stepY) cells.push({ x: x1, y })
-      const stepX = x1 < x2 ? 1 : -1
-      for (let x = x1; x !== x2 + stepX; x += stepX) cells.push({ x, y: y2 })
+  addLine(cells, x1, y1, x2, y2) {
+    const stepX = x1 < x2 ? 1 : (x1 > x2 ? -1 : 0)
+    const stepY = y1 < y2 ? 1 : (y1 > y2 ? -1 : 0)
+    let x = x1, y = y1
+    while (true) {
+      const last = cells.length ? cells[cells.length - 1] : null
+      if (!last || last.x !== x || last.y !== y) cells.push({ x, y })
+      if (x === x2 && y === y2) break
+      x += stepX
+      y += stepY
     }
-    // удаляем возможный дубликат угловой точки
-    const unique = []
-    for (let i = 0; i < cells.length; i++) {
-      if (i === 0 || cells[i].x !== cells[i - 1].x || cells[i].y !== cells[i - 1].y)
-        unique.push(cells[i])
-    }
-    return unique
   }
 
   // ========================== ГЕНЕРАЦИЯ ДАННЫХ О ДВЕРЯХ ==========================
