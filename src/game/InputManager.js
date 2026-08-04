@@ -50,13 +50,11 @@ export default class InputManager {
   }
 
   handleClick(e) {
-    // Только ЛКМ
     if (e.button === 0) {
       this.clickX = e.offsetX
       this.clickY = e.offsetY
       this.clicked = true
     }
-    // ПКМ - предотвращаем контекстное меню
     if (e.button === 2) {
       e.preventDefault()
     }
@@ -71,19 +69,15 @@ export default class InputManager {
   handleKeyDown(e) {
     this.keys[e.code] = true
 
-    // Проверяем, является ли клавиша клавишей движения камеры
     const cameraKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyS', 'KeyA', 'KeyD']
     if (cameraKeys.includes(e.code)) {
-      // Включаем флаг движения камеры
       this.isCameraMoving = true
 
-      // Сбрасываем предыдущий таймер
       if (this.keyboardMoveTimeout) {
         clearTimeout(this.keyboardMoveTimeout)
       }
     }
 
-    // Предотвращаем скролл страницы от стрелок
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
       e.preventDefault()
     }
@@ -92,10 +86,8 @@ export default class InputManager {
   handleKeyUp(e) {
     this.keys[e.code] = false
 
-    // Проверяем, является ли клавиша клавишей движения камеры
     const cameraKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyS', 'KeyA', 'KeyD']
     if (cameraKeys.includes(e.code)) {
-      // Проверяем, остались ли ещё зажатые клавиши движения
       let anyPressed = false
       for (const key of cameraKeys) {
         if (this.keys[key]) {
@@ -104,13 +96,11 @@ export default class InputManager {
         }
       }
 
-      // Если нет зажатых клавиш, сбрасываем флаг через небольшую задержку
       if (!anyPressed) {
         if (this.keyboardMoveTimeout) {
           clearTimeout(this.keyboardMoveTimeout)
         }
         this.keyboardMoveTimeout = setTimeout(() => {
-          // Проверяем ещё раз, чтобы убедиться, что за это время не нажали новую клавишу
           let stillPressed = false
           for (const key of cameraKeys) {
             if (this.keys[key]) {
@@ -121,7 +111,7 @@ export default class InputManager {
           if (!stillPressed && !this.rightButtonDown) {
             this.isCameraMoving = false
           }
-        }, 100) // Небольшая задержка, чтобы не сбрасывать флаг между быстрыми нажатиями
+        }, 100)
       }
     }
   }
@@ -180,7 +170,6 @@ export default class InputManager {
     return { x, y }
   }
 
-  // Начало панорамирования мышью
   startPan(e, camera) {
     if (e.button === 2) {
       e.preventDefault()
@@ -191,14 +180,13 @@ export default class InputManager {
       this.panStartCameraY = camera.y
       this.isCameraMoving = true
 
-      // Сбрасываем таймер клавиатуры
       if (this.keyboardMoveTimeout) {
         clearTimeout(this.keyboardMoveTimeout)
       }
     }
   }
 
-  // Обновление панорамирования
+  // Панорамирование БЕЗ ОГРАНИЧЕНИЙ
   updatePan(e, camera, renderer) {
     if (!this.rightButtonDown) return false
 
@@ -214,20 +202,17 @@ export default class InputManager {
     return true
   }
 
-  // Конец панорамирования
   endPan(e) {
     if (e.button === 2) {
       e.preventDefault()
       this.rightButtonDown = false
 
-      // Не сбрасываем isCameraMoving сразу, возможно, есть движение с клавиатуры
       if (!this.isAnyKeyboardKeyPressed()) {
         this.isCameraMoving = false
       }
     }
   }
 
-  // Проверка, зажата ли какая-либо клавиша движения
   isAnyKeyboardKeyPressed() {
     const cameraKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyS', 'KeyA', 'KeyD']
     for (const key of cameraKeys) {
@@ -238,12 +223,10 @@ export default class InputManager {
     return false
   }
 
-  // Проверка, двигается ли камера (мышь ИЛИ клавиатура)
   isCameraMovingNow() {
     return this.isCameraMoving
   }
 
-  // Проверка, зажата ли правая кнопка
   isRightButtonDown() {
     return this.rightButtonDown
   }

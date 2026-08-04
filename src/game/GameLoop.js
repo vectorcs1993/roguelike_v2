@@ -28,10 +28,16 @@ export default class GameLoop {
       }
     }
 
+    // Получаем размеры карты для камеры
+    const mapWidth = this.currentLocation.cols
+    const mapHeight = this.currentLocation.rows
+
     if (activeCharacter) {
-      this.camera = new Camera(activeCharacter.x, activeCharacter.y, config.cameraSpeed)
+      this.camera = new Camera(activeCharacter.x, activeCharacter.y, config.cameraSpeed, mapWidth, mapHeight, 6)
+      // Камера НЕ следует за персонажем по умолчанию (только при команде движения)
+      // this.camera.follow(activeCharacter) - убираем!
     } else {
-      this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, config.cameraSpeed)
+      this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, config.cameraSpeed, mapWidth, mapHeight, 6)
     }
 
     this.input = new InputManager(config.swipeThreshold)
@@ -54,6 +60,9 @@ export default class GameLoop {
 
     this._lastRenderTime = 0
     this._renderInterval = 1000 / 100
+
+    // Флаг для отслеживания режима следования камеры
+    this.cameraFollowing = false
 
     this.initializeFovForAllAllies()
   }
@@ -105,10 +114,14 @@ export default class GameLoop {
 
     if (newActive) {
       newActive.restoreFullAP()
+      // Отключаем следование при переключении
+      this.cameraFollowing = false
+      this.camera.stopFollowing()
       this.camera.setPosition(newActive.x, newActive.y)
       this.initializeFovForAllAllies()
     }
   }
+
   /**
    * Принудительно центрирует камеру на персонаже с characterId
    * @param {number} characterId  - id персонажа
@@ -116,6 +129,8 @@ export default class GameLoop {
   centerOnCharacter(characterId) {
     const character = this.currentLocation.getAllCharacters().find(c => c.id === characterId)
     if (character) {
+      this.cameraFollowing = false
+      this.camera.stopFollowing()
       this.camera.setPosition(character.x, character.y)
     }
   }
@@ -123,10 +138,29 @@ export default class GameLoop {
   centerOnActiveCharacter() {
     const activeChar = this.currentLocation.getActiveCharacter()
     if (activeChar) {
+      this.cameraFollowing = false
+      this.camera.stopFollowing()
       this.camera.setPosition(activeChar.x, activeChar.y)
       return true
     }
     return false
+  }
+
+  // Включить следование камеры за активным персонажем
+  startCameraFollowing() {
+    const activeChar = this.currentLocation.getActiveCharacter()
+    if (activeChar) {
+      this.cameraFollowing = true
+      this.camera.follow(activeChar)
+      console.log('Camera following started')
+    }
+  }
+
+  // Выключить следование камеры
+  stopCameraFollowing() {
+    this.cameraFollowing = false
+    this.camera.stopFollowing()
+    console.log('Camera following stopped')
   }
 
   getBlockedCells() {
@@ -163,6 +197,8 @@ export default class GameLoop {
 
     if (result?.path?.length) {
       activeChar.setPath(result.path, null)
+      // ВКЛЮЧАЕМ СЛЕДОВАНИЕ КАМЕРЫ при движении персонажа
+      this.startCameraFollowing()
       return true
     }
 
@@ -224,6 +260,12 @@ export default class GameLoop {
     if (activeChar) {
       activeChar.update(dt, this.currentLocation, this.currentLocation.getAllCharacters())
 
+      // Проверяем, закончилось ли движение персонажа
+      if (this.cameraFollowing && !activeChar.followingPath && !activeChar.moving) {
+        // Персонаж закончил движение - отключаем следование камеры
+        this.stopCameraFollowing()
+      }
+
       if (activeChar.team && !activeChar.team.isPlayerControlled && activeChar.currentAP > 0) {
         const enemyTeam = this.currentLocation.getTeam('creatures')
         const ai = enemyTeam?.aiInstances?.get(activeChar.id)
@@ -236,6 +278,7 @@ export default class GameLoop {
       activeChar.checkAndCollectTarget(this.currentLocation)
     }
 
+    // Обновляем камеру
     this.camera.update(dt, this.input)
   }
 
@@ -297,12 +340,20 @@ export default class GameLoop {
     this.renderer = new Renderer(this.ctx, this.config)
     this.renderer.dpr = dpr
     this.renderer.resize(canvasWidth, canvasHeight, dpr)
+
+    if (this.camera) {
+      this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
+    }
   }
 
   resize(canvasWidth, canvasHeight, dpr) {
     if (this.renderer) {
       this.renderer.dpr = dpr
       this.renderer.resize(canvasWidth, canvasHeight, dpr)
+
+      if (this.camera) {
+        this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
+      }
     }
   }
 
@@ -336,6 +387,14 @@ export default class GameLoop {
       this.debugMode = !this.debugMode
       console.log(`Debug mode: ${this.debugMode ? 'ON' : 'OFF'}`)
     }
+
+    // При ручном управлении камерой отключаем следование
+    const cameraKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyS', 'KeyA', 'KeyD']
+    if (cameraKeys.includes(e.code)) {
+      if (this.cameraFollowing) {
+        this.stopCameraFollowing()
+      }
+    }
   }
 
   onKeyUp(e) { this.input.handleKeyUp(e) }
@@ -343,6 +402,10 @@ export default class GameLoop {
   onMouseMove(e) {
     this.input.handleMouseMove(e)
     if (this.input.isRightButtonDown()) {
+      // При панорамировании отключаем следование
+      if (this.cameraFollowing) {
+        this.stopCameraFollowing()
+      }
       this.input.updatePan(e, this.camera, this.renderer)
     }
   }
@@ -352,35 +415,35 @@ export default class GameLoop {
     this.hoverTileX = null
     this.hoverTileY = null
   }
+
   onWheel(e) {
     if (!this.renderer) return
 
     e.preventDefault()
 
-    // Определяем направление прокрутки
     const delta = e.deltaY > 0 ? -5 : 5
 
-    // Получаем позицию мыши относительно canvas
     const rect = this.canvas.getBoundingClientRect()
     const mouseX = e.clientX - rect.left
     const mouseY = e.clientY - rect.top
 
-    // Сохраняем позицию под курсором до зума
     const worldX = (mouseX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x
     const worldY = (mouseY - this.renderer.halfH) / this.renderer.tileSize + this.camera.y
 
-    // Изменяем масштаб
     if (this.renderer.zoom(delta, mouseX, mouseY)) {
-      // Корректируем камеру, чтобы позиция под курсором осталась на месте
+      if (this.camera) {
+        this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, this.renderer.tileSize)
+      }
+
       this.camera.x = worldX - (mouseX - this.renderer.halfW) / this.renderer.tileSize
       this.camera.y = worldY - (mouseY - this.renderer.halfH) / this.renderer.tileSize
 
-      // Обновляем кэш рендерера
       this.renderer._lastCameraX = null
       this.renderer._lastCameraY = null
       this.renderer._lastTileSize = null
     }
   }
+
   onContextMenu(e) { e.preventDefault(); return false }
 
   onMouseDown(e) {
@@ -403,6 +466,10 @@ export default class GameLoop {
     const rect = container.getBoundingClientRect()
     if (rect.width > 0 && rect.height > 0 && this.renderer) {
       this.renderer.resize(rect.width, rect.height, this.renderer.dpr)
+
+      if (this.camera) {
+        this.camera.setViewportSize(rect.width, rect.height, this.renderer.tileSize)
+      }
     }
   }
 
@@ -422,10 +489,24 @@ export default class GameLoop {
       }
     }
 
-    if (activeCharacter) {
-      this.camera = new Camera(activeCharacter.x, activeCharacter.y, this.config.cameraSpeed)
+    const mapWidth = this.currentLocation.cols
+    const mapHeight = this.currentLocation.rows
+
+    if (this.camera) {
+      this.camera.setMapBounds(mapWidth, mapHeight)
+      this.cameraFollowing = false
+      this.camera.stopFollowing()
+      if (activeCharacter) {
+        this.camera.setPosition(activeCharacter.x, activeCharacter.y)
+      }
+    } else if (activeCharacter) {
+      this.camera = new Camera(activeCharacter.x, activeCharacter.y, this.config.cameraSpeed, mapWidth, mapHeight, 6)
     } else {
-      this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, this.config.cameraSpeed)
+      this.camera = new Camera(this.config.cols / 2, this.config.rows / 2, this.config.cameraSpeed, mapWidth, mapHeight, 6)
+    }
+
+    if (this.renderer && this.camera) {
+      this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, this.renderer.tileSize)
     }
 
     this.initializeFovForAllAllies()
@@ -456,15 +537,14 @@ export default class GameLoop {
           continue
         }
 
-        // Определяем символ для отображения
         let symbol
 
         if (tile.constructor?.name === 'Door') {
-          symbol = tile.char  // '+' или '/'
+          symbol = tile.char
         } else if (tile.isWalkable) {
-          symbol = '.'  // пол
+          symbol = '.'
         } else {
-          symbol = '#'  // стена
+          symbol = '#'
         }
 
         row += symbol
