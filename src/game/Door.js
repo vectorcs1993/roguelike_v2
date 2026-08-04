@@ -74,9 +74,9 @@ export default class Door extends Tile {
 
     if (action) {
       if (this.isOpen) {
-        console.log(`${activeCharacter.name} открыл дверь`)
+        logger.info(LOG_MODULES.ACTION, `${activeCharacter.name} открыл дверь`)
       } else {
-        console.log(`${activeCharacter.name} закрыл дверь`)
+        logger.info(LOG_MODULES.ACTION, `${activeCharacter.name} закрыл дверь`)
       }
     }
 

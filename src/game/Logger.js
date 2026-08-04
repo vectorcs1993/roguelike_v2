@@ -95,35 +95,15 @@ class Logger {
     const message = this.formatMessage(level, module, args.join(' '));
 
     // Вызываем все зарегистрированные callback-функции
+    // (например, для вывода в Лог игры в интерфейсе)
     if (this.config.callbacks && this.config.callbacks.length > 0) {
       for (const callback of this.config.callbacks) {
         try {
           callback(level, module, message, args);
-        } catch (err) {
-          console.error('Logger callback error:', err);
+        } catch {
+          // Не выводим в консоль браузера, просто игнорируем ошибку callback-а
         }
       }
-    }
-
-    // Выбор метода консоли в зависимости от уровня
-    switch (level) {
-      case LOG_LEVEL.ERROR:
-        console.error(message);
-        break;
-      case LOG_LEVEL.WARN:
-        console.warn(message);
-        break;
-      case LOG_LEVEL.INFO:
-        console.info(message);
-        break;
-      case LOG_LEVEL.DEBUG:
-        console.debug(message);
-        break;
-      case LOG_LEVEL.TRACE:
-        console.trace(message);
-        break;
-      default:
-        console.log(message);
     }
   }
 

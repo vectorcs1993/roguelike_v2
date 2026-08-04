@@ -21,6 +21,7 @@ export default class Renderer {
     this._activeCharacter = null
     this._pathCache = null
     this._allCharacters = null
+    this._previewPath = null
     this.dpr = window.devicePixelRatio || 1
     this.fontFamily = Renderer.DEFAULT_FONT_FAMILY
 
@@ -237,6 +238,21 @@ export default class Renderer {
         }
         ctx.fillStyle = color
         ctx.fillText(char.char, drawX + ts / 2, drawY + ts / 2)
+      }
+    }
+
+    // 3.5 ПРЕВЬЮ ПУТИ (при наведении мыши)
+    if (this._previewPath?.length) {
+      ctx.fillStyle = '#4a9eff'
+      // Пропускаем первую клетку (позицию персонажа) и последнюю (цель)
+      for (let i = 1; i < this._previewPath.length - 1; i++) {
+        const p = this._previewPath[i]
+        const pathTile = map.getTile(p.x, p.y)
+        if (pathTile && (pathTile.visible || pathTile.explored)) {
+          const drawX = p.x * ts + ox
+          const drawY = p.y * ts + oy
+          ctx.fillText('·', drawX + ts / 2, drawY + ts / 2)
+        }
       }
     }
 

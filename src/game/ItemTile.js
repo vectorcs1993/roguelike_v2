@@ -1,6 +1,7 @@
 // src/game/ItemTile.js
 
 import Tile from './Tile.js'
+import { LOG_MODULES, logger } from './Logger.js'
 
 export default class ItemTile extends Tile {
 
@@ -77,7 +78,7 @@ export default class ItemTile extends Tile {
   onClick(activeCharacter, isAdjacent, gameLoop) {
     if (isAdjacent) {
       // Если рядом - подбираем
-      console.log(`[Click] Подобрать предмет: ${this.name}`);
+      logger.info(LOG_MODULES.ACTION, `${activeCharacter.name} подобрал предмет: ${this.name}`);
       this.collect();
       gameLoop.currentLocation.removeItemAt(this.x, this.y);
 

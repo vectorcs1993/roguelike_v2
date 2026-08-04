@@ -47,6 +47,9 @@ export default class GameLoop {
     this.lastTime = 0
     this.hoverTileX = null
     this.hoverTileY = null
+    this._previewPath = null
+    this._lastPreviewTileX = null
+    this._lastPreviewTileY = null
 
     this.debugMode = false
 
@@ -222,13 +225,50 @@ export default class GameLoop {
     if (!mouseX || !mouseY || !this.renderer) {
       this.hoverTileX = null
       this.hoverTileY = null
+      this._previewPath = null
+      this._lastPreviewTileX = null
+      this._lastPreviewTileY = null
       return
     }
 
     const worldX = (mouseX - this.renderer.halfW) / this.renderer.tileSize + this.camera.x
     const worldY = (mouseY - this.renderer.halfH) / this.renderer.tileSize + this.camera.y
-    this.hoverTileX = worldX | 0
-    this.hoverTileY = worldY | 0
+    const tileX = worldX | 0
+    const tileY = worldY | 0
+
+    // Пересчитываем превью только если клетка под курсором изменилась
+    if (tileX !== this.hoverTileX || tileY !== this.hoverTileY) {
+      this.hoverTileX = tileX
+      this.hoverTileY = tileY
+      this.updatePreviewPath()
+    }
+  }
+
+  // Вычисляет превью пути от активного персонажа к клетке под курсором
+  updatePreviewPath() {
+    this._previewPath = null
+
+    const activeChar = this.currentLocation.getActiveCharacter()
+    if (!activeChar) return
+    if (!activeChar.team?.isPlayerControlled) return
+    if (activeChar.currentAP <= 0) return
+    if (this.hoverTileX === null || this.hoverTileY === null) return
+
+    const fromX = Math.floor(activeChar.x)
+    const fromY = Math.floor(activeChar.y)
+    const toX = this.hoverTileX
+    const toY = this.hoverTileY
+
+    // Не показываем превью на клетке самого персонажа
+    if (fromX === toX && fromY === toY) return
+
+    const result = this.currentLocation.pathfinder.findPathToNearestWalkable(
+      toX, toY, this.currentLocation.getAllCharacters(), activeChar, fromX, fromY
+    )
+
+    if (result?.path?.length) {
+      this._previewPath = result.path
+    }
   }
 
   update(dt) {
@@ -294,6 +334,7 @@ export default class GameLoop {
     this.renderer._activeCharacter = this.currentLocation.getActiveCharacter()
     this.renderer._allCharacters = this.currentLocation.getAllCharacters()
     this.renderer._pathCache = null
+    this.renderer._previewPath = this._previewPath
 
     this.renderer.draw(
       this.currentLocation,
@@ -414,6 +455,9 @@ export default class GameLoop {
     this.input.handleMouseLeave()
     this.hoverTileX = null
     this.hoverTileY = null
+    this._previewPath = null
+    this._lastPreviewTileX = null
+    this._lastPreviewTileY = null
   }
 
   onWheel(e) {

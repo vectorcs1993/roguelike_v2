@@ -277,10 +277,10 @@ export default class Character extends GameObject {
     if (tileX === this.target.x && tileY === this.target.y) {
       // Проверяем, хватает ли AP для подбора предмета
       if (!this.canAffordAP(apCost)) {
-        console.log(`${this.name}: Недостаточно AP для подбора предмета! Нужно ${apCost}, есть ${this.currentAP}`);
+        logger.info(LOG_MODULES.ACTION, `${this.name}: Недостаточно AP для подбора предмета! Нужно ${apCost}, есть ${this.currentAP}`);
         return false;
       }
-      console.log(`${this.name} подобрал: ${this.target.name}`)
+      logger.info(LOG_MODULES.ACTION, `${this.name} подобрал: ${this.target.name}`)
       this.spendAP(apCost);
       this.target.collect()
       location.removeItemAt(tileX, tileY)
