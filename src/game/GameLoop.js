@@ -16,7 +16,6 @@ export default class GameLoop {
       this.currentLocation = initialLocation || Location.createDefault(config)
       this.currentLocation.setGameLoop(this)
     }
-    this.debugPrintMap();
     const characters = this.currentLocation.getAllCharacters()
     let activeCharacter = null
 
@@ -136,17 +135,6 @@ export default class GameLoop {
       this.camera.stopFollowing()
       this.camera.setPosition(character.x, character.y)
     }
-  }
-
-  centerOnActiveCharacter() {
-    const activeChar = this.currentLocation.getActiveCharacter()
-    if (activeChar) {
-      this.cameraFollowing = false
-      this.camera.stopFollowing()
-      this.camera.setPosition(activeChar.x, activeChar.y)
-      return true
-    }
-    return false
   }
 
   // Включить следование камеры за активным персонажем
@@ -329,11 +317,8 @@ export default class GameLoop {
     this.renderer.hoverTileY = this.hoverTileY
     this.renderer.mouseScreenX = this.input.mouseX
     this.renderer.mouseScreenY = this.input.mouseY
-    this.renderer._pathfinder = this.currentLocation.pathfinder
     this.renderer._location = this.currentLocation
     this.renderer._activeCharacter = this.currentLocation.getActiveCharacter()
-    this.renderer._allCharacters = this.currentLocation.getAllCharacters()
-    this.renderer._pathCache = null
     this.renderer._previewPath = this._previewPath
 
     this.renderer.draw(
@@ -502,26 +487,10 @@ export default class GameLoop {
     }
   }
 
-  updateCanvasSize() {
-    const canvas = this.canvas
-    const container = canvas.parentElement
-    if (!container) return
-
-    const rect = container.getBoundingClientRect()
-    if (rect.width > 0 && rect.height > 0 && this.renderer) {
-      this.renderer.resize(rect.width, rect.height, this.renderer.dpr)
-
-      if (this.camera) {
-        this.camera.setViewportSize(rect.width, rect.height, this.renderer.tileSize)
-      }
-    }
-  }
-
   reloadLocation() {
     console.log('[GameLoop] Перезагрузка локации...')
     this.currentLocation = Location.generateProcedural(this.config)
     this.currentLocation.setGameLoop(this)
-    this.debugPrintMap()
     const characters = this.currentLocation.getAllCharacters()
     let activeCharacter = null
 
@@ -537,7 +506,6 @@ export default class GameLoop {
     const mapHeight = this.currentLocation.rows
 
     if (this.camera) {
-      this.camera.setMapBounds(mapWidth, mapHeight)
       this.cameraFollowing = false
       this.camera.stopFollowing()
       if (activeCharacter) {
@@ -558,45 +526,5 @@ export default class GameLoop {
     if (this.currentLocation.pathfinder) {
       this.currentLocation.pathfinder.clearCache()
     }
-  }
-
-  debugPrintMap() {
-    const map = this.currentLocation.map
-    if (!map) {
-      console.log('Карта не инициализирована')
-      return
-    }
-
-    console.log(`\n=== КАРТА ${map.cols}x${map.rows} ===`)
-
-    let output = ''
-
-    for (let y = 0; y < map.rows; y++) {
-      let row = ''
-      for (let x = 0; x < map.cols; x++) {
-        const tile = map.getTile(x, y)
-
-        if (!tile) {
-          row += '?'
-          continue
-        }
-
-        let symbol
-
-        if (tile.constructor?.name === 'Door') {
-          symbol = tile.char
-        } else if (tile.isWalkable) {
-          symbol = '.'
-        } else {
-          symbol = '#'
-        }
-
-        row += symbol
-      }
-      output += row + '\n'
-    }
-
-    console.log(output)
-    console.log(`=== КОНЕЦ КАРТЫ ===\n`)
   }
 }

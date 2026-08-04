@@ -16,7 +16,6 @@ export default class Character extends GameObject {
     this.team = team
     this.isActive = false
     this.isDead = false
-    this.moveTimer = 0
     this.pathSpeed = Character.DEFAULT_PATH_SPEED
     this.path = []
     this.pathIndex = 0
@@ -58,10 +57,6 @@ export default class Character extends GameObject {
   get teamId() { return this.team?.id || 'none' }
   get isPlayerControlled() { return this.team?.isPlayerControlled || false }
   get canSwitchTo() { return this.team?.canSwitchTo || false }
-
-  getCurrentAP() { return this.currentAP }
-  getMaxAP() { return this.maxAP }
-  getAPPercentage() { return (this.currentAP / this.maxAP) * 100 }
 
   canAffordAP(cost) { return this.currentAP >= cost }
 
@@ -219,10 +214,6 @@ export default class Character extends GameObject {
     return (Math.floor(this.x)) === tileX && (Math.floor(this.y)) === tileY
   }
 
-  getAPDisplay() {
-    return `${this.currentAP}/${this.maxAP} AP`
-  }
-
   clearPath() {
     this.path = []
     this.pathIndex = 0
@@ -373,12 +364,6 @@ export default class Character extends GameObject {
     console.log(`${this.name} погибает!`)
     this.isDead = true
     this.isActive = false
-  }
-
-  // Восстановление здоровья
-  heal(amount) {
-    this.hp = Math.min(this.maxHp, this.hp + amount)
-    console.log(`${this.name} восстанавливает ${amount} HP. Теперь: ${this.hp}/${this.maxHp}`)
   }
 
   onClick(activeCharacter, isAdjacent) {

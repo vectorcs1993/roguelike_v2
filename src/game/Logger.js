@@ -161,20 +161,6 @@ class Logger {
     );
   }
 
-  enemyTurnStart(enemyName, ap) {
-    if (!this.isEnabled(LOG_LEVEL.INFO, LOG_MODULES.TURN)) return;
-    this.info(LOG_MODULES.TURN,
-      `Ход врага: ${enemyName}, AP: ${ap}`
-    );
-  }
-
-  enemyTurnEnd(enemyName, apSpent, totalAP) {
-    if (!this.isEnabled(LOG_LEVEL.DEBUG, LOG_MODULES.TURN)) return;
-    this.debug(LOG_MODULES.TURN,
-      `${enemyName} завершил ход, потрачено AP: ${apSpent}/${totalAP}`
-    );
-  }
-
   // Конфигурация
   setLevel(level) {
     this.config.level = level;

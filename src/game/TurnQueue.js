@@ -191,30 +191,6 @@ export default class TurnQueue {
 
 
   /**
-   * Возвращает список всех персонажей в очереди
-   * @returns {Array}
-   */
-  getAllCharacters() {
-    return this.queue.map(item => item.character)
-  }
-
-  /**
-   * Возвращает список персонажей игрока в очереди
-   * @returns {Array}
-   */
-  getPlayerCharacters() {
-    return this.queue.filter(item => !item.isEnemy).map(item => item.character)
-  }
-
-  /**
-   * Возвращает список врагов в очереди
-   * @returns {Array}
-   */
-  getEnemies() {
-    return this.queue.filter(item => item.isEnemy).map(item => item.character)
-  }
-
-  /**
    * Устанавливает текущего персонажа по ID
    * @param {number|string} characterId - ID персонажа
    * @returns {boolean} - успешно ли установлен
@@ -228,25 +204,6 @@ export default class TurnQueue {
     }
     console.warn(`[TurnQueue] Персонаж с ID ${characterId} не найден в очереди`)
     return false
-  }
-
-  /**
-   * Возвращает информацию об очереди для отладки
-   * @returns {Object}
-   */
-  getDebugInfo() {
-    return {
-      queue: this.queue.map(item => ({
-        name: item.character.name,
-        isEnemy: item.isEnemy,
-        initiative: item.character.initiative,
-        isCurrent: this.getCurrentCharacter()?.id === item.character.id
-      })),
-      currentIndex: this.currentIndex,
-      isCombatMode: this.isCombatMode,
-      round: this.round,
-      currentCharacter: this.getCurrentCharacter()?.name || 'нет'
-    }
   }
 
   /**

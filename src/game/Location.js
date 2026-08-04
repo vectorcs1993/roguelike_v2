@@ -216,24 +216,6 @@ export default class Location {
     return this.doorsMap.get(key)
   }
 
-  hasDoorAt(x, y) {
-    const key = `${x},${y}`
-    return this.doorsMap.has(key)
-  }
-
-  removeDoorAt(x, y) {
-    const key = `${x},${y}`
-    this.doorsMap.delete(key)
-  }
-
-  getDoors() {
-    return this.doorsMap.values()
-  }
-
-  getDoorCount() {
-    return this.doorsMap.size
-  }
-
   computeFov(originX, originY, radius, resetVisibility = true) {
     if (resetVisibility) {
       for (let y = 0; y < this.rows; y++) {
@@ -515,10 +497,6 @@ export default class Location {
     return this.nextTurn();
   }
 
-  updateFov(centerX, centerY, radius, resetVisibility = true) {
-    this.computeFov(centerX, centerY, radius, resetVisibility)
-  }
-
   findPath(fromX, fromY, toX, toY, activeCharacter = null) {
     const blocked = this.getBlockedCells(activeCharacter)
     return this.pathfinder.find(fromX, fromY, toX, toY, blocked)
@@ -535,26 +513,6 @@ export default class Location {
       blocked.push(...team.getBlockedCells(activeCharacter))
     }
     return blocked
-  }
-
-  areAllies(character1, character2) {
-    if (character1.id === character2.id) return true
-    return character1.teamId === character2.teamId
-  }
-
-  isCharacterVisibleForActive(character) {
-    const activeChar = this.getActiveCharacter()
-    if (!activeChar) return false
-
-    if (this.areAllies(activeChar, character)) {
-      return true
-    }
-
-    const tileX = Math.floor(character.x)
-    const tileY = Math.floor(character.y)
-    const tile = this.getTile(tileX, tileY)
-
-    return tile ? tile.visible : false
   }
 
   isCharacterVisibleForPlayerTeam(character) {
@@ -626,17 +584,6 @@ export default class Location {
       name: '❓ Неизвестно'
     }
   }
-
-  reset() {
-    this.fill()
-    for (const item of this.items) {
-      item.collected = false
-    }
-
-    // Инициализируем очередь ходов при сбросе локации
-    this.initializeTurnQueue()
-  }
-
 
   static generateProcedural(config, biomeType = null) {
     // Выбор биома

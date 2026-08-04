@@ -1,6 +1,5 @@
 // Система ИИ для врагов
 
-import Pathfinder from './Pathfinder.js'
 import { logger, LOG_MODULES } from './Logger.js'
 
 export const AI_STATE = {
@@ -20,11 +19,6 @@ export default class EnemyAI {
     this.target = null
     this.wanderRadius = config.wanderRadius || 5
     this.homePosition = { x: character.x, y: character.y }
-
-    // Внутренние таймеры (оставлены для совместимости, но не используются)
-    this.actionCooldown = 0
-    this.wanderCooldown = 0
-    this.actionDelay = 0 // Задержка между действиями (мс)
 
     // Счётчик кадров для замедления видимых врагов
     this.frameCounter = 0
@@ -64,22 +58,7 @@ export default class EnemyAI {
       // Сбрасываем счётчик и выполняем одно действие
       this.frameCounter = 0
 
-      let actionPerformed = false
-      switch (this.state) {
-        case AI_STATE.IDLE:
-          logger.debug(LOG_MODULES.AI, `${this.character.name}: состояние IDLE, вызываем executeIdleBehavior`)
-          actionPerformed = this.executeIdleBehavior(dt, map, allCharacters)
-          break
-        case AI_STATE.ALERT:
-          actionPerformed = this.executeAlertBehavior(dt, map)
-          break
-        case AI_STATE.COMBAT:
-          actionPerformed = this.executeCombatBehavior(dt, map, allCharacters)
-          break
-        case AI_STATE.FLEE:
-          actionPerformed = this.executeFleeBehavior(dt, map)
-          break
-      }
+      const actionPerformed = this.executeBehavior(dt, map, allCharacters)
 
       logger.debug(LOG_MODULES.AI, `${this.character.name}: actionPerformed = ${actionPerformed}`)
 
@@ -95,22 +74,7 @@ export default class EnemyAI {
 
     // Невидимый враг — обрабатываем все действия за один кадр
     while (this.character.currentAP > 0) {
-      let actionPerformed = false
-
-      switch (this.state) {
-        case AI_STATE.IDLE:
-          actionPerformed = this.executeIdleBehavior(dt, map, allCharacters)
-          break
-        case AI_STATE.ALERT:
-          actionPerformed = this.executeAlertBehavior(dt, map)
-          break
-        case AI_STATE.COMBAT:
-          actionPerformed = this.executeCombatBehavior(dt, map, allCharacters)
-          break
-        case AI_STATE.FLEE:
-          actionPerformed = this.executeFleeBehavior(dt, map)
-          break
-      }
+      const actionPerformed = this.executeBehavior(dt, map, allCharacters)
 
       if (!actionPerformed) {
         const apToSpend = this.character.currentAP
@@ -120,6 +84,14 @@ export default class EnemyAI {
       }
       // Продолжаем цикл, пока есть AP
     }
+  }
+
+  // Выполнение текущего поведения (IDLE -> блуждание, COMBAT -> атака/движение)
+  executeBehavior(dt, map, allCharacters) {
+    if (this.state === AI_STATE.COMBAT) {
+      return this.executeCombatBehavior(dt, map, allCharacters)
+    }
+    return this.wander(dt, map, allCharacters)
   }
 
   // Обновление восприятия (поиск врагов в поле зрения)
@@ -194,12 +166,6 @@ export default class EnemyAI {
     return bestTarget
   }
 
-  // Поведение в режиме ожидания
-  executeIdleBehavior(dt, map, allCharacters) {
-    // В упрощенной системе только одно поведение - блуждание
-    return this.wander(dt, map, allCharacters)
-  }
-
   // Случайное блуждание
   wander(dt, map, allCharacters) {
     const enemyName = this.character.name || 'Unknown'
@@ -240,8 +206,6 @@ export default class EnemyAI {
         // Логируем успешное движение
         logger.enemyMove(enemyName, this.character.x, this.character.y, newX, newY,
           this.character.moveAPCost, this.character.currentAP)
-        // Устанавливаем небольшой кулдаун для предотвращения бесконечного цикла
-        this.wanderCooldown = 0 // убираем задержку для быстрого движения
         return true
       } else {
         logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: клетка (${newX}, ${newY}) занята`)
@@ -257,30 +221,6 @@ export default class EnemyAI {
 
     logger.trace(LOG_MODULES.MOVEMENT, `${enemyName}: движение не удалось`)
     return false
-  }
-
-  // Патрулирование
-  patrol(dt, map, allCharacters) {
-    if (this.patrolPoints.length === 0) {
-      this.behavior = BEHAVIOR_TYPE.GUARD
-      return false
-    }
-
-    const currentPoint = this.patrolPoints[this.currentPatrolIndex]
-    const distance = this.getDistanceToPoint(currentPoint)
-
-    if (distance < 1) {
-      // Достигли точки, переходим к следующей
-      this.currentPatrolIndex = (this.currentPatrolIndex + 1) % this.patrolPoints.length
-      this.wanderCooldown = 1000 // Пауза на точке
-      return false // Не тратим AP, просто переходим к следующей точке
-    }
-
-    if (this.wanderCooldown > 0) return false
-    if (this.character.currentAP < this.character.moveAPCost) return false
-
-    // Двигаемся к точке (двигаемся до самой точки)
-    return this.moveTowards(currentPoint.x, currentPoint.y, map, allCharacters, 0)
   }
 
   // Боевое поведение
@@ -302,8 +242,6 @@ export default class EnemyAI {
     // Проверяем возможность атаки
     const canAttack = this.tryAttack(this.target)
     if (canAttack) {
-      // В состоянии COMBAT уменьшаем задержку между действиями
-      this.actionCooldown = 0
       return true
     }
 
@@ -319,7 +257,6 @@ export default class EnemyAI {
       if (apToSpend > 0) {
         this.character.spendAP(apToSpend)
         logger.info(LOG_MODULES.COMBAT, `${this.character.name} пропускает ход (рядом с целью, но недостаточно AP для атаки), тратит ${apToSpend} AP`)
-        this.actionCooldown = 0
         return true
       }
     }
@@ -375,13 +312,6 @@ export default class EnemyAI {
     return false
   }
 
-  // Поведение при бегстве
-  executeFleeBehavior() {
-    // Пока не реализовано - всегда возвращаемся в idle
-    this.state = AI_STATE.IDLE
-    return false
-  }
-
   // Движение к точке с возможностью остановки на заданной дистанции
   moveTowards(targetX, targetY, map, allCharacters, stopDistance = 0) {
     if (this.character.currentAP < this.character.moveAPCost) {
@@ -407,7 +337,7 @@ export default class EnemyAI {
     }
 
     // Используем поиск пути
-    const pathfinder = new Pathfinder(map)
+    const pathfinder = map.pathfinder
 
     // Получаем заблокированные клетки для поиска пути
     let blocked = this.getBlockedCells(allCharacters)
@@ -434,8 +364,6 @@ export default class EnemyAI {
         if (canMove) {
           logger.enemyMove(this.character.name, fromX, fromY, path[1].x, path[1].y,
             this.character.moveAPCost, this.character.currentAP)
-          // Задержка устанавливается в update методе
-          this.actionCooldown = 0
           return true
         } else {
           logger.debug(LOG_MODULES.MOVEMENT, `${this.character.name}: Не может двигаться к (${path[1].x}, ${path[1].y}) - клетка занята или нет AP`)
@@ -445,8 +373,6 @@ export default class EnemyAI {
         if (canMove) {
           logger.enemyMove(this.character.name, fromX, fromY, nextStep.x, nextStep.y,
             this.character.moveAPCost, this.character.currentAP)
-          // Задержка устанавливается в update методе
-          this.actionCooldown = 0
           return true
         } else {
           logger.debug(LOG_MODULES.MOVEMENT, `${this.character.name}: Не может двигаться к (${nextStep.x}, ${nextStep.y}) - клетка занята или нет AP`)
@@ -477,8 +403,6 @@ export default class EnemyAI {
           if (canMove) {
             logger.enemyMove(this.character.name, fromX, fromY, newX, newY,
               this.character.moveAPCost, this.character.currentAP)
-            // Задержка устанавливается в update методе
-            this.actionCooldown = 0
             return true
           }
         }
@@ -495,17 +419,6 @@ export default class EnemyAI {
     const dx = target.x - this.character.x
     const dy = target.y - this.character.y
     return Math.sqrt(dx * dx + dy * dy)
-  }
-
-  getDistanceToPoint(point) {
-    const dx = point.x - this.character.x
-    const dy = point.y - this.character.y
-    return Math.sqrt(dx * dx + dy * dy)
-  }
-
-  getAttackRange() {
-    // Получаем дальность атаки из персонажа
-    return this.character.attackRange || 1
   }
 
   getAttackCost() {
@@ -579,7 +492,6 @@ export default class EnemyAI {
     return blocked
   }
 
-
   // Проверка, виден ли враг игроку (по видимости клетки)
   isVisibleToPlayer(map) {
     const tileX = Math.floor(this.character.x)
@@ -592,9 +504,6 @@ export default class EnemyAI {
   reset() {
     this.state = AI_STATE.IDLE
     this.target = null
-    this.lastKnownTargetPos = null
-    this.alertness = 0
-    this.actionCooldown = 0
-    this.wanderCooldown = 0
+    this.frameCounter = 0
   }
 }

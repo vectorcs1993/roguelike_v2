@@ -33,23 +33,4 @@ export default class Tile {
 
   get blocksSight() { return this._blocksSight }
   set blocksSight(value) { this._blocksSight = value }
-
-  draw(ctx, x, y, ts, isVisible, isExplored, fontFamily) {
-    if (!isVisible && !isExplored) return
-
-    // Только символ, без фона
-    if (this.char !== ' ') {
-      // Цвет зависит от видимости
-      let color
-      if (isVisible) {
-        color = '#888888'  // Серый для видимых
-      } else {
-        color = '#444444'  // Тёмно-серый для исследованных
-      }
-
-      ctx.fillStyle = color
-      ctx.font = `${ts}px ${fontFamily}`
-      ctx.fillText(this.char, x + ts / 2, y + ts / 2)
-    }
-  }
 }

@@ -17,22 +17,6 @@ export default class GameObject {
     return Math.floor(this.x) === tileX && Math.floor(this.y) === tileY
   }
 
-  draw(ctx, x, y, ts, isVisible, isActive = false, fontFamily) {
-    if (!isVisible) return
-
-    // Цвета только для символов
-    if (isActive) {
-      ctx.fillStyle = '#ffffff'  // Белый для активного
-    } else if (this.isPlayerControlled) {
-      ctx.fillStyle = '#88ff88'  // Светло-зелёный для союзников
-    } else {
-      ctx.fillStyle = '#ff8888'  // Светло-красный для врагов
-    }
-
-    ctx.font = `${ts}px ${fontFamily}`
-    ctx.fillText(this.char, x + ts / 2, y + ts / 2)
-  }
-
   updateMovement(dt, speed) {
     if (!this.moving) return
     this.progress += speed * dt

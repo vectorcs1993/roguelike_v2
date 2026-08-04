@@ -16,11 +16,8 @@ export default class Renderer {
     this.mouseScreenY = 0
     this.hoverTileX = null
     this.hoverTileY = null
-    this._pathfinder = null
     this._location = null
     this._activeCharacter = null
-    this._pathCache = null
-    this._allCharacters = null
     this._previewPath = null
     this.dpr = window.devicePixelRatio || 1
     this.fontFamily = Renderer.DEFAULT_FONT_FAMILY
@@ -63,44 +60,6 @@ export default class Renderer {
     this._visibleBoundsCache = null
     this._lastCameraX = null
     this._lastCameraY = null
-  }
-
-  drawTooltip(text) {
-    const ctx = this.ctx
-    ctx.save()
-    ctx.font = `14px ${this.fontFamily}`
-    ctx.textAlign = 'left'
-    ctx.textBaseline = 'top'
-
-    const lines = text.split('\n');
-    let maxWidth = 0;
-    for (const line of lines) {
-      const w = ctx.measureText(line).width;
-      if (w > maxWidth) maxWidth = w;
-    }
-
-    const w = maxWidth + 16;
-    const lineHeight = 18;
-    const h = lines.length * lineHeight + 8;
-
-    let x = this.mouseScreenX + 15
-    let y = this.mouseScreenY - h - 5
-    if (x + w > this.canvasW) x = this.mouseScreenX - w - 5
-    if (y < 0) y = this.mouseScreenY + 10
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)'
-    ctx.fillRect(x, y, w, h)
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.includes('💰')) ctx.fillStyle = '#ffff88';
-      else if (line.includes('📦')) ctx.fillStyle = '#88ff88';
-      else if (line.includes('🚶')) ctx.fillStyle = '#aaaaff';
-      else ctx.fillStyle = '#aaaaaa';
-      ctx.fillText(line, x + 6, y + lineHeight * (i + 1) - 4);
-    }
-
-    ctx.restore()
   }
 
   draw(map, characters, items, camera, input) {

@@ -1,11 +1,8 @@
 export default class Camera {
-  constructor(x, y, speed, mapWidth, mapHeight, padding = 6) {
+  constructor(x, y, speed) {
     this.x = x
     this.y = y
     this.speed = speed
-    this.mapWidth = mapWidth
-    this.mapHeight = mapHeight
-    this.padding = padding
     this.viewportWidth = 0
     this.viewportHeight = 0
     this.tileSize = 48
@@ -53,14 +50,5 @@ export default class Camera {
   setPosition(x, y) {
     this.x = x
     this.y = y
-  }
-
-  setMapBounds(width, height) {
-    this.mapWidth = width
-    this.mapHeight = height
-  }
-
-  setPadding(padding) {
-    this.padding = padding
   }
 }
