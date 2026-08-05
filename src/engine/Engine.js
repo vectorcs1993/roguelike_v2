@@ -81,14 +81,11 @@ export default class Engine {
   }
 
   update(dt) {
-    // Обновляем все системы
     for (const system of this.systems) {
       if (system.enabled !== false) {
         system.update(dt)
       }
     }
-
-    // Удаляем мертвые сущности
     this.removeDeadEntities()
   }
 
@@ -106,6 +103,7 @@ export default class Engine {
     return entities.length > 0 ? entities[0] : null
   }
 
+  // Возвращает клетки, занятые живыми существами (игроки, враги)
   getBlockedCells(excludeEntity = null) {
     const blocked = []
     for (const entity of this.entities) {
@@ -113,19 +111,27 @@ export default class Engine {
       if (entity === excludeEntity) continue
       const pos = entity.getComponent(PositionComponent)
       if (pos) {
-        blocked.push({ x: pos.tileX, y: pos.tileY })
+        const health = entity.getComponent(HealthComponent)
+        if (health) { // только существа с HP
+          blocked.push({ x: pos.tileX, y: pos.tileY })
+        }
       }
     }
     return blocked
   }
 
+  // Проверяет, занята ли клетка живым существом
   isTileBlocked(tileX, tileY, excludeEntity = null) {
     for (const entity of this.entities) {
       if (!entity.active) continue
       if (entity === excludeEntity) continue
       const pos = entity.getComponent(PositionComponent)
-      if (pos && pos.occupies(tileX, tileY)) {
-        return true
+      if (!pos) continue
+      if (pos.occupies(tileX, tileY)) {
+        const health = entity.getComponent(HealthComponent)
+        if (health) {
+          return true
+        }
       }
     }
     return false

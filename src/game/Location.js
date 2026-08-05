@@ -43,7 +43,7 @@ export default class Location {
     this.fov = new Fov(this)
     this.pathfinder = new Pathfinder(this)
 
-    this.revealAll()
+    // this.revealAll()
     console.log(`[Location] Создана: ${this.name}, сущностей: ${this.engine.entities.length}`)
   }
 
@@ -171,12 +171,14 @@ export default class Location {
       }
     }
 
-    this.fov.compute(originX | 0, originY | 0, radius, onVisibleCell)
+    this.fov.compute(originX, originY, radius, onVisibleCell)
 
     const all = engine.getEntitiesWithComponents([RenderComponent])
     for (const entity of all) {
       const render = entity.getComponent(RenderComponent)
-      if (render && render.visible) render.explored = true
+      if (render && render.visible) {
+        render.explored = true
+      }
     }
   }
 
@@ -187,11 +189,15 @@ export default class Location {
     return this.pathfinder.find(fromX, fromY, toX, toY, blocked)
   }
 
+
   getBlockedCells(excludeEntity = null) {
     const blocked = []
+
+    // 1) Непроходимые клетки (стены, закрытые двери, ящики)
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         if (!this.isTileWalkable(x, y)) {
+          // Если исключаемая сущность стоит на этой клетке – пропускаем (чтобы не блокировать самого себя)
           if (excludeEntity) {
             const pos = excludeEntity.getComponent(PositionComponent)
             if (pos && pos.tileX === x && pos.tileY === y) continue
@@ -200,6 +206,16 @@ export default class Location {
         }
       }
     }
+
+    // 2) Клетки, занятые другими живыми существами (игроки, враги)
+    const creatureBlocked = this.engine.getBlockedCells(excludeEntity)
+    for (const cell of creatureBlocked) {
+      // Избегаем дублирования
+      if (!blocked.some(b => b.x === cell.x && b.y === cell.y)) {
+        blocked.push(cell)
+      }
+    }
+
     return blocked
   }
 
