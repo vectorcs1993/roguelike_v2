@@ -9,6 +9,7 @@ import HealthComponent from '../components/HealthComponent.js'
 import InventoryComponent from '../components/InventoryComponent.js'
 import RenderComponent from '../components/RenderComponent.js'
 import EntityFactory from '../EntityFactory.js'
+import { GameConfig } from '../../game/GameConfig.js'
 import { logger, LOG_MODULES } from '../../game/Logger.js'
 
 export default class InteractionSystem extends System {
@@ -48,10 +49,60 @@ export default class InteractionSystem extends System {
       }
     }
 
-    // Ящик
+    // Ящик: разбивается, исчезает с уровня, с шансом из конфига выпадает лут
     if (env.type === 'crate') {
-      logger.info(LOG_MODULES.ACTION, `Ящик открыт!`)
-      // Можно добавить loot из ящика
+      const loc = this.engine.currentLocation
+      const tileX = targetPos.tileX
+      const tileY = targetPos.tileY
+
+      this.engine.removeEntity(target)
+
+      // Создаём пол на месте ящика
+      const floorEntity = EntityFactory.createFloor(tileX, tileY)
+      floorEntity.engine = this.engine
+      this.engine.addEntity(floorEntity)
+      if (loc) {
+        loc.grid[tileY][tileX] = { type: 'floor', entity: floorEntity }
+      }
+
+      const floorRender = floorEntity.getComponent(RenderComponent)
+      if (floorRender) {
+        floorRender.visible = true
+        floorRender.explored = true
+      }
+
+      logger.info(LOG_MODULES.ACTION, `Ящик разбит!`)
+
+      // Выпадение лута из конфига
+      const worldConfig = GameConfig.getWorldConfig()
+      const crateLoot = worldConfig.crateLoot || {}
+      const dropChance = crateLoot.dropChance !== undefined ? crateLoot.dropChance : 0.5
+      const items = crateLoot.items && crateLoot.items.length ? crateLoot.items : ['gold']
+      const minCount = crateLoot.minCount !== undefined ? crateLoot.minCount : 0
+      const maxCount = crateLoot.maxCount !== undefined ? crateLoot.maxCount : 999
+
+      if (Math.random() < dropChance) {
+        const type = items[Math.floor(Math.random() * items.length)]
+        const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount
+
+        if (count > 0) {
+          const itemEntity = EntityFactory.createItem(tileX, tileY, type)
+          itemEntity.engine = this.engine
+          this.engine.addEntity(itemEntity)
+          if (loc) {
+            loc.grid[tileY][tileX] = { type: 'item', entity: itemEntity }
+          }
+
+          const itemRender = itemEntity.getComponent(RenderComponent)
+          if (itemRender) {
+            itemRender.visible = true
+            itemRender.explored = true
+          }
+
+          logger.info(LOG_MODULES.ACTION, `Из ящика выпало: ${type} x${count}`)
+        }
+      }
+
       return true
     }
 

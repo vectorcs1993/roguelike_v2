@@ -591,6 +591,16 @@
     "doorChance": 0.5,
     "crateChance": 0.3,
     "doorSpawnChance": 0.5,
+    "crateLoot": {
+      "dropChance": 0.5,
+      "items": [
+        "gold",
+        "health",
+        "potion"
+      ],
+      "minCount": 0,
+      "maxCount": 999
+    },
     "visibility": {
       "items": {
         "visibleByDefault": false,

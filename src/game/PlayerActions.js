@@ -14,6 +14,7 @@ import InventoryComponent from '../engine/components/InventoryComponent.js'
 import EntityFactory from '../engine/EntityFactory.js'
 import { logger, LOG_MODULES } from './Logger.js'
 import { applyItemEffects, isItemUsable } from './ItemEffects.js'
+import { GameConfig } from './GameConfig.js'
 
 export default class PlayerActions {
   constructor(gameLoop) {
@@ -57,6 +58,15 @@ export default class PlayerActions {
 
     if (newX < 0 || newX >= this.location.cols ||
       newY < 0 || newY >= this.location.rows) return false
+
+    // Ящик: игрок разбивает его, наступая на клетку.
+    // Разбитие занимает целый ход — игрок остаётся на месте.
+    const targetCell = this.location.grid[newY]?.[newX]
+    if (targetCell && targetCell.type === 'crate') {
+      this.breakCrate(newX, newY)
+      this.turnManager.endPlayerTurn()
+      return true
+    }
 
     // Попытка взаимодействия с интерактивным объектом на целевой клетке
     if (!this.location.isTileWalkable(newX, newY)) {
@@ -111,6 +121,63 @@ export default class PlayerActions {
     pos.moveTo(newX, newY)
     this.turnManager.endPlayerTurn()
     return true
+  }
+
+  /**
+   * Разбивает ящик на клетке (x, y): удаляет его с уровня,
+   * создаёт пол на его месте и с шансом из конфига выпадает
+   * случайный предмет со случайным количеством (0-999).
+   */
+  breakCrate(x, y) {
+    const cell = this.location.grid[y]?.[x]
+    if (!cell || cell.type !== 'crate') return
+
+    const crateEntity = cell.entity
+    if (crateEntity) {
+      this.engine.removeEntity(crateEntity)
+    }
+
+    // Создаём пол на месте ящика
+    const floorEntity = EntityFactory.createFloor(x, y)
+    floorEntity.engine = this.engine
+    this.engine.addEntity(floorEntity)
+    this.location.grid[y][x] = { type: 'floor', entity: floorEntity }
+
+    const floorRender = floorEntity.getComponent(RenderComponent)
+    if (floorRender) {
+      floorRender.visible = true
+      floorRender.explored = true
+    }
+
+    logger.info(LOG_MODULES.ACTION, `Ящик разбит!`)
+
+    // Выпадение лута из конфига
+    const worldConfig = GameConfig.getWorldConfig()
+    const crateLoot = worldConfig.crateLoot || {}
+    const dropChance = crateLoot.dropChance !== undefined ? crateLoot.dropChance : 0.5
+    const items = crateLoot.items && crateLoot.items.length ? crateLoot.items : ['gold']
+    const minCount = crateLoot.minCount !== undefined ? crateLoot.minCount : 0
+    const maxCount = crateLoot.maxCount !== undefined ? crateLoot.maxCount : 999
+
+    if (Math.random() < dropChance) {
+      const type = items[Math.floor(Math.random() * items.length)]
+      const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount
+
+      if (count > 0) {
+        const itemEntity = EntityFactory.createItem(x, y, type)
+        itemEntity.engine = this.engine
+        this.engine.addEntity(itemEntity)
+        this.location.grid[y][x] = { type: 'item', entity: itemEntity }
+
+        const itemRender = itemEntity.getComponent(RenderComponent)
+        if (itemRender) {
+          itemRender.visible = true
+          itemRender.explored = true
+        }
+
+        logger.info(LOG_MODULES.ACTION, `Из ящика выпало: ${type} x${count}`)
+      }
+    }
   }
 
   /** Подбирает предмет с клетки выбранного персонажа. */
