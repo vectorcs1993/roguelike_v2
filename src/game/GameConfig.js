@@ -1,12 +1,13 @@
 // src/game/GameConfig.js
 
 /**
- * Базовый конфигурационный файл игры
- * Содержит минимальные настройки и структуру данных
- * Основной контент загружается из core.json через ContentLoader
+ * Конфигурационный файл игры
+ * Содержит все данные игры в одном JS объекте
  */
 
 export const GAME_CONFIG = {
+  version: '1.0.0',
+
   // ===== ДАННЫЕ ИГРОКА =====
   player: {
     id: 'player',
@@ -17,18 +18,159 @@ export const GAME_CONFIG = {
     layer: 4,
     hp: 55,
     maxHp: 55,
+    armor: 0,
     damageMin: 3,
     damageMax: 6,
     damageType: 'physical',
     range: 1,
     initiative: 6,
     accuracy: 0.75,
-    fovRadius: 3,
-    speed: 12
+    fovRadius: 12,
+    speed: 12,
+    xpPerLevel: 20,
+    maxLevel: 20,
+    levelBonuses: {
+      hp: 5,
+      damage: 1,
+      accuracy: 0.01
+    }
   },
 
-  // ===== ДАННЫЕ ВРАГОВ (пусто, загружается из core.json) =====
-  enemies: {},
+  // ===== ДАННЫЕ ВРАГОВ =====
+  enemies: {
+    groaner: {
+      id: 'groaner',
+      name: 'Стонущий',
+      char: 'g',
+      color: '#88aa88',
+      bgColor: '#1a2a1a',
+      layer: 3,
+      hp: 12,
+      maxHp: 12,
+      damageMin: 2,
+      damageMax: 4,
+      damageType: 'physical',
+      range: 1,
+      accuracy: 0.6,
+      initiative: 4,
+      speed: 10,
+      aiType: 'aggressive',
+      aggressionRange: 6,
+      fovRadius: 6,
+      xp: 10,
+      description: 'Медленный, но опасный вблизи'
+    },
+    crawler: {
+      id: 'crawler',
+      name: 'Ползун',
+      char: 'c',
+      color: '#cc8844',
+      bgColor: '#2a1a0a',
+      layer: 3,
+      hp: 8,
+      maxHp: 8,
+      damageMin: 1,
+      damageMax: 3,
+      damageType: 'physical',
+      range: 1,
+      accuracy: 0.5,
+      initiative: 3,
+      speed: 8,
+      aiType: 'aggressive',
+      aggressionRange: 4,
+      fovRadius: 4,
+      xp: 8,
+      description: 'Слабый, но быстрый'
+    },
+    runner: {
+      id: 'runner',
+      name: 'Бегун',
+      char: 'r',
+      color: '#ff6644',
+      bgColor: '#2a0a0a',
+      layer: 3,
+      hp: 6,
+      maxHp: 6,
+      damageMin: 1,
+      damageMax: 2,
+      damageType: 'physical',
+      range: 1,
+      accuracy: 0.4,
+      initiative: 8,
+      speed: 16,
+      aiType: 'aggressive',
+      aggressionRange: 10,
+      fovRadius: 8,
+      xp: 6,
+      description: 'Быстрый, но хрупкий'
+    },
+    brute: {
+      id: 'brute',
+      name: 'Громила',
+      char: 'B',
+      color: '#ff4444',
+      bgColor: '#2a0a0a',
+      layer: 3,
+      hp: 25,
+      maxHp: 25,
+      damageMin: 5,
+      damageMax: 9,
+      damageType: 'physical',
+      range: 1,
+      accuracy: 0.65,
+      initiative: 2,
+      speed: 8,
+      aiType: 'aggressive',
+      aggressionRange: 5,
+      fovRadius: 5,
+      xp: 20,
+      description: 'Медленный, но очень сильный'
+    },
+    shadow: {
+      id: 'shadow',
+      name: 'Тень',
+      char: 'S',
+      color: '#8888cc',
+      bgColor: '#0a0a1a',
+      layer: 3,
+      hp: 10,
+      maxHp: 10,
+      damageMin: 3,
+      damageMax: 6,
+      damageType: 'shadow',
+      range: 2,
+      accuracy: 0.7,
+      initiative: 7,
+      speed: 14,
+      aiType: 'aggressive',
+      aggressionRange: 8,
+      fovRadius: 10,
+      xp: 15,
+      description: 'Атакует издалека'
+    },
+    boss: {
+      id: 'boss',
+      name: 'Босс',
+      char: '&',
+      color: '#ff4444',
+      bgColor: '#2a0000',
+      layer: 4,
+      hp: 50,
+      maxHp: 50,
+      damageMin: 8,
+      damageMax: 14,
+      damageType: 'physical',
+      range: 1,
+      accuracy: 0.75,
+      initiative: 4,
+      speed: 10,
+      aiType: 'boss',
+      aggressionRange: 12,
+      fovRadius: 12,
+      xp: 50,
+      description: 'Опасный противник'
+    }
+  },
 
   // ===== ДАННЫЕ ЭЛЕМЕНТОВ ОКРУЖЕНИЯ =====
   environment: {
@@ -43,7 +185,6 @@ export const GAME_CONFIG = {
       isInteractive: false,
       isCollectible: false,
       layer: 0,
-      // Настройки видимости
       visibility: {
         visibleByDefault: false,
         exploredByDefault: false,
@@ -118,16 +259,281 @@ export const GAME_CONFIG = {
         visibleByDefault: false,
         exploredByDefault: false,
         showWhenVisible: true,
-        showWhenExplored: true  // показывать когда исследован
+        showWhenExplored: true
       }
     }
   },
 
-  // ===== ДАННЫЕ ПРЕДМЕТОВ (пусто, загружается из core.json) =====
-  items: {},
+  // ===== ДАННЫЕ ПРЕДМЕТОВ =====
+  items: {
+    gold: {
+      id: 'gold',
+      name: 'Золото',
+      char: '$',
+      color: '#ffdd44',
+      bgColor: '#2a1a00',
+      layer: 2,
+      type: 'currency',
+      category: 'gold',
+      value: 1,
+      weight: 0.01,
+      usable: false,
+      effects: {},
+      description: 'Игровая валюта',
+      visibility: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      }
+    },
+    health: {
+      id: 'health',
+      name: 'Аптечка',
+      char: '♥',
+      color: '#ff4444',
+      bgColor: '#2a0a0a',
+      layer: 2,
+      type: 'consumable',
+      category: 'healing',
+      value: 10,
+      weight: 0.5,
+      usable: true,
+      effects: {
+        heal: 15
+      },
+      description: 'Восстанавливает 15 HP',
+      visibility: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      }
+    },
+    energy: {
+      id: 'energy',
+      name: 'Батарея',
+      char: '♦',
+      color: '#4444ff',
+      bgColor: '#0a0a2a',
+      layer: 2,
+      type: 'consumable',
+      category: 'energy',
+      value: 8,
+      weight: 0.3,
+      usable: true,
+      effects: {
+        restoreEnergy: 10
+      },
+      description: 'Восстанавливает 10 энергии',
+      visibility: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      }
+    },
+    weapon: {
+      id: 'weapon',
+      name: 'Оружие',
+      char: '⚔',
+      color: '#ffaa44',
+      bgColor: '#2a1a0a',
+      layer: 2,
+      type: 'weapon',
+      category: 'melee',
+      value: 15,
+      weight: 2,
+      usable: true,
+      effects: {
+        damageBonus: 3
+      },
+      description: 'Увеличивает урон на 3',
+      visibility: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      }
+    },
+    armor: {
+      id: 'armor',
+      name: 'Броня',
+      char: '♠',
+      color: '#44aaff',
+      bgColor: '#0a1a2a',
+      layer: 2,
+      type: 'armor',
+      category: 'body',
+      value: 12,
+      weight: 3,
+      usable: true,
+      effects: {
+        armorBonus: 2
+      },
+      description: 'Увеличивает броню на 2',
+      visibility: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      }
+    },
+    potion: {
+      id: 'potion',
+      name: 'Зелье',
+      char: '!',
+      color: '#ff66ff',
+      bgColor: '#1a0a1a',
+      layer: 2,
+      type: 'consumable',
+      category: 'healing',
+      value: 8,
+      weight: 0.3,
+      usable: true,
+      effects: {
+        heal: 8
+      },
+      description: 'Восстанавливает 8 HP',
+      visibility: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      }
+    },
+    scroll: {
+      id: 'scroll',
+      name: 'Свиток',
+      char: '?',
+      color: '#dddd88',
+      bgColor: '#1a1a0a',
+      layer: 2,
+      type: 'consumable',
+      category: 'magic',
+      value: 12,
+      weight: 0.1,
+      usable: true,
+      effects: {
+        identify: true
+      },
+      description: 'Идентифицирует предмет',
+      visibility: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      }
+    }
+  },
 
-  // ===== БИОМЫ (пусто, загружается из core.json) =====
-  biomes: {},
+  // ===== БИОМЫ =====
+  biomes: {
+    dungeon: {
+      id: 'dungeon',
+      name: 'Подземелье',
+      generation: {
+        minRoomSize: 4,
+        maxRoomSize: 8,
+        maxRooms: 20,
+        doorChance: 0.5
+      },
+      enemyPool: ['groaner', 'crawler', 'runner', 'brute', 'shadow'],
+      enemyCount: {
+        min: 4,
+        max: 10
+      },
+      itemPool: ['gold', 'health', 'potion', 'weapon', 'armor'],
+      itemWeights: [25, 20, 15, 10, 10],
+      itemCount: {
+        min: 4,
+        max: 10
+      },
+      colors: {
+        floor: '#333333',
+        wall: '#666666',
+        background: '#0a0a0a'
+      }
+    },
+    cave: {
+      id: 'cave',
+      name: 'Пещера',
+      generation: {
+        minRoomSize: 5,
+        maxRoomSize: 12,
+        maxRooms: 12,
+        doorChance: 0.3
+      },
+      enemyPool: ['crawler', 'runner', 'brute'],
+      enemyCount: {
+        min: 6,
+        max: 14
+      },
+      itemPool: ['gold', 'energy', 'potion', 'scroll'],
+      itemWeights: [20, 15, 20, 10],
+      itemCount: {
+        min: 3,
+        max: 8
+      },
+      colors: {
+        floor: '#444433',
+        wall: '#665544',
+        background: '#0a0806'
+      }
+    },
+    ruins: {
+      id: 'ruins',
+      name: 'Руины',
+      generation: {
+        minRoomSize: 3,
+        maxRoomSize: 6,
+        maxRooms: 25,
+        doorChance: 0.6
+      },
+      enemyPool: ['shadow', 'groaner', 'brute', 'boss'],
+      enemyCount: {
+        min: 8,
+        max: 16
+      },
+      itemPool: ['gold', 'health', 'weapon', 'armor', 'scroll'],
+      itemWeights: [15, 20, 15, 15, 10],
+      itemCount: {
+        min: 5,
+        max: 12
+      },
+      colors: {
+        floor: '#443333',
+        wall: '#664444',
+        background: '#0a0606'
+      }
+    },
+    forest: {
+      id: 'forest',
+      name: 'Лес',
+      generation: {
+        minRoomSize: 6,
+        maxRoomSize: 10,
+        maxRooms: 15,
+        doorChance: 0.2
+      },
+      enemyPool: ['runner', 'crawler', 'shadow'],
+      enemyCount: {
+        min: 5,
+        max: 12
+      },
+      itemPool: ['gold', 'potion', 'energy', 'scroll'],
+      itemWeights: [15, 25, 15, 10],
+      itemCount: {
+        min: 3,
+        max: 8
+      },
+      colors: {
+        floor: '#334433',
+        wall: '#445544',
+        background: '#060a06'
+      }
+    }
+  },
 
   // ===== ПАРАМЕТРЫ МИРА =====
   world: {
@@ -140,7 +546,7 @@ export const GAME_CONFIG = {
     roomSpacing: 1,
     doorChance: 0.5,
     crateChance: 0.3,
-    // Настройки видимости по умолчанию
+    doorSpawnChance: 0.5,
     visibility: {
       items: {
         visibleByDefault: false,
@@ -164,7 +570,20 @@ export const GAME_CONFIG = {
   },
 
   // ===== НАСТРОЙКИ БОЯ =====
-  combat: {},
+  combat: {
+    baseAccuracy: 0.7,
+    modifiers: {
+      flanking: 0.1,
+      highGround: 0.15,
+      cover: -0.2,
+      range: {
+        melee: 0,
+        short: -0.1,
+        medium: -0.3,
+        long: -0.5
+      }
+    }
+  },
 
   // ===== КОНФИГУРАЦИЯ ИНТЕРФЕЙСА =====
   ui: {
@@ -172,7 +591,14 @@ export const GAME_CONFIG = {
       level: 2,
       enabledModules: ['enemy', 'combat', 'movement', 'action', 'ai', 'turn', 'pathfinding', 'generation', 'system']
     },
-    camera: {},
+    console: {
+      maxMessages: 500,
+      autoScroll: true
+    },
+    camera: {
+      speed: 15,
+      lerpFactor: 0.15
+    },
     renderer: {
       tileSize: 48,
       minTileSize: 12,
@@ -190,9 +616,12 @@ export const GAME_CONFIG = {
 
   // ===== ДЕБАГ =====
   debug: {
+    enabled: false,
     showFov: false,
     showRays: false,
-    showVisibleCells: false
+    showVisibleCells: false,
+    showPathfinding: false,
+    logActions: true
   }
 }
 
@@ -236,7 +665,10 @@ export const GameConfig = {
       accuracy: player.accuracy,
       initiative: player.initiative,
       speed: player.speed,
-      fovRadius: player.fovRadius
+      fovRadius: player.fovRadius,
+      xpPerLevel: player.xpPerLevel,
+      maxLevel: player.maxLevel,
+      levelBonuses: player.levelBonuses
     }
   },
 
@@ -395,7 +827,6 @@ export const GameConfig = {
   // ===== НАСТРОЙКИ ВИДИМОСТИ =====
 
   getVisibilityConfig(entityType, entityId = null) {
-    // Сначала проверяем специфичную конфигурацию для entity
     if (entityId) {
       const entity = this.getEnemy(entityId) || this.getItem(entityId) || this.getEnvironment(entityId)
       if (entity && entity.visibility) {
@@ -403,7 +834,6 @@ export const GameConfig = {
       }
     }
 
-    // Проверяем настройки мира
     const worldVisibility = GAME_CONFIG.world.visibility || {}
 
     if (entityType === 'item') {
@@ -436,7 +866,6 @@ export const GameConfig = {
       }
     }
 
-    // Настройки по умолчанию
     return {
       visibleByDefault: false,
       exploredByDefault: false,
@@ -496,7 +925,7 @@ export const GameConfig = {
     return this
   },
 
-  // ===== ПЕРЕОПРЕДЕЛЕНИЕ СУЩЕСТВУЮЩИХ ДАННЫХ =====
+  // ===== ПЕРЕОПРЕДЕЛЕНИЕ =====
 
   overridePlayer(data) {
     if (!data) return this
@@ -527,19 +956,6 @@ export const GameConfig = {
       return this.registerItem(id, data)
     }
     GAME_CONFIG.items[id] = { ...GAME_CONFIG.items[id], ...data }
-    return this
-  },
-
-  overrideEnvironment(id, data) {
-    if (!id || !data) {
-      log(0, 'SYSTEM', 'GameConfig.overrideEnvironment: id and data are required')
-      return this
-    }
-    if (!GAME_CONFIG.environment[id]) {
-      log(1, 'SYSTEM', `GameConfig.overrideEnvironment: Environment "${id}" does not exist, registering new`)
-      return this.registerEnvironment(id, data)
-    }
-    log(1, 'SYSTEM', `GameConfig.overrideEnvironment: Environment "${id}" is base, skipping`)
     return this
   },
 
@@ -574,7 +990,7 @@ export const GameConfig = {
     return { ...GAME_CONFIG.environment }
   },
 
-  // ===== МОДИФИКАЦИЯ ПАРАМЕТРОВ МИРА =====
+  // ===== МОДИФИКАЦИЯ ПАРАМЕТРОВ =====
 
   setWorldConfig(config) {
     GAME_CONFIG.world = { ...GAME_CONFIG.world, ...config }
@@ -612,7 +1028,7 @@ export const GameConfig = {
     return this
   },
 
-  // ===== ЗАГРУЗКА ИЗ ВНЕШНЕГО ИСТОЧНИКА =====
+  // ===== ЗАГРУЗКА ИЗ JSON =====
 
   loadFromJSON(jsonData) {
     try {

@@ -68,21 +68,21 @@ export const EFFECT_HANDLERS = {
     return `Восстановлено ${healed} HP (${health.hp}/${health.maxHp})`
   },
 
-  // Восстановление энергии/маны: { "restoreMana": 10 }
-  restoreMana(ctx) {
+  // Восстановление энергии: { "restoreEnergy": 10 }
+  restoreEnergy(ctx) {
     const entity = ctx.entity
     if (!entity) return false
-    // Энергия хранится в произвольном поле сущности (по умолчанию mana).
-    const maxMana = entity.maxMana || 100
-    const current = entity.mana ?? 0
-    if (current >= maxMana) {
+    // Энергия хранится в произвольном поле сущности (по умолчанию energy).
+    const maxEnergy = entity.maxEnergy || 100
+    const current = entity.energy ?? 0
+    if (current >= maxEnergy) {
       logger.info(LOG_MODULES.ACTION, 'Энергия уже полная')
       return false
     }
     const amount = Number(ctx.value) || 0
     if (amount <= 0) return false
-    entity.mana = Math.min(maxMana, current + amount)
-    return `Восстановлено ${amount} энергии (${entity.mana}/${maxMana})`
+    entity.energy = Math.min(maxEnergy, current + amount)
+    return `Восстановлено ${amount} энергии (${entity.energy}/${maxEnergy})`
   },
 
   // Бонус к урону (постоянный): { "damageBonus": 3 }

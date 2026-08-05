@@ -80,7 +80,7 @@ ItemEffects.applyItemEffects() → для каждого эффекта вызы
 | `bgColor` | string | нет | Цвет фона (hex) |
 | `layer` | number | нет | Слой отрисовки |
 | `type` | string | нет | Тип предмета (`consumable`, `weapon`, `armor`, `currency`, `misc`) |
-| `category` | string | нет | Категория (`healing`, `mana`, `buff`, `scroll`, `melee`, `body`, `gold`, `other`) |
+| `category` | string | нет | Категория (`healing`, `energy`, `buff`, `scroll`, `melee`, `body`, `gold`, `other`) |
 | `value` | number | нет | Базовая ценность |
 | `weight` | number | нет | Вес (для генерации) |
 | `usable` | boolean | нет | Можно ли использовать предмет. Если `true` — кнопка «Использовать» активна |
@@ -103,7 +103,7 @@ ItemEffects.applyItemEffects() → для каждого эффекта вызы
 ```json
 "effects": {
   "heal": 15,
-  "restoreMana": 10
+  "restoreEnergy": 10
 }
 ```
 
@@ -132,14 +132,14 @@ ItemEffects.applyItemEffects() → для каждого эффекта вызы
 
 Восстанавливает указанный процент от максимального HP (0.5 = 50%).
 
-### 3.3. `restoreMana` — восстановление энергии
+### 3.3. `restoreEnergy` — восстановление энергии
 
 ```json
-"effects": { "restoreMana": 10 }
+"effects": { "restoreEnergy": 10 }
 ```
 
-Восстанавливает энергию. Энергия хранится в полях `entity.mana` и
-`entity.maxMana` (по умолчанию `maxMana = 100`).
+Восстанавливает энергию. Энергия хранится в полях `entity.energy` и
+`entity.maxEnergy` (по умолчанию `maxEnergy = 100`).
 
 ### 3.4. `damageBonus` — постоянный бонус к урону
 

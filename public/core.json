@@ -524,43 +524,20 @@
     }
   },
   "items": {
-    "health": {
-      "id": "health",
-      "name": "Аптечка",
-      "char": "♥",
-      "color": "#ff4444",
-      "bgColor": "#2a0a0a",
-      "layer": 2,
-      "type": "consumable",
-      "category": "healing",
-      "value": 10,
-      "weight": 0.5,
-      "usable": true,
-      "effects": {
-        "heal": 15
-      },
-      "description": "Восстанавливает 15 HP",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "mana": {
-      "id": "mana",
+    "energy": {
+      "id": "energy",
       "name": "Батарея",
       "char": "♦",
       "color": "#4444ff",
       "bgColor": "#0a0a2a",
       "layer": 2,
       "type": "consumable",
-      "category": "mana",
+      "category": "energy",
       "value": 8,
       "weight": 0.3,
       "usable": true,
       "effects": {
-        "restoreMana": 10
+        "restoreEnergy": 10
       },
       "description": "Восстанавливает 10 энергии",
       "visibility": {
@@ -783,7 +760,7 @@
         "scroll",
         "weapon",
         "armor",
-        "mana"
+        "energy"
       ],
       "itemWeights": [
         30,
@@ -828,7 +805,7 @@
         "weapon",
         "armor",
         "scroll",
-        "mana"
+        "energy"
       ],
       "itemWeights": [
         20,
@@ -867,7 +844,7 @@
       },
       "itemPool": [
         "health",
-        "mana",
+        "energy",
         "gold",
         "scroll",
         "potion"
