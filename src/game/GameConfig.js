@@ -1,8 +1,9 @@
 // src/game/GameConfig.js
 
 /**
- * Единый конфигурационный файл игры
- * Все игровые данные хранятся здесь
+ * Базовый конфигурационный файл игры
+ * Содержит минимальные настройки и структуру данных
+ * Основной контент загружается из core.json через ContentLoader
  */
 
 export const GAME_CONFIG = {
@@ -16,9 +17,9 @@ export const GAME_CONFIG = {
     char: '@',
     color: '#88ff88',
     bgColor: '#1a3a1a',
-    layer: 4, // Самый высокий слой
-    hp: 25,
-    maxHp: 25,
+    layer: 4,
+    hp: 55,
+    maxHp: 55,
     armor: 0,
     damageMin: 3,
     damageMax: 6,
@@ -37,280 +38,10 @@ export const GAME_CONFIG = {
     }
   },
 
-  // ===== ДАННЫЕ ВРАГОВ (унифицированная структура) =====
-  enemies: {
-    groaner: {
-      id: 'groaner',
-      name: 'Стонущий',
-      char: 'g',
-      color: '#88aaaa',
-      bgColor: '#2a3a3a',
-      layer: 3, // Высокий слой
-      hp: 20,
-      maxHp: 20,
-      armor: 0,
-      damageMin: 3,
-      damageMax: 6,
-      damageType: 'blunt',
-      range: 1,
-      initiative: 2,
-      accuracy: 0.60,
-      fovRadius: 8,
-      features: ['deathScream'],
-      xp: 10,
-      loot: { gold: { min: 1, max: 3, chance: 0.3 } }
-    },
-    crawler: {
-      id: 'crawler',
-      name: 'Ползун',
-      char: 'c',
-      color: '#88aa88',
-      bgColor: '#1a2a1a',
-      layer: 3,
-      hp: 15,
-      maxHp: 15,
-      armor: 2,
-      damageMin: 2,
-      damageMax: 4,
-      damageType: 'bite',
-      range: 1,
-      initiative: 4,
-      accuracy: 0.70,
-      fovRadius: 8,
-      features: ['infection'],
-      infectionChance: 0.05,
-      xp: 12,
-      loot: { gold: { min: 1, max: 2, chance: 0.2 } }
-    },
-    mold: {
-      id: 'mold',
-      name: 'Плесневик',
-      char: 'm',
-      color: '#88aa55',
-      bgColor: '#1a2a0a',
-      layer: 3,
-      hp: 25,
-      maxHp: 25,
-      armor: 1,
-      damageMin: 4,
-      damageMax: 8,
-      damageType: 'spore',
-      range: 1,
-      initiative: 3,
-      accuracy: 0.65,
-      fovRadius: 8,
-      features: ['infection'],
-      infectionChance: 0.05,
-      xp: 15,
-      loot: { gold: { min: 2, max: 4, chance: 0.4 } }
-    },
-    clawer: {
-      id: 'clawer',
-      name: 'Когтистый',
-      char: 'C',
-      color: '#cc8866',
-      bgColor: '#3a2a1a',
-      layer: 3,
-      hp: 30,
-      maxHp: 30,
-      armor: 2,
-      damageMin: 6,
-      damageMax: 12,
-      damageType: 'slash',
-      range: 1,
-      initiative: 6,
-      accuracy: 0.75,
-      fovRadius: 8,
-      features: ['doubleAttack'],
-      doubleAttackPenalty: 0.20,
-      xp: 20,
-      loot: { gold: { min: 2, max: 5, chance: 0.5 } }
-    },
-    slime: {
-      id: 'slime',
-      name: 'Слизень',
-      char: 's',
-      color: '#66cc66',
-      bgColor: '#1a3a1a',
-      layer: 3,
-      hp: 40,
-      maxHp: 40,
-      armor: 5,
-      damageMin: 5,
-      damageMax: 7,
-      damageType: 'acid',
-      range: 1,
-      initiative: 1,
-      accuracy: 0.80,
-      fovRadius: 8,
-      features: ['corrodeArmor'],
-      armorReduction: 1,
-      xp: 25,
-      loot: { gold: { min: 3, max: 6, chance: 0.3 } }
-    },
-    runner: {
-      id: 'runner',
-      name: 'Бегунок',
-      char: 'r',
-      color: '#aa8866',
-      bgColor: '#2a1a0a',
-      layer: 3,
-      hp: 18,
-      maxHp: 18,
-      armor: 0,
-      damageMin: 4,
-      damageMax: 6,
-      damageType: 'bite',
-      range: 1,
-      initiative: 8,
-      accuracy: 0.60,
-      fovRadius: 10,
-      features: ['fast'],
-      xp: 15,
-      loot: { gold: { min: 1, max: 3, chance: 0.2 } }
-    },
-    fatso: {
-      id: 'fatso',
-      name: 'Толстяк',
-      char: 'F',
-      color: '#aa8844',
-      bgColor: '#3a2a0a',
-      layer: 3,
-      hp: 60,
-      maxHp: 60,
-      armor: 3,
-      damageMin: 8,
-      damageMax: 14,
-      damageType: 'blunt',
-      range: 1,
-      initiative: 2,
-      accuracy: 0.70,
-      fovRadius: 8,
-      features: ['explodeOnDeath'],
-      explosionDamageMin: 10,
-      explosionDamageMax: 15,
-      explosionRadius: 2,
-      explosionInfection: 0.20,
-      xp: 30,
-      loot: { gold: { min: 5, max: 10, chance: 0.6 } }
-    },
-    howler: {
-      id: 'howler',
-      name: 'Воющий',
-      char: 'h',
-      color: '#aa88aa',
-      bgColor: '#2a1a2a',
-      layer: 3,
-      hp: 22,
-      maxHp: 22,
-      armor: 1,
-      damageMin: 0,
-      damageMax: 0,
-      damageType: 'none',
-      range: 1,
-      initiative: 5,
-      accuracy: 1.00,
-      fovRadius: 8,
-      features: ['buffAllies'],
-      initiativeBonus: 2,
-      xp: 15,
-      loot: { gold: { min: 2, max: 4, chance: 0.3 } }
-    },
-    sticker: {
-      id: 'sticker',
-      name: 'Прилипала',
-      char: 'S',
-      color: '#88ccaa',
-      bgColor: '#1a2a2a',
-      layer: 3,
-      hp: 12,
-      maxHp: 12,
-      armor: 4,
-      damageMin: 2,
-      damageMax: 4,
-      damageType: 'immobilize',
-      range: 1,
-      initiative: 4,
-      accuracy: 0.90,
-      fovRadius: 8,
-      features: ['immobilize'],
-      immobilizeDuration: 1,
-      xp: 12,
-      loot: { gold: { min: 1, max: 2, chance: 0.2 } }
-    },
-    mushroom: {
-      id: 'mushroom',
-      name: 'Грибник',
-      char: 'M',
-      color: '#aa77aa',
-      bgColor: '#2a1a2a',
-      layer: 3,
-      hp: 35,
-      maxHp: 35,
-      armor: 2,
-      damageMin: 6,
-      damageMax: 10,
-      damageType: 'spore',
-      range: 1,
-      initiative: 3,
-      accuracy: 0.70,
-      fovRadius: 8,
-      features: ['leaveSpores'],
-      sporeRadius: 3,
-      sporeInfection: 0.10,
-      xp: 20,
-      loot: { gold: { min: 2, max: 5, chance: 0.4 } }
-    },
-    nonhuman: {
-      id: 'nonhuman',
-      name: 'Нелюдь',
-      char: 'N',
-      color: '#ccaa88',
-      bgColor: '#3a2a1a',
-      layer: 3,
-      hp: 45,
-      maxHp: 45,
-      armor: 3,
-      damageMin: 8,
-      damageMax: 14,
-      damageType: 'weapon',
-      range: 1,
-      initiative: 5,
-      accuracy: 0.65,
-      fovRadius: 10,
-      features: ['dropsWeapon', 'canFollowOrders'],
-      xp: 25,
-      loot: {
-        gold: { min: 3, max: 7, chance: 0.5 },
-        weapon: { chance: 0.2 }
-      }
-    },
-    ratKing: {
-      id: 'ratKing',
-      name: 'Крысиный король',
-      char: 'R',
-      color: '#cc8866',
-      bgColor: '#3a1a0a',
-      layer: 3,
-      hp: 30,
-      maxHp: 30,
-      armor: 1,
-      damageMin: 2,
-      damageMax: 6,
-      damageType: 'bite',
-      range: 1,
-      initiative: 7,
-      accuracy: 0.80,
-      fovRadius: 8,
-      features: ['summonRats'],
-      summonCountMin: 1,
-      summonCountMax: 3,
-      xp: 30,
-      loot: { gold: { min: 5, max: 10, chance: 0.7 } }
-    }
-  },
+  // ===== ДАННЫЕ ВРАГОВ (пусто, загружается из core.json) =====
+  enemies: {},
 
-  // ===== ДАННЫЕ ЭЛЕМЕНТОВ ОКРУЖЕНИЯ (унифицированная структура) =====
+  // ===== ДАННЫЕ ЭЛЕМЕНТОВ ОКРУЖЕНИЯ (БАЗОВЫЕ, НЕ ПЕРЕЗАПИСЫВАЮТСЯ) =====
   environment: {
     floor: {
       id: 'floor',
@@ -322,7 +53,7 @@ export const GAME_CONFIG = {
       blocksSight: false,
       isInteractive: false,
       isCollectible: false,
-      layer: 0 // Самый нижний слой
+      layer: 0
     },
     wall: {
       id: 'wall',
@@ -334,7 +65,7 @@ export const GAME_CONFIG = {
       blocksSight: true,
       isInteractive: false,
       isCollectible: false,
-      layer: 1 // Низкий слой
+      layer: 1
     },
     door: {
       id: 'door',
@@ -378,176 +109,11 @@ export const GAME_CONFIG = {
     }
   },
 
-  // ===== ДАННЫЕ ПРЕДМЕТОВ =====
-  items: {
-    health: {
-      id: 'health',
-      name: 'Аптечка',
-      char: '♥',
-      color: '#ff4444',
-      bgColor: '#2a0a0a',
-      layer: 2, // Средний слой
-      type: 'consumable',
-      category: 'healing',
-      value: 10,
-      weight: 0.5,
-      effects: { heal: 15 },
-      description: 'Восстанавливает 15 HP'
-    },
-    mana: {
-      id: 'mana',
-      name: 'Батарея',
-      char: '♦',
-      color: '#4444ff',
-      bgColor: '#0a0a2a',
-      layer: 2,
-      type: 'consumable',
-      category: 'mana',
-      value: 8,
-      weight: 0.3,
-      effects: { restoreMana: 10 },
-      description: 'Восстанавливает 10 энергии'
-    },
-    weapon: {
-      id: 'weapon',
-      name: 'Оружие',
-      char: '⚔',
-      color: '#ffaa44',
-      bgColor: '#2a1a0a',
-      layer: 2,
-      type: 'weapon',
-      category: 'melee',
-      value: 15,
-      weight: 2,
-      effects: { damageBonus: 3 },
-      description: 'Увеличивает урон на 3'
-    },
-    armor: {
-      id: 'armor',
-      name: 'Броня',
-      char: '♠',
-      color: '#44aaff',
-      bgColor: '#0a1a2a',
-      layer: 2,
-      type: 'armor',
-      category: 'body',
-      value: 12,
-      weight: 3,
-      effects: { armorBonus: 2 },
-      description: 'Увеличивает броню на 2'
-    },
-    gold: {
-      id: 'gold',
-      name: 'Золото',
-      char: '$',
-      color: '#ffdd44',
-      bgColor: '#2a1a00',
-      layer: 2,
-      type: 'currency',
-      category: 'gold',
-      value: 1,
-      weight: 0.01,
-      effects: {},
-      description: 'Игровая валюта'
-    },
-    potion: {
-      id: 'potion',
-      name: 'Зелье',
-      char: '!',
-      color: '#ff66ff',
-      bgColor: '#2a0a2a',
-      layer: 2,
-      type: 'consumable',
-      category: 'buff',
-      value: 6,
-      weight: 0.3,
-      effects: { buff: 'strength', duration: 3 },
-      description: 'Увеличивает силу на 3 хода'
-    },
-    scroll: {
-      id: 'scroll',
-      name: 'Свиток',
-      char: '?',
-      color: '#88ff88',
-      bgColor: '#0a2a0a',
-      layer: 2,
-      type: 'consumable',
-      category: 'scroll',
-      value: 20,
-      weight: 0.1,
-      effects: { teleport: true },
-      description: 'Телепортирует в случайное место'
-    },
-    generic: {
-      id: 'generic',
-      name: 'Предмет',
-      char: '•',
-      color: '#ffffff',
-      bgColor: '#1a1a1a',
-      layer: 2,
-      type: 'misc',
-      category: 'other',
-      value: 1,
-      weight: 0.5,
-      effects: {},
-      description: 'Обычный предмет'
-    }
-  },
+  // ===== ДАННЫЕ ПРЕДМЕТОВ (пусто, загружается из core.json) =====
+  items: {},
 
-  // ===== БИОМЫ =====
-  biomes: {
-    residential: {
-      id: 'residential',
-      name: 'Жилой этаж',
-      description: 'Заброшенные жилые помещения',
-      generation: {
-        maxRooms: 22,
-        minRoomSize: 4,
-        maxRoomSize: 7,
-        doorChance: 0.6,
-        roomSpacing: 1
-      },
-      enemyPool: ['groaner', 'crawler', 'runner', 'mold', 'sticker'],
-      enemyCount: { min: 8, max: 12 },
-      itemPool: ['health', 'gold', 'potion', 'scroll', 'weapon', 'armor', 'mana'],
-      itemWeights: [30, 20, 15, 10, 10, 10, 5],
-      itemCount: { min: 5, max: 10 }
-    },
-    factory: {
-      id: 'factory',
-      name: 'Фабрика',
-      description: 'Заброшенное промышленное здание',
-      generation: {
-        maxRooms: 12,
-        minRoomSize: 6,
-        maxRoomSize: 10,
-        doorChance: 0.4,
-        roomSpacing: 2
-      },
-      enemyPool: ['groaner', 'clawer', 'slime', 'mold', 'fatso', 'nonhuman'],
-      enemyCount: { min: 10, max: 16 },
-      itemPool: ['health', 'gold', 'weapon', 'armor', 'scroll', 'mana'],
-      itemWeights: [20, 25, 15, 15, 10, 15],
-      itemCount: { min: 4, max: 8 }
-    },
-    technical: {
-      id: 'technical',
-      name: 'Технический этаж',
-      description: 'Лабиринт технических помещений',
-      generation: {
-        maxRooms: 15,
-        minRoomSize: 3,
-        maxRoomSize: 6,
-        doorChance: 0.7,
-        roomSpacing: 1
-      },
-      enemyPool: ['runner', 'sticker', 'mushroom', 'howler', 'ratKing'],
-      enemyCount: { min: 6, max: 10 },
-      itemPool: ['health', 'mana', 'gold', 'scroll', 'potion'],
-      itemWeights: [25, 20, 20, 15, 20],
-      itemCount: { min: 6, max: 12 }
-    }
-  },
+  // ===== БИОМЫ (пусто, загружается из core.json) =====
+  biomes: {},
 
   // ===== ПАРАМЕТРЫ МИРА =====
   world: {
@@ -597,6 +163,14 @@ export const GAME_CONFIG = {
       tileSize: 48,
       minTileSize: 12,
       fontFamily: 'Lucida Console, monospace'
+    },
+    colors: {
+      background: '#0a0a0a',
+      player: '#88ff88',
+      enemy: '#ff4444',
+      healthBar: '#44ff44',
+      healthBarLow: '#ffaa44',
+      healthBarCritical: '#ff4444'
     }
   },
 
@@ -611,9 +185,27 @@ export const GAME_CONFIG = {
   }
 }
 
-// ===== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ =====
+// ===== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ЛОГГИРОВАНИЯ =====
+let _logger = null
+
+export function setLoggerInstance(loggerInstance) {
+  _logger = loggerInstance
+}
+
+function log(level, module, ...args) {
+  if (_logger) {
+    _logger.log(level, module, ...args)
+  } else {
+    const levelNames = ['ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE']
+    console.log(`[${levelNames[level] || 'LOG'}] [${module}]`, ...args)
+  }
+}
+
+// ===== ОСНОВНОЙ ОБЪЕКТ С МЕТОДАМИ =====
 
 export const GameConfig = {
+  // ===== ПОЛУЧЕНИЕ ДАННЫХ =====
+
   getPlayer() {
     return { ...GAME_CONFIG.player }
   },
@@ -738,9 +330,6 @@ export const GameConfig = {
       }
       return env.color || '#ffffff'
     }
-    if (GAME_CONFIG.colors?.ui?.[type]) {
-      return GAME_CONFIG.colors.ui[type]
-    }
     return '#ffffff'
   },
 
@@ -789,6 +378,321 @@ export const GameConfig = {
 
   getDebugConfig() {
     return { ...GAME_CONFIG.debug }
+  },
+
+  getUIColors() {
+    return { ...GAME_CONFIG.ui.colors }
+  },
+
+  // ===== ДИНАМИЧЕСКАЯ РЕГИСТРАЦИЯ КОНТЕНТА =====
+
+  registerEnemy(id, data) {
+    if (!id || !data) {
+      log(0, 'SYSTEM', 'GameConfig.registerEnemy: id and data are required')
+      return this
+    }
+    if (GAME_CONFIG.enemies[id]) {
+      log(1, 'SYSTEM', `GameConfig.registerEnemy: Enemy "${id}" already exists, overriding`)
+    }
+    GAME_CONFIG.enemies[id] = { ...data, id }
+    return this
+  },
+
+  registerItem(id, data) {
+    if (!id || !data) {
+      log(0, 'SYSTEM', 'GameConfig.registerItem: id and data are required')
+      return this
+    }
+    if (GAME_CONFIG.items[id]) {
+      log(1, 'SYSTEM', `GameConfig.registerItem: Item "${id}" already exists, overriding`)
+    }
+    GAME_CONFIG.items[id] = { ...data, id }
+    return this
+  },
+
+  registerEnvironment(id, data) {
+    if (!id || !data) {
+      log(0, 'SYSTEM', 'GameConfig.registerEnvironment: id and data are required')
+      return this
+    }
+    // Не перезаписываем базовое окружение
+    if (GAME_CONFIG.environment[id]) {
+      log(1, 'SYSTEM', `GameConfig.registerEnvironment: Environment "${id}" already exists, skipping`)
+      return this
+    }
+    GAME_CONFIG.environment[id] = { ...data, id }
+    return this
+  },
+
+  registerBiome(id, data) {
+    if (!id || !data) {
+      log(0, 'SYSTEM', 'GameConfig.registerBiome: id and data are required')
+      return this
+    }
+    if (GAME_CONFIG.biomes[id]) {
+      log(1, 'SYSTEM', `GameConfig.registerBiome: Biome "${id}" already exists, overriding`)
+    }
+    GAME_CONFIG.biomes[id] = { ...data, id }
+    return this
+  },
+
+  // ===== ПЕРЕОПРЕДЕЛЕНИЕ СУЩЕСТВУЮЩИХ ДАННЫХ =====
+
+  overridePlayer(data) {
+    if (!data) return this
+    GAME_CONFIG.player = { ...GAME_CONFIG.player, ...data }
+    return this
+  },
+
+  overrideEnemy(id, data) {
+    if (!id || !data) {
+      log(0, 'SYSTEM', 'GameConfig.overrideEnemy: id and data are required')
+      return this
+    }
+    if (!GAME_CONFIG.enemies[id]) {
+      log(1, 'SYSTEM', `GameConfig.overrideEnemy: Enemy "${id}" does not exist, registering new`)
+      return this.registerEnemy(id, data)
+    }
+    GAME_CONFIG.enemies[id] = { ...GAME_CONFIG.enemies[id], ...data }
+    return this
+  },
+
+  overrideItem(id, data) {
+    if (!id || !data) {
+      log(0, 'SYSTEM', 'GameConfig.overrideItem: id and data are required')
+      return this
+    }
+    if (!GAME_CONFIG.items[id]) {
+      log(1, 'SYSTEM', `GameConfig.overrideItem: Item "${id}" does not exist, registering new`)
+      return this.registerItem(id, data)
+    }
+    GAME_CONFIG.items[id] = { ...GAME_CONFIG.items[id], ...data }
+    return this
+  },
+
+  overrideEnvironment(id, data) {
+    if (!id || !data) {
+      log(0, 'SYSTEM', 'GameConfig.overrideEnvironment: id and data are required')
+      return this
+    }
+    if (!GAME_CONFIG.environment[id]) {
+      log(1, 'SYSTEM', `GameConfig.overrideEnvironment: Environment "${id}" does not exist, registering new`)
+      return this.registerEnvironment(id, data)
+    }
+    // Не перезаписываем базовое окружение
+    log(1, 'SYSTEM', `GameConfig.overrideEnvironment: Environment "${id}" is base, skipping`)
+    return this
+  },
+
+  overrideBiome(id, data) {
+    if (!id || !data) {
+      log(0, 'SYSTEM', 'GameConfig.overrideBiome: id and data are required')
+      return this
+    }
+    if (!GAME_CONFIG.biomes[id]) {
+      log(1, 'SYSTEM', `GameConfig.overrideBiome: Biome "${id}" does not exist, registering new`)
+      return this.registerBiome(id, data)
+    }
+    GAME_CONFIG.biomes[id] = { ...GAME_CONFIG.biomes[id], ...data }
+    return this
+  },
+
+  // ===== ПОЛУЧЕНИЕ ВСЕХ ДАННЫХ =====
+
+  getAllEnemies() {
+    return { ...GAME_CONFIG.enemies }
+  },
+
+  getAllItems() {
+    return { ...GAME_CONFIG.items }
+  },
+
+  getAllBiomes() {
+    return { ...GAME_CONFIG.biomes }
+  },
+
+  getAllEnvironment() {
+    return { ...GAME_CONFIG.environment }
+  },
+
+  // ===== МОДИФИКАЦИЯ ПАРАМЕТРОВ МИРА =====
+
+  setWorldConfig(config) {
+    GAME_CONFIG.world = { ...GAME_CONFIG.world, ...config }
+    return this
+  },
+
+  setCombatConfig(config) {
+    GAME_CONFIG.combat = { ...GAME_CONFIG.combat, ...config }
+    return this
+  },
+
+  setUIConfig(config) {
+    GAME_CONFIG.ui = { ...GAME_CONFIG.ui, ...config }
+    return this
+  },
+
+  setUIColors(colors) {
+    if (!GAME_CONFIG.ui.colors) {
+      GAME_CONFIG.ui.colors = {}
+    }
+    GAME_CONFIG.ui.colors = { ...GAME_CONFIG.ui.colors, ...colors }
+    return this
+  },
+
+  setDebugConfig(config) {
+    GAME_CONFIG.debug = { ...GAME_CONFIG.debug, ...config }
+    return this
+  },
+
+  // ===== ЗАГРУЗКА ИЗ ВНЕШНЕГО ИСТОЧНИКА =====
+
+  loadFromJSON(jsonData) {
+    try {
+      const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData
+
+      if (data.enemies) {
+        for (const [id, enemy] of Object.entries(data.enemies)) {
+          this.registerEnemy(id, enemy)
+        }
+      }
+
+      if (data.items) {
+        for (const [id, item] of Object.entries(data.items)) {
+          this.registerItem(id, item)
+        }
+      }
+
+      if (data.environment) {
+        for (const [id, env] of Object.entries(data.environment)) {
+          this.registerEnvironment(id, env)
+        }
+      }
+
+      if (data.biomes) {
+        for (const [id, biome] of Object.entries(data.biomes)) {
+          this.registerBiome(id, biome)
+        }
+      }
+
+      if (data.player) {
+        this.overridePlayer(data.player)
+      }
+
+      if (data.world) {
+        this.setWorldConfig(data.world)
+      }
+
+      if (data.combat) {
+        this.setCombatConfig(data.combat)
+      }
+
+      if (data.ui) {
+        this.setUIConfig(data.ui)
+      }
+
+      if (data.colors) {
+        this.setUIColors(data.colors)
+      }
+
+      if (data.debug) {
+        this.setDebugConfig(data.debug)
+      }
+
+      log(2, 'SYSTEM', `GameConfig: Loaded ${Object.keys(data).length} sections from JSON`)
+      return true
+    } catch (error) {
+      log(0, 'SYSTEM', `GameConfig.loadFromJSON error: ${error.message}`)
+      return false
+    }
+  },
+
+  async loadFromURL(url) {
+    try {
+      log(2, 'SYSTEM', `GameConfig: Loading from URL: ${url}`)
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      const data = await response.json()
+      return this.loadFromJSON(data)
+    } catch (error) {
+      log(0, 'SYSTEM', `GameConfig.loadFromURL error: ${error.message}`)
+      return false
+    }
+  },
+
+  // ===== ВАЛИДАЦИЯ =====
+
+  validate() {
+    const errors = []
+    const warnings = []
+
+    // Проверка врагов
+    for (const [id, data] of Object.entries(GAME_CONFIG.enemies)) {
+      if (!data.char) errors.push(`Enemy "${id}" missing char`)
+      if (!data.hp && data.hp !== 0) errors.push(`Enemy "${id}" missing hp`)
+      if (!data.damageMin && data.damageMin !== 0) errors.push(`Enemy "${id}" missing damageMin`)
+      if (!data.damageMax && data.damageMax !== 0) errors.push(`Enemy "${id}" missing damageMax`)
+      if (!data.name) warnings.push(`Enemy "${id}" missing name`)
+      if (data.damageMin > data.damageMax) {
+        errors.push(`Enemy "${id}" damageMin (${data.damageMin}) > damageMax (${data.damageMax})`)
+      }
+    }
+
+    // Проверка предметов
+    for (const [id, data] of Object.entries(GAME_CONFIG.items)) {
+      if (!data.char) errors.push(`Item "${id}" missing char`)
+      if (!data.name) warnings.push(`Item "${id}" missing name`)
+      if (!data.type) warnings.push(`Item "${id}" missing type`)
+    }
+
+    // Проверка биомов
+    for (const [id, data] of Object.entries(GAME_CONFIG.biomes)) {
+      if (!data.name) warnings.push(`Biome "${id}" missing name`)
+
+      if (data.enemyPool) {
+        for (const enemyId of data.enemyPool) {
+          if (!GAME_CONFIG.enemies[enemyId]) {
+            errors.push(`Biome "${id}" references unknown enemy "${enemyId}"`)
+          }
+        }
+      }
+
+      if (data.itemPool) {
+        for (const itemId of data.itemPool) {
+          if (!GAME_CONFIG.items[itemId]) {
+            errors.push(`Biome "${id}" references unknown item "${itemId}"`)
+          }
+        }
+      }
+
+      if (data.itemWeights && data.itemPool) {
+        if (data.itemWeights.length !== data.itemPool.length) {
+          errors.push(`Biome "${id}" itemWeights length (${data.itemWeights.length}) != itemPool length (${data.itemPool.length})`)
+        }
+      }
+    }
+
+    // Проверка окружения
+    for (const [id, data] of Object.entries(GAME_CONFIG.environment)) {
+      if (!data.char) errors.push(`Environment "${id}" missing char`)
+      if (data.solid === undefined) warnings.push(`Environment "${id}" missing solid property`)
+      if (data.blocksSight === undefined) warnings.push(`Environment "${id}" missing blocksSight property`)
+    }
+
+    return { errors, warnings }
+  },
+
+  // ===== СБРОС =====
+
+  reset() {
+    log(1, 'SYSTEM', 'GameConfig.reset: This will reset all custom content!')
+    GAME_CONFIG.enemies = {}
+    GAME_CONFIG.items = {}
+    GAME_CONFIG.biomes = {}
+    // Не сбрасываем environment
+    return this
   }
 }
 

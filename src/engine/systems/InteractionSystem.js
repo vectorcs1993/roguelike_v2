@@ -9,6 +9,7 @@ import HealthComponent from '../components/HealthComponent.js'
 import InventoryComponent from '../components/InventoryComponent.js'
 import RenderComponent from '../components/RenderComponent.js'
 import EntityFactory from '../EntityFactory.js'
+import { logger, LOG_MODULES } from '../../game/Logger.js'
 
 export default class InteractionSystem extends System {
   constructor() {
@@ -35,17 +36,21 @@ export default class InteractionSystem extends System {
     if (door) {
       const success = door.toggle()
       if (success) {
-        console.log(`Дверь ${door.isOpen ? 'открыта' : 'закрыта'}`)
+        logger.info(LOG_MODULES.ACTION, `Дверь ${door.isOpen ? 'открыта' : 'закрыта'}`)
         return true
       } else {
-        console.log(`Не удалось открыть дверь (заперта?)`)
+        if (door.isLocked) {
+          logger.warn(LOG_MODULES.ACTION, `Дверь заперта!`)
+        } else {
+          logger.warn(LOG_MODULES.ACTION, `Не удалось открыть дверь`)
+        }
         return false
       }
     }
 
     // Ящик
     if (env.type === 'crate') {
-      console.log('Ящик открыт!')
+      logger.info(LOG_MODULES.ACTION, `Ящик открыт!`)
       // Можно добавить loot из ящика
       return true
     }
@@ -67,10 +72,13 @@ export default class InteractionSystem extends System {
       }
 
       const inv = actor.getComponent(InventoryComponent)
-      if (!inv) return false
+      if (!inv) {
+        logger.warn(LOG_MODULES.ACTION, `У актора нет инвентаря`)
+        return false
+      }
 
       if (!inv.addItem(itemData)) {
-        console.log('Не удалось добавить предмет в инвентарь')
+        logger.warn(LOG_MODULES.ACTION, `Не удалось добавить предмет в инвентарь`)
         return false
       }
 
@@ -102,6 +110,7 @@ export default class InteractionSystem extends System {
         }
       }
 
+      logger.info(LOG_MODULES.ACTION, `Подобран предмет: ${env.name}`)
       return true
     }
 

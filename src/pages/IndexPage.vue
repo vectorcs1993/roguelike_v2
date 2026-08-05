@@ -12,8 +12,15 @@
               <q-icon name="fmd_good" class="q-mr-sm" />
               <div class="text-h6">Локация: {{ locationName }}</div>
               <q-space />
-              <q-btn label="Обновить" icon="refresh" @click="regenerateLevel" dark />
-              <q-btn label="Открыть карту" icon="map" @click="revealFullMap" dark />
+              <q-btn-group>
+                <q-btn label="Обновить" icon="refresh" @click="regenerateLevel" dark />
+                <q-btn label="Открыть карту" icon="map" @click="revealFullMap" dark />
+              </q-btn-group>
+              <q-btn-group class="q-ml-sm">
+                <q-btn label="Загрузить контент" icon="file_upload" @click="loadContent" dark />
+                <q-btn label="Валидация" icon="check_circle" @click="validateContent" dark />
+                <q-btn label="Статистика" icon="info" @click="showEntityStats" dark />
+              </q-btn-group>
             </div>
           </q-card-section>
           <q-card-section class="q-pa-none bg-dark" style="flex: 1; display: flex;">
@@ -59,7 +66,12 @@
                   </q-chip>
                 </q-item-section>
                 <q-item-section>
-                  <q-item-label>{{ ent.name }}</q-item-label>
+                  <q-item-label>
+                    {{ ent.name }}
+                    <q-badge :color="ent.isPlayer ? 'blue' : ent.isEnemy ? 'red' : 'grey'" flat>
+                      {{ ent.isPlayer ? 'Игрок' : ent.isEnemy ? 'Враг' : ent.isEnvironment ? 'Окр.' : 'Предм.' }}
+                    </q-badge>
+                  </q-item-label>
                   <q-item-label>❤️ {{ ent.hp }}/{{ ent.maxHp }}</q-item-label>
                 </q-item-section>
                 <div class="row q-gutter-sm">
@@ -131,14 +143,33 @@
         </q-card>
       </div>
     </div>
+
+    <!-- Диалог загрузки контента -->
+    <q-dialog v-model="contentDialog" persistent>
+      <q-card style="min-width: 500px;">
+        <q-card-section>
+          <div class="text-h6">Загрузка контента</div>
+        </q-card-section>
+        <q-card-section>
+          <q-input v-model="contentUrl" label="URL или путь к JSON" placeholder="https://example.com/content.json или /content/mod.json" filled />
+          <q-select v-model="contentType" :options="contentTypeOptions" label="Тип загрузки" filled class="q-mt-sm" />
+          <q-file v-model="contentFile" label="Или выберите JSON файл" accept=".json" filled class="q-mt-sm" />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Отмена" v-close-popup />
+          <q-btn label="Загрузить" color="primary" @click="doLoadContent" :loading="contentLoading" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { useQuasar } from 'quasar'
 import GameLoop from 'src/game/GameLoop.js'
+import { ContentLoader, GameConfig, logger, LOG_LEVEL } from 'src/game/index.js'
 import config from 'src/game/config.json'
-import { logger, LOG_LEVEL } from 'src/game/Logger.js'
 
 import PositionComponent from 'src/engine/components/PositionComponent.js'
 import RenderComponent from 'src/engine/components/RenderComponent.js'
@@ -146,6 +177,9 @@ import HealthComponent from 'src/engine/components/HealthComponent.js'
 import PlayerComponent from 'src/engine/components/PlayerComponent.js'
 import AIComponent from 'src/engine/components/AIComponent.js'
 import InventoryComponent from 'src/engine/components/InventoryComponent.js'
+import EnvironmentComponent from 'src/engine/components/EnvironmentComponent'
+
+const $q = useQuasar()
 
 const canvasRef = ref(null)
 const consoleScrollAreaRef = ref(null)
@@ -159,6 +193,18 @@ const entitiesList = ref([])
 const inventoryItems = ref([])
 const locationName = ref('')
 const selectedEntityId = ref(null)
+
+// Диалог загрузки контента
+const contentDialog = ref(false)
+const contentUrl = ref('')
+const contentType = ref('json')
+const contentFile = ref(null)
+const contentLoading = ref(false)
+const contentTypeOptions = [
+  { label: 'JSON (URL)', value: 'json' },
+  { label: 'JSON (Файл)', value: 'file' },
+  { label: 'Мод (URL)', value: 'mod' }
+]
 
 const totalItems = computed(() => {
   if (!game?.selectedEntity) return 0
@@ -240,31 +286,77 @@ function updateEntitiesList() {
     const health = entity.getComponent(HealthComponent)
     const player = entity.getComponent(PlayerComponent)
     const ai = entity.getComponent(AIComponent)
+    const env = entity.getComponent(EnvironmentComponent)
 
     if (!render || !health) continue
 
     let teamColor = '#666666'
     let teamName = 'Нейтральный'
+    let displayName
 
+    // Определяем имя
     if (player) {
       teamColor = '#44aaff'
       teamName = 'Игрок'
+      displayName = 'Игрок'
     } else if (ai) {
       teamColor = '#ff4444'
       teamName = 'Враг'
+      // Берем имя из enemyData или из конфига
+      if (entity.enemyData?.name) {
+        displayName = entity.enemyData.name
+      } else if (entity.enemyType) {
+        const enemyData = GameConfig.getEnemy(entity.enemyType)
+        displayName = enemyData?.name || entity.tag || 'Враг'
+      } else {
+        displayName = entity.tag || 'Враг'
+      }
+    } else if (env) {
+      // Для окружения (пол, стена, дверь, ящик)
+      teamColor = '#888888'
+      teamName = 'Окружение'
+      displayName = env.name || entity.tag || 'Объект'
+    } else {
+      // Для предметов
+      if (entity.itemData?.name) {
+        displayName = entity.itemData.name
+      } else if (entity.itemType) {
+        const itemData = GameConfig.getItem(entity.itemType)
+        displayName = itemData?.name || entity.tag || 'Предмет'
+      } else {
+        displayName = entity.tag || 'Сущность'
+      }
+    }
+
+    // Для игрока используем имя из конфига
+    if (player) {
+      const playerConfig = GameConfig.getPlayer()
+      displayName = playerConfig.name || 'Игрок'
     }
 
     list.push({
       id: entity.id,
-      name: entity.tag || 'Сущность',
+      name: displayName,
       char: render.char,
       teamColor: teamColor,
       teamName: teamName,
       hp: health.hp,
       maxHp: health.maxHp,
-      isPlayer: !!player
+      isPlayer: !!player,
+      isEnemy: !!ai,
+      isEnvironment: !!env,
+      isItem: entity.tag === 'item'
     })
   }
+
+  // Сортируем: сначала игрок, потом враги, потом остальные
+  list.sort((a, b) => {
+    if (a.isPlayer) return -1
+    if (b.isPlayer) return 1
+    if (a.isEnemy && !b.isEnemy) return -1
+    if (!a.isEnemy && b.isEnemy) return 1
+    return 0
+  })
 
   entitiesList.value = list
 
@@ -314,8 +406,23 @@ function dropAllItems() {
   else addConsoleMessage('Не удалось выбросить предметы', 'warning')
 }
 
-function initGame() {
+async function initGame() {
   if (!canvasRef.value) return
+
+  // Загружаем Core контент перед инициализацией игры
+  addConsoleMessage('Загрузка Core контента...', 'info')
+  const coreLoaded = await ContentLoader.loadCore()
+
+  if (coreLoaded) {
+    addConsoleMessage('Core контент загружен успешно!', 'success')
+    const enemies = Object.keys(GameConfig.getAllEnemies()).length
+    const items = Object.keys(GameConfig.getAllItems()).length
+    const biomes = Object.keys(GameConfig.getAllBiomes()).length
+    addConsoleMessage(`Статистика: ${enemies} врагов, ${items} предметов, ${biomes} биомов`, 'info')
+  } else {
+    addConsoleMessage('Core контент не загружен, используется встроенный', 'warning')
+  }
+
   const canvas = canvasRef.value
   const rect = canvas.getBoundingClientRect()
   const dpr = window.devicePixelRatio || 1
@@ -328,7 +435,7 @@ function initGame() {
     game = new GameLoop(canvas, config)
     game.initRenderer(rect.width, rect.height, dpr)
     game.start()
-    addConsoleMessage('Игра запущена (ECS)', 'success')
+    addConsoleMessage('Игра запущена', 'success')
     updateEntitiesList()
 
     if (updateInterval) clearInterval(updateInterval)
@@ -336,6 +443,11 @@ function initGame() {
 
     document.addEventListener('keydown', onGlobalKeyDown)
     document.addEventListener('keyup', onGlobalKeyUp)
+
+    // Сохраняем в window для отладки
+    window.gameInstance = game
+    window.ContentLoader = ContentLoader
+    window.GameConfig = GameConfig
 
   } catch (e) {
     addConsoleMessage(`Ошибка: ${e.message}`, 'error')
@@ -363,6 +475,120 @@ function revealFullMap() {
 }
 
 function centerOnCharacter(entityId) { game?.centerOnCharacter(entityId) }
+
+function showEntityStats() {
+  const stats = {
+    enemies: Object.keys(GameConfig.getAllEnemies()).length,
+    items: Object.keys(GameConfig.getAllItems()).length,
+    biomes: Object.keys(GameConfig.getAllBiomes()).length,
+    environment: Object.keys(GameConfig.getAllEnvironment()).length,
+    mods: ContentLoader.getLoadedMods().length,
+    coreLoaded: ContentLoader.isCoreLoaded()
+  }
+
+  $q.dialog({
+    title: 'Статистика контента',
+    message: `
+      <div style="font-family: monospace; line-height: 1.8;">
+        <div>Врагов: <strong>${stats.enemies}</strong></div>
+        <div>Предметов: <strong>${stats.items}</strong></div>
+        <div>Биомов: <strong>${stats.biomes}</strong></div>
+        <div>Окружение: <strong>${stats.environment}</strong></div>
+        <div>Загружено модов: <strong>${stats.mods}</strong></div>
+        <div>Core загружен: <strong>${stats.coreLoaded ? '✅' : '❌'}</strong></div>
+      </div>
+    `,
+    html: true
+  })
+}
+
+// ===== ЗАГРУЗКА КОНТЕНТА =====
+
+function loadContent() {
+  contentDialog.value = true
+  contentUrl.value = ''
+  contentFile.value = null
+  contentType.value = 'json'
+}
+
+async function doLoadContent() {
+  contentLoading.value = true
+
+  try {
+    let success = false
+    const type = contentType.value
+
+    if (type === 'json' && contentUrl.value) {
+      addConsoleMessage(`Загрузка контента из URL: ${contentUrl.value}`, 'info')
+      success = await ContentLoader.loadFromURL(contentUrl.value)
+    } else if (type === 'file' && contentFile.value) {
+      addConsoleMessage(`Загрузка контента из файла: ${contentFile.value.name}`, 'info')
+      const text = await contentFile.value.text()
+      const data = JSON.parse(text)
+      success = ContentLoader.loadFromJSON(data)
+    } else if (type === 'mod' && contentUrl.value) {
+      addConsoleMessage(`Загрузка мода из: ${contentUrl.value}`, 'info')
+      success = await ContentLoader.loadFromModule(contentUrl.value)
+    } else {
+      addConsoleMessage('Пожалуйста, укажите источник контента', 'warning')
+      contentLoading.value = false
+      return
+    }
+
+    if (success) {
+      addConsoleMessage('Контент успешно загружен!', 'success')
+
+      // Проверяем валидацию
+      const validation = GameConfig.validate()
+      if (validation.errors.length > 0) {
+        addConsoleMessage(`Ошибки валидации: ${validation.errors.length}`, 'warning')
+        for (const err of validation.errors) {
+          addConsoleMessage(`  - ${err}`, 'error')
+        }
+      }
+
+      // Перезагружаем локацию с обновленным контентом
+      if (game) {
+        const biomeIds = GameConfig.getBiomeIds()
+        const biome = biomeIds[Math.floor(Math.random() * biomeIds.length)]
+        game.reloadWithBiome(biome)
+        addConsoleMessage(`Локация перезагружена с биомом: ${biome}`, 'info')
+      }
+
+      contentDialog.value = false
+    } else {
+      addConsoleMessage('Не удалось загрузить контент', 'error')
+    }
+  } catch (error) {
+    addConsoleMessage(`Ошибка загрузки: ${error.message}`, 'error')
+    console.error(error)
+  }
+
+  contentLoading.value = false
+}
+
+function validateContent() {
+  const result = GameConfig.validate()
+
+  if (result.errors.length === 0 && result.warnings.length === 0) {
+    addConsoleMessage('✅ Конфиг валиден! Ошибок и предупреждений нет.', 'success')
+    return
+  }
+
+  if (result.errors.length > 0) {
+    addConsoleMessage(`❌ Найдено ${result.errors.length} ошибок:`, 'error')
+    for (const err of result.errors) {
+      addConsoleMessage(`  - ${err}`, 'error')
+    }
+  }
+
+  if (result.warnings.length > 0) {
+    addConsoleMessage(`⚠️ Найдено ${result.warnings.length} предупреждений:`, 'warning')
+    for (const warn of result.warnings) {
+      addConsoleMessage(`  - ${warn}`, 'warning')
+    }
+  }
+}
 
 function onCanvasClick(event) { game?.onClick?.(event) }
 function onMouseMove(event) { game?.onMouseMove?.(event) }

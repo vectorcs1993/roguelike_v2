@@ -77,6 +77,11 @@ export default class GameLoop {
 
     this.initializeFovForAllAllies()
     this.updateEnemyList()
+
+    // Сохраняем референс на GameLoop для доступа из Location
+    if (this.currentLocation) {
+      this.currentLocation._gameLoop = this
+    }
   }
 
   get selectedEntity() {
@@ -752,6 +757,46 @@ export default class GameLoop {
     this.isProcessingEnemyTurn = false
     this.updateEnemyList()
   }
+
+  // ===== МЕТОДЫ ДЛЯ РАБОТЫ С КОНТЕНТОМ =====
+
+  /**
+   * Перезагрузка локации с новым биомом
+   */
+  reloadWithBiome(biomeType) {
+    this.currentLocation = Location.generateProcedural(this.config, biomeType)
+    this.currentLocation.setGameLoop(this)
+    this.currentLocation.engine.currentLocation = this.currentLocation
+
+    const engine = this.currentLocation.engine
+    const playerEntities = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
+
+    const mainPlayer = playerEntities[0]
+    if (mainPlayer) {
+      const pos = mainPlayer.getComponent(PositionComponent)
+      this.camera.setPosition(pos.x, pos.y)
+      this.camera.follow(mainPlayer)
+    }
+
+    if (this.renderer && this.camera) {
+      const uiConfig = GameConfig?.ui || {}
+      const rendererConfig = uiConfig.renderer || {}
+      this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, rendererConfig.tileSize || this.renderer.tileSize)
+    }
+
+    this.aiSystem.engine = this.currentLocation.engine
+    this.interactionSystem.engine = this.currentLocation.engine
+
+    this.initializeFovForAllAllies()
+    this.isPlayerTurn = true
+    this.enemyTurnIndex = 0
+    this.isProcessingEnemyTurn = false
+    this.updateEnemyList()
+
+    logger.info(LOG_MODULES.SYSTEM, `Локация перезагружена с биомом: ${biomeType || 'случайный'}`)
+  }
+
+  // ===== ОБРАБОТЧИКИ СОБЫТИЙ =====
 
   onTouchStart(e) { this.input.handleTouchStart(e) }
   onTouchMove(e) { this.input.handleTouchMove(e) }

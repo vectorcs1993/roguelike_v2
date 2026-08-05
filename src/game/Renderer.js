@@ -38,10 +38,37 @@ export default class Renderer {
     this._lastTileSize = null
     this._visibleBoundsCache = null
 
+    // Цвета из конфига
+    this.colors = GameConfig.getUIColors() || {
+      background: '#0a0a0a',
+      player: '#88ff88',
+      enemy: '#ff4444',
+      healthBar: '#44ff44',
+      healthBarLow: '#ffaa44',
+      healthBarCritical: '#ff4444'
+    }
+
     const debugConfig = GameConfig?.debug || {}
     this.debugFov = debugConfig.showFov || false
     this.debugShowRays = debugConfig.showRays || false
     this.debugShowVisibleCells = debugConfig.showVisibleCells || false
+  }
+
+  setColors(colors) {
+    this.colors = { ...this.colors, ...colors }
+  }
+
+  setConfig(config) {
+    if (config.tileSize) {
+      this.tileSize = Math.max(
+        Renderer.MIN_TILE_SIZE,
+        Math.min(config.tileSize, Math.floor(Math.min(this.canvasW, this.canvasH) / 15))
+      )
+    }
+    if (config.fontFamily) {
+      this.fontFamily = config.fontFamily
+    }
+    this._visibleBoundsCache = null
   }
 
   resize(canvasW, canvasH, dpr = this.dpr) {
@@ -63,8 +90,11 @@ export default class Renderer {
     this.ctx.imageSmoothingEnabled = false
     this.ctx.textRendering = 'geometricPrecision'
 
+    const uiConfig = GameConfig?.ui || {}
+    const rendererConfig = uiConfig.renderer || {}
+    const minTileSize = rendererConfig.minTileSize || Renderer.MIN_TILE_SIZE
     this.tileSize = Math.max(
-      Renderer.MIN_TILE_SIZE,
+      minTileSize,
       Math.min(this.tileSize || Renderer.DEFAULT_TILE_SIZE, Math.floor(Math.min(canvasW, canvasH) / 15))
     )
 
@@ -97,8 +127,7 @@ export default class Renderer {
 
     const { startX, startY, endX, endY } = this._visibleBoundsCache
 
-    const uiColors = GameConfig?.colors?.ui || { background: '#0a0a0a' }
-    ctx.fillStyle = uiColors.background || '#000000'
+    ctx.fillStyle = this.colors.background || '#0a0a0a'
     ctx.fillRect(0, 0, this.canvasW, this.canvasH)
 
     ctx.font = `${ts}px ${this.fontFamily}`
@@ -162,37 +191,66 @@ export default class Renderer {
         }
       }
 
-      if (entity === this._activeEntity) {
-        color = isPlayer ? (uiColors.player || '#88ff88') : '#ff8844'
-      } else if (isPlayer) {
-        color = uiColors.player || '#5272b6'
-      } else if (isEnemy && isVisible) {
-        color = uiColors.enemy || '#d83232'
-      }
-
+      // Рисуем фон
       if (bgColor) {
         ctx.fillStyle = bgColor
         ctx.fillRect(drawX, drawY, ts, ts)
       }
 
-      ctx.fillStyle = color
-      ctx.fillText(render.char, drawX + ts / 2, drawY + ts / 2)
+      // Определяем что рисовать: символ или цифру здоровья
+      let displayChar = render.char
+      let displayColor = color
 
-      if (isEnemy && health && health.isAlive && isVisible) {
-        const hpWidth = ts * 0.8
-        const hpHeight = 4
-        const hpX = drawX + (ts - hpWidth) / 2
-        const hpY = drawY - 6
-
-        ctx.fillStyle = '#333333'
-        ctx.fillRect(hpX, hpY, hpWidth, hpHeight)
-
+      // Проверяем здоровье для игрока и врагов
+      if (health && health.isAlive && (isPlayer || (isEnemy && isVisible))) {
         const hpPercent = health.hp / health.maxHp
-        const hpColor = hpPercent > 0.6 ? (uiColors.healthBar || '#44ff44') :
-          hpPercent > 0.3 ? (uiColors.healthBarLow || '#ffaa44') : (uiColors.healthBarCritical || '#ff4444')
-        ctx.fillStyle = hpColor
-        ctx.fillRect(hpX, hpY, hpWidth * hpPercent, hpHeight)
+
+        if (hpPercent < 0.5) {
+          // Если здоровье меньше 50% - показываем цифру
+          // 0-9% -> 0, 10-19% -> 1, 20-29% -> 2, 30-39% -> 3, 40-49% -> 4
+          const digit = Math.floor(hpPercent * 10)
+          displayChar = String(Math.min(digit, 4))
+
+          // Цвет цифры в зависимости от здоровья
+          if (hpPercent < 0.1) {
+            displayColor = '#ff0000' // красный - критично
+          } else if (hpPercent < 0.2) {
+            displayColor = '#ff4400' // оранжево-красный
+          } else if (hpPercent < 0.3) {
+            displayColor = '#ff8800' // оранжевый
+          } else if (hpPercent < 0.4) {
+            displayColor = '#ffcc00' // желто-оранжевый
+          } else {
+            displayColor = '#ffdd44' // желтый
+          }
+        } else {
+          // Здоровье >= 50% - показываем обычный символ
+          if (isPlayer) {
+            // Игрок - зеленый оттенок в зависимости от здоровья
+            if (hpPercent > 0.8) {
+              displayColor = this.colors.player || '#88ff88'
+            } else if (hpPercent > 0.6) {
+              displayColor = '#66dd66'
+            } else {
+              displayColor = '#44bb44'
+            }
+          } else if (isEnemy && hpPercent > 0.8) {
+            // Враги с высоким здоровьем - зеленоватый оттенок
+            displayColor = this.colors.enemy || '#44ff44'
+          } else if (isEnemy) {
+            displayColor = this.colors.enemy || '#d83232'
+          }
+        }
       }
+
+      // Если активная сущность - подсвечиваем
+      if (entity === this._activeEntity) {
+        displayColor = isPlayer ? (this.colors.player || '#88ff88') : '#ff8844'
+      }
+
+      // Рисуем символ
+      ctx.fillStyle = displayColor
+      ctx.fillText(displayChar, drawX + ts / 2, drawY + ts / 2)
     }
 
     if (this.hoverTileX !== null && this.hoverTileX >= 0 && this.hoverTileX < map.cols &&

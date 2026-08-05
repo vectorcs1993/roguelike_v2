@@ -1,7 +1,5 @@
 // src/game/Logger.js
 
-import { GameConfig } from './GameConfig.js'
-
 export const LOG_LEVEL = {
   ERROR: 0,
   WARN: 1,
@@ -22,12 +20,11 @@ export const LOG_MODULES = {
   SYSTEM: 'system'
 }
 
-const loggerConfig = GameConfig?.ui?.logger || {}
 const defaultModules = Object.values(LOG_MODULES)
 
 const DEFAULT_CONFIG = {
-  level: loggerConfig.level !== undefined ? loggerConfig.level : LOG_LEVEL.INFO,
-  enabledModules: new Set(loggerConfig.enabledModules || defaultModules),
+  level: 2, // LOG_LEVEL.INFO
+  enabledModules: new Set(defaultModules),
   showTimestamp: false,
   showModule: true,
   showLevel: true,
@@ -158,12 +155,23 @@ class Logger {
   }
 }
 
-let globalConfig = DEFAULT_CONFIG
+// Создаем экземпляр логгера без зависимости от GameConfig
+export const logger = new Logger()
 
-if (typeof window !== 'undefined' && window.LOGGER_CONFIG) {
-  globalConfig = { ...DEFAULT_CONFIG, ...window.LOGGER_CONFIG }
+// Функция для обновления конфига логгера из GameConfig (вызывается после загрузки)
+export function configureLoggerFromConfig(gameConfig) {
+  if (!gameConfig) return
+
+  const uiConfig = gameConfig.ui || {}
+  const loggerConfig = uiConfig.logger || {}
+
+  if (loggerConfig.level !== undefined) {
+    logger.setLevel(loggerConfig.level)
+  }
+
+  if (loggerConfig.enabledModules) {
+    logger.setModules(loggerConfig.enabledModules)
+  }
 }
-
-export const logger = new Logger(globalConfig)
 
 export default Logger

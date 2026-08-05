@@ -110,7 +110,7 @@ export default class Location {
     for (const d of doors) {
       const { x, y, locked } = d
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
-        const doorEntity = EntityFactory.createDoor(x, y, locked)
+        const doorEntity = EntityFactory.createDoor(x, y, locked || false)
         doorEntity.engine = this.engine
         this.engine.addEntity(doorEntity)
         this.grid[y][x] = { type: 'door', entity: doorEntity }
@@ -278,12 +278,12 @@ export default class Location {
     const generator = new BiomeGenerator({
       width: worldConfig.width,
       height: worldConfig.height,
-      minRoomSize: genConfig.minRoomSize,
-      maxRoomSize: genConfig.maxRoomSize,
-      maxRooms: genConfig.maxRooms,
-      roomSpacing: genConfig.roomSpacing || 1,
-      doorChance: genConfig.doorChance || 0.5,
-      padding: worldConfig.padding
+      minRoomSize: genConfig.minRoomSize || worldConfig.minRoomSize,
+      maxRoomSize: genConfig.maxRoomSize || worldConfig.maxRoomSize,
+      maxRooms: genConfig.maxRooms || worldConfig.maxRooms,
+      roomSpacing: genConfig.roomSpacing || worldConfig.roomSpacing || 1,
+      doorChance: genConfig.doorChance || worldConfig.doorChance || 0.5,
+      padding: worldConfig.padding || 2
     })
 
     const { walls, width, height, rooms, doors: doorData } = generator.generate()
@@ -305,7 +305,9 @@ export default class Location {
 
     const isFree = (x, y) => !wallSet.has(`${x},${y}`)
 
-    const crateCount = Math.min(15, roomCells.length)
+    // Используем crateChance из конфига
+    const crateChance = worldConfig.crateChance || 0.3
+    const crateCount = Math.min(Math.floor(roomCells.length * crateChance), roomCells.length)
     const crates = roomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
     const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`))
 
