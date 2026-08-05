@@ -137,8 +137,4 @@ export default class InputManager {
   isAttackPressed() { return this._attackPressed }
   isInteractPressed() { return this._interactPressed }
   isSwitchPressed() { return this._switchPressed }
-
-  isCameraMovingNow() {
-    return false
-  }
 }

@@ -24,10 +24,6 @@ export default class Camera {
     this.tileSize = tileSize
   }
 
-  followEntity(entity) {
-    this.followEntity = entity
-  }
-
   follow(entity) {
     this.followEntity = entity
   }
