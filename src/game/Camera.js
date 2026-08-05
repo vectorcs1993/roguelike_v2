@@ -13,7 +13,6 @@ export default class Camera {
     this.tileSize = 48
 
     this.followEntity = null
-    // Безопасное получение настройки
     const uiConfig = GameConfig?.ui || {}
     const cameraConfig = uiConfig.camera || {}
     this.lerpFactor = cameraConfig.lerpFactor || 0.15

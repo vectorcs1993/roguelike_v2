@@ -27,7 +27,6 @@ export default class GameLoop {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
-    // Безопасное получение настроек
     const uiConfig = GameConfig?.ui || {}
     const cameraConfig = uiConfig.camera || {}
     const cameraSpeed = cameraConfig.speed || config.cameraSpeed || 15
@@ -171,11 +170,12 @@ export default class GameLoop {
 
     if (allies.length === 0) return
 
+    const playerConfig = GameConfig.getPlayerConfig()
     let first = true
     for (const ally of allies) {
       const pos = ally.getComponent(PositionComponent)
       const playerComp = ally.getComponent(PlayerComponent)
-      const radius = playerComp?.fovRadius || GameConfig.player.fovRadius || 12
+      const radius = playerComp?.fovRadius || playerConfig.fovRadius || 12
       this.currentLocation.computeFov(pos.tileX, pos.tileY, radius, first)
       first = false
     }
@@ -662,8 +662,9 @@ export default class GameLoop {
     this.renderer.dpr = dpr || window.devicePixelRatio || 1
     this.renderer.resize(canvasWidth, canvasHeight, this.renderer.dpr)
     if (this.camera) {
-      const uiConfig = GameConfig.getUIConfig()
-      this.camera.setViewportSize(canvasWidth, canvasHeight, uiConfig.renderer.tileSize || this.renderer.tileSize)
+      const uiConfig = GameConfig?.ui || {}
+      const rendererConfig = uiConfig.renderer || {}
+      this.camera.setViewportSize(canvasWidth, canvasHeight, rendererConfig.tileSize || this.renderer.tileSize)
     }
   }
 
@@ -672,8 +673,9 @@ export default class GameLoop {
       this.renderer.dpr = dpr || window.devicePixelRatio || 1
       this.renderer.resize(canvasWidth, canvasHeight, this.renderer.dpr)
       if (this.camera) {
-        const uiConfig = GameConfig.getUIConfig()
-        this.camera.setViewportSize(canvasWidth, canvasHeight, uiConfig.renderer.tileSize || this.renderer.tileSize)
+        const uiConfig = GameConfig?.ui || {}
+        const rendererConfig = uiConfig.renderer || {}
+        this.camera.setViewportSize(canvasWidth, canvasHeight, rendererConfig.tileSize || this.renderer.tileSize)
       }
     }
   }
@@ -708,8 +710,9 @@ export default class GameLoop {
     }
 
     if (this.renderer && this.camera) {
-      const uiConfig = GameConfig.getUIConfig()
-      this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, uiConfig.renderer.tileSize || this.renderer.tileSize)
+      const uiConfig = GameConfig?.ui || {}
+      const rendererConfig = uiConfig.renderer || {}
+      this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, rendererConfig.tileSize || this.renderer.tileSize)
     }
 
     this.aiSystem.engine = this.currentLocation.engine

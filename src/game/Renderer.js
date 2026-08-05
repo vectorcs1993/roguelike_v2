@@ -8,7 +8,6 @@ import AIComponent from '../engine/components/AIComponent.js'
 import { GameConfig } from './GameConfig.js'
 
 export default class Renderer {
-  // Используем значения по умолчанию, а не из GameConfig при статической инициализации
   static DEFAULT_TILE_SIZE = 48
   static MIN_TILE_SIZE = 12
   static DEFAULT_FONT_FAMILY = 'Lucida Console, monospace'
@@ -17,7 +16,6 @@ export default class Renderer {
     this.ctx = ctx
     this.config = config
 
-    // Получаем настройки из GameConfig или используем значения по умолчанию
     const uiConfig = GameConfig?.ui || {}
     const rendererConfig = uiConfig.renderer || {}
 
@@ -40,7 +38,6 @@ export default class Renderer {
     this._lastTileSize = null
     this._visibleBoundsCache = null
 
-    // Отладка FOV
     const debugConfig = GameConfig?.debug || {}
     this.debugFov = debugConfig.showFov || false
     this.debugShowRays = debugConfig.showRays || false
@@ -189,7 +186,6 @@ export default class Renderer {
       }
     }
 
-    // Курсор мыши
     if (this.hoverTileX !== null && this.hoverTileX >= 0 && this.hoverTileX < map.cols &&
       this.hoverTileY !== null && this.hoverTileY >= 0 && this.hoverTileY < map.rows) {
       const x = this.hoverTileX * ts + ox

@@ -24,8 +24,9 @@ export default class Location {
     this.biomeName = biomeName || 'Неизвестная локация'
     this.name = this.biomeName
 
-    this.cols = config.cols || GameConfig.getWorldConfig().width
-    this.rows = config.rows || GameConfig.getWorldConfig().height
+    const worldConfig = GameConfig.getWorldConfig()
+    this.cols = config.cols || worldConfig.width
+    this.rows = config.rows || worldConfig.height
     this.grid = Array.from({ length: this.rows }, () =>
       Array.from({ length: this.cols }, () => null)
     )
@@ -273,7 +274,6 @@ export default class Location {
     const player = EntityFactory.createPlayer(playerStart.x, playerStart.y)
     entities.push(player)
 
-    // Создаем врагов из пула биома
     const enemyPool = biome ? biome.enemyPool : ['groaner', 'crawler', 'runner']
     const enemyCount = biome ?
       Math.floor(Math.random() * (biome.enemyCount.max - biome.enemyCount.min + 1)) + biome.enemyCount.min :
@@ -310,7 +310,6 @@ export default class Location {
       location.grid[y][x] = { type: 'crate', entity: crateEntity }
     }
 
-    // Создаем предметы из пула биома
     const itemPool = biome ? biome.itemPool : ['health', 'gold', 'potion']
     const itemWeights = biome ? biome.itemWeights : [30, 20, 15]
     const itemCount = biome ?

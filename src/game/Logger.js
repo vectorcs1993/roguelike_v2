@@ -22,7 +22,6 @@ export const LOG_MODULES = {
   SYSTEM: 'system'
 }
 
-// Конфигурация из GameConfig с безопасным доступом
 const loggerConfig = GameConfig?.ui?.logger || {}
 const defaultModules = Object.values(LOG_MODULES)
 
@@ -159,7 +158,6 @@ class Logger {
   }
 }
 
-// Глобальный экземпляр логгера
 let globalConfig = DEFAULT_CONFIG
 
 if (typeof window !== 'undefined' && window.LOGGER_CONFIG) {

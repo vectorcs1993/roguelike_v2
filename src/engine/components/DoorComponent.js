@@ -4,7 +4,7 @@ import Component from './Component.js'
 import EnvironmentComponent from './EnvironmentComponent.js'
 import PositionComponent from './PositionComponent.js'
 import RenderComponent from './RenderComponent.js'
-import { GAME_DATA } from '../../game/GameData.js'
+import { GameConfig } from '../../game/GameConfig.js'
 
 export default class DoorComponent extends Component {
   constructor(config = {}) {
@@ -12,11 +12,11 @@ export default class DoorComponent extends Component {
     this.isOpen = config.isOpen || false
     this.isLocked = config.isLocked || false
 
-    // Настройки отображения теперь берутся из GAME_DATA
-    this.closedChar = config.closedChar || GAME_DATA.symbols.door.closed
-    this.openChar = config.openChar || GAME_DATA.symbols.door.open
-    this.closedColor = config.closedColor || GAME_DATA.colors.door.closed
-    this.openColor = config.openColor || GAME_DATA.colors.door.open
+    // Настройки отображения теперь берутся из GameConfig
+    this.closedChar = config.closedChar || GameConfig.getSymbol('door', 'closed')
+    this.openChar = config.openChar || GameConfig.getSymbol('door', 'open')
+    this.closedColor = config.closedColor || GameConfig.getColor('door', 'closed')
+    this.openColor = config.openColor || GameConfig.getColor('door', 'open')
   }
 
   open() {

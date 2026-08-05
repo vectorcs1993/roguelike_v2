@@ -10,6 +10,3 @@ export { default as Pathfinder } from './Pathfinder.js'
 export { default as BiomeGenerator } from './BiomeGenerator.js'
 export { GAME_CONFIG, GameConfig, GAME_DATA } from './GameConfig.js'
 export { logger, LOG_LEVEL, LOG_MODULES } from './Logger.js'
-
-// Для обратной совместимости
-export { default as GameData } from './GameData.js'

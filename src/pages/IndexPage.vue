@@ -25,13 +25,13 @@
           <div class="absolute-bottom full-width q-pa-sm">
             <q-card-section flat bordered class="row bg-grey-9 justify-center">
               <div class="row q-gutter-sm">
-                <q-btn label="⬆" dense @click="move(0, -1)" />
-                <q-btn label="⬇" dense @click="move(0, 1)" />
-                <q-btn label="⬅" dense @click="move(-1, 0)" />
-                <q-btn label="➡" dense @click="move(1, 0)" />
-                <q-btn label="⚔️ Атака" icon="swords" dense @click="attack" />
-                <q-btn label="E" icon="hand" dense @click="interact" />
-                <q-btn label="G" icon="inbox" dense @click="pickup" />
+                <q-btn label="⬆" @click="move(0, -1)" />
+                <q-btn label="⬇" @click="move(0, 1)" />
+                <q-btn label="⬅" @click="move(-1, 0)" />
+                <q-btn label="➡" @click="move(1, 0)" />
+                <q-btn label="Атака" @click="attack" />
+                <q-btn label="Взаимодействие" @click="interact" />
+                <q-btn label="Поднять" @click="pickup" />
               </div>
             </q-card-section>
           </div>
