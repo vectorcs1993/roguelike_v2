@@ -6,6 +6,7 @@
 import HealthComponent from '../engine/components/HealthComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
+import MovementComponent from '../engine/components/MovementComponent.js'
 import { logger, LOG_MODULES } from './Logger.js'
 
 export default class TurnManager {
@@ -98,10 +99,18 @@ export default class TurnManager {
       return
     }
 
-    const actionDone = this.aiSystem.performTurn(enemy, this.location)
+    // Враг выполняет количество действий за ход, равное его скорости (speed).
+    const movement = enemy.getComponent(MovementComponent)
+    const speed = Math.max(1, movement?.speed || 1)
 
-    if (actionDone) {
-      logger.debug(LOG_MODULES.AI, `${this.gameLoop.getEntityName(enemy)} сделал действие`)
+    for (let i = 0; i < speed; i++) {
+      if (this.isPlayerTurn) break
+
+      const actionDone = this.aiSystem.performTurn(enemy, this.location)
+
+      if (actionDone) {
+        logger.debug(LOG_MODULES.AI, `${this.gameLoop.getEntityName(enemy)} сделал действие`)
+      }
     }
 
     this.enemyTurnIndex++
@@ -121,6 +130,11 @@ export default class TurnManager {
     this.enemyTurnIndex = 0
     this.isProcessingEnemyTurn = false
 
+    // Сбрасываем счётчик действий игрока для нового хода.
+    if (this.gameLoop.playerActions) {
+      this.gameLoop.playerActions.resetActions()
+    }
+
     this.gameLoop.initializeFovForAllAllies()
 
     const playerEntities = this.gameLoop.getPlayerEntities()
@@ -138,6 +152,12 @@ export default class TurnManager {
     this.isPlayerTurn = true
     this.enemyTurnIndex = 0
     this.isProcessingEnemyTurn = false
+
+    // Сбрасываем счётчик действий игрока.
+    if (this.gameLoop.playerActions) {
+      this.gameLoop.playerActions.resetActions()
+    }
+
     this.updateEnemyList()
   }
 }

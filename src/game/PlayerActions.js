@@ -11,6 +11,7 @@ import RenderComponent from '../engine/components/RenderComponent.js'
 import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
 import ItemComponent from '../engine/components/ItemComponent.js'
 import InventoryComponent from '../engine/components/InventoryComponent.js'
+import MovementComponent from '../engine/components/MovementComponent.js'
 import EntityFactory from '../engine/EntityFactory.js'
 import { logger, LOG_MODULES } from './Logger.js'
 import { applyItemEffects, isItemUsable } from './ItemEffects.js'
@@ -19,6 +20,9 @@ import { GameConfig } from './GameConfig.js'
 export default class PlayerActions {
   constructor(gameLoop) {
     this.gameLoop = gameLoop
+    // Количество оставшихся действий игрока за текущий ход.
+    // null — ещё не инициализировано (инициализируется при первом действии).
+    this._remainingActions = null
   }
 
   get location() {
@@ -39,6 +43,36 @@ export default class PlayerActions {
 
   get combatSystem() {
     return this.gameLoop.combatSystem
+  }
+
+  /**
+   * Сбрасывает счётчик действий игрока. Вызывается в начале хода игрока,
+   * чтобы следующее действие заново инициализировалось от текущей скорости.
+   */
+  resetActions() {
+    this._remainingActions = null
+  }
+
+  /**
+   * Расходует одно действие игрока. Количество действий за ход равно
+   * значению `speed` (MovementComponent). Когда действия заканчиваются —
+   * ход игрока завершается и передаётся врагам.
+   */
+  consumeAction() {
+    const entity = this.gameLoop.selectedEntity
+    const movement = entity?.getComponent(MovementComponent)
+    const speed = Math.max(1, movement?.speed || 1)
+
+    if (this._remainingActions === null || this._remainingActions === undefined) {
+      this._remainingActions = speed
+    }
+
+    this._remainingActions--
+
+    if (this._remainingActions <= 0) {
+      this._remainingActions = null
+      this.turnManager.endPlayerTurn()
+    }
   }
 
   /** Перемещает выбранного персонажа на (dx, dy), обрабатывая атаку и взаимодействие. */
@@ -64,7 +98,7 @@ export default class PlayerActions {
     const targetCell = this.location.grid[newY]?.[newX]
     if (targetCell && targetCell.type === 'crate') {
       this.breakCrate(newX, newY)
-      this.turnManager.endPlayerTurn()
+      this.consumeAction()
       return true
     }
 
@@ -76,7 +110,7 @@ export default class PlayerActions {
         if (env && env.isInteractive) {
           const success = this.interactionSystem.interact(entity, targetEntity, newX, newY)
           if (success) {
-            this.turnManager.endPlayerTurn()
+            this.consumeAction()
             return true
           }
         }
@@ -100,7 +134,7 @@ export default class PlayerActions {
           } else {
             logger.info(LOG_MODULES.COMBAT, `${attackerName} промахивается по ${targetName}.`)
           }
-          this.turnManager.endPlayerTurn()
+          this.consumeAction()
           return true
         }
       }
@@ -119,7 +153,7 @@ export default class PlayerActions {
     }
 
     pos.moveTo(newX, newY)
-    this.turnManager.endPlayerTurn()
+    this.consumeAction()
     return true
   }
 
@@ -287,7 +321,7 @@ export default class PlayerActions {
     }
 
     logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} подобрал ${itemName}`)
-    this.turnManager.endPlayerTurn()
+    this.consumeAction()
     return true
   }
 
@@ -438,7 +472,7 @@ export default class PlayerActions {
     const countMsg = remaining > 0 ? ` (осталось ${remaining})` : ''
     logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} использовал ${itemData.name}${countMsg}`)
 
-    this.turnManager.endPlayerTurn()
+    this.consumeAction()
     return true
   }
 
@@ -484,7 +518,7 @@ export default class PlayerActions {
     } else {
       logger.info(LOG_MODULES.COMBAT, `${attackerName} промахивается по ${targetName}.`)
     }
-    this.turnManager.endPlayerTurn()
+    this.consumeAction()
     return true
   }
 
@@ -512,7 +546,7 @@ export default class PlayerActions {
           if (env && env.isInteractive) {
             const success = this.interactionSystem.interact(entity, target)
             if (success) {
-              this.turnManager.endPlayerTurn()
+              this.consumeAction()
               return true
             }
           }
