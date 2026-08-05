@@ -1,8 +1,5 @@
 // src/game/Location.js
 
-import Floor from './Floor.js'
-import Wall from './Wall.js'
-import Door from './Door.js'
 import Fov from './Fov.js'
 import Pathfinder from './Pathfinder.js'
 import BiomeGenerator from './BiomeGenerator.js'
@@ -15,6 +12,12 @@ import MovementSystem from '../engine/systems/MovementSystem.js'
 import CombatSystem from '../engine/systems/CombatSystem.js'
 import HealthSystem from '../engine/systems/HealthSystem.js'
 
+// Компоненты
+import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
+import DoorComponent from '../engine/components/DoorComponent.js'
+import PositionComponent from '../engine/components/PositionComponent.js'
+import RenderComponent from '../engine/components/RenderComponent.js'
+
 export default class Location {
   #gameLoop = null
 
@@ -25,30 +28,32 @@ export default class Location {
 
     this.cols = config.cols
     this.rows = config.rows
-    this.grid = []
-    this.itemsMap = new Map()
-    this.doorsMap = new Map()
-    this.fov = new Fov(this)
 
-    this.fill()
-    this.setWalls(walls)
+    // Хранилище клеток (только стены, двери, ящики)
+    this.grid = Array.from({ length: this.rows }, () =>
+      Array.from({ length: this.cols }, () => null)
+    )
 
     // ECS Engine
     this.engine = new Engine()
 
-    // Добавляем системы (AISystem исключён)
+    // Добавляем системы
     this.engine.addSystem(new MovementSystem())
     this.engine.addSystem(new CombatSystem())
     this.engine.addSystem(new HealthSystem())
 
-    // Добавляем сущности
+    // Добавляем все сущности (игроки, враги, объекты)
     for (const entity of entities) {
       this.engine.addEntity(entity)
     }
 
+    // Строим стены (они же добавляются в grid)
+    this.setWalls(walls)
+
+    this.fov = new Fov(this)
     this.pathfinder = new Pathfinder(this)
 
-    // Открываем карту
+    // Открываем карту для теста (можно убрать)
     this.revealAll()
 
     console.log(`[Location] Создана: ${this.name}, сущностей: ${this.engine.entities.length}`)
@@ -57,82 +62,149 @@ export default class Location {
   revealAll() {
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
-        const tile = this.getTile(x, y)
-        if (tile) {
-          tile.visible = true
-          tile.explored = true
+        const cell = this.grid[y][x]
+        if (cell && cell.entity) {
+          const render = cell.entity.getComponent(RenderComponent)
+          if (render) {
+            render.visible = true
+            render.explored = true
+          }
         }
       }
     }
-  }
-
-  get map() { return this }
-
-  fill() {
-    this.grid = Array.from({ length: this.rows }, () =>
-      Array.from({ length: this.cols }, () => new Floor())
-    )
+    // Также все сущности с RenderComponent
+    const all = this.engine.getEntitiesWithComponents([RenderComponent])
+    for (const e of all) {
+      const r = e.getComponent(RenderComponent)
+      if (r) {
+        r.visible = true
+        r.explored = true
+      }
+    }
   }
 
   setWalls(pillars) {
     for (const [x, y] of pillars) {
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
-        this.grid[y][x] = new Wall(false)
+        const wallEntity = EntityFactory.createWall(x, y)
+        this.engine.addEntity(wallEntity)
+        this.grid[y][x] = { type: 'wall', entity: wallEntity }
       }
     }
-  }
-
-  getTile(x, y) {
-    if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return null
-    return this.grid[y][x]
-  }
-
-
-  isTileWalkable(x, y) {
-    if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return false
-    const tile = this.getTile(x, y)
-    if (!tile) return false
-    return !tile.solid
-  }
-
-  blocksSight(x, y) {
-    const tile = this.getTile(x, y)
-    return tile ? tile.blocksSight : true
   }
 
   setDoors(doors) {
-    for (const door of doors) {
-      const { x, y } = door
+    for (const d of doors) {
+      const { x, y, locked } = d
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
-        const tile = this.getTile(x, y)
-        if (tile?.isWalkable) {
-          this.grid[y][x] = door
-        }
+        const doorEntity = EntityFactory.createDoor(x, y, locked)
+        this.engine.addEntity(doorEntity)
+        this.grid[y][x] = { type: 'door', entity: doorEntity }
       }
     }
   }
+
+  // --- Проверка проходимости и обзора ---
+
+  isTileWalkable(x, y) {
+    if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return false
+    const cell = this.grid[y][x]
+    if (!cell) return true
+    if (cell.type === 'wall') return false
+    if (cell.type === 'door') {
+      const door = cell.entity.getComponent(DoorComponent)
+      return door ? door.isOpen : false
+    }
+    if (cell.type === 'crate') return false
+    return true
+  }
+
+  blocksSight(x, y) {
+    if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return true
+    const cell = this.grid[y][x]
+    if (!cell) return false
+    if (cell.type === 'wall') return true
+    if (cell.type === 'door') {
+      const door = cell.entity.getComponent(DoorComponent)
+      return door ? !door.isOpen : true
+    }
+    if (cell.type === 'crate') return false
+    return false
+  }
+
+  getTile(x, y) {
+    // Для совместимости со старым кодом (Fov, Pathfinder)
+    const cell = this.grid[y]?.[x]
+    if (!cell) {
+      return { visible: false, explored: false, char: ' ', solid: false, blocksSight: false }
+    }
+    const render = cell.entity.getComponent(RenderComponent)
+    const env = cell.entity.getComponent(EnvironmentComponent)
+    return {
+      visible: render ? render.visible : false,
+      explored: render ? render.explored : false,
+      char: render ? render.char : '?',
+      solid: env ? env.solid : false,
+      blocksSight: env ? env.blocksSight : false
+    }
+  }
+
+  getEntityAt(x, y) {
+    const cell = this.grid[y]?.[x]
+    return cell ? cell.entity : null
+  }
+
+  getEntitiesAt(x, y) {
+    // Возвращаем все сущности на клетке (из grid и из engine)
+    const result = []
+    const cell = this.grid[y]?.[x]
+    if (cell && cell.entity) result.push(cell.entity)
+    // Также ищем в engine (враги, игроки)
+    const engineEntities = this.engine.getEntitiesAt(x, y)
+    for (const e of engineEntities) {
+      if (!result.includes(e)) result.push(e)
+    }
+    return result
+  }
+
+  // --- FOV ---
 
   computeFov(originX, originY, radius, resetVisibility = true) {
+    const engine = this.engine
+
+    // Сбрасываем видимость у всех сущностей с RenderComponent
     if (resetVisibility) {
-      for (let y = 0; y < this.rows; y++) {
-        for (let x = 0; x < this.cols; x++) {
-          const tile = this.getTile(x, y)
-          if (tile) tile.visible = false
-        }
+      const all = engine.getEntitiesWithComponents([RenderComponent])
+      for (const entity of all) {
+        const render = entity.getComponent(RenderComponent)
+        if (render) render.visible = false
       }
     }
-    this.fov.compute(originX | 0, originY | 0, radius)
-    // Помечаем видимые как исследованные
-    for (let y = 0; y < this.rows; y++) {
-      for (let x = 0; x < this.cols; x++) {
-        const tile = this.getTile(x, y)
-        if (tile?.visible) tile.explored = true
+
+    // Callback для отметки видимых клеток
+    const onVisibleCell = (x, y) => {
+      // Получаем все сущности на этой клетке
+      const entitiesAt = this.getEntitiesAt(x, y)
+      for (const entity of entitiesAt) {
+        const render = entity.getComponent(RenderComponent)
+        if (render) render.visible = true
+      }
+    }
+
+    // Вычисляем FOV
+    this.fov.compute(originX | 0, originY | 0, radius, onVisibleCell)
+
+    // Помечаем все видимые как исследованные
+    const all = engine.getEntitiesWithComponents([RenderComponent])
+    for (const entity of all) {
+      const render = entity.getComponent(RenderComponent)
+      if (render && render.visible) {
+        render.explored = true
       }
     }
   }
 
-  setGameLoop(gameLoop) { this.#gameLoop = gameLoop }
-  getGameLoop() { return this.#gameLoop }
+  // --- Pathfinding ---
 
   findPath(fromX, fromY, toX, toY, activeEntity = null) {
     const blocked = this.getBlockedCells(activeEntity)
@@ -140,10 +212,27 @@ export default class Location {
   }
 
   getBlockedCells(excludeEntity = null) {
-    return this.engine.getBlockedCells(excludeEntity)
+    const blocked = []
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        if (!this.isTileWalkable(x, y)) {
+          if (excludeEntity) {
+            const pos = excludeEntity.getComponent(PositionComponent)
+            if (pos && pos.tileX === x && pos.tileY === y) continue
+          }
+          blocked.push({ x, y })
+        }
+      }
+    }
+    return blocked
   }
 
-  // ========== СТАТИЧЕСКАЯ ГЕНЕРАЦИЯ ==========
+  // --- Геттеры/сеттеры ---
+
+  setGameLoop(gameLoop) { this.#gameLoop = gameLoop }
+  getGameLoop() { return this.#gameLoop }
+
+  // --- Статическая генерация ---
 
   static generateProcedural(config, biomeType = null) {
     const selectedBiome = biomeType || (() => {
@@ -191,8 +280,8 @@ export default class Location {
     }
 
     for (let i = roomCells.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-        ;[roomCells[i], roomCells[j]] = [roomCells[j], roomCells[i]]
+      const j = Math.floor(Math.random() * (i + 1));
+      [roomCells[i], roomCells[j]] = [roomCells[j], roomCells[i]]
     }
 
     const isFree = (x, y) => !wallSet.has(`${x},${y}`)
@@ -202,7 +291,6 @@ export default class Location {
     const crates = roomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
     const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`))
 
-    // Доступные клетки для предметов и врагов
     const available = roomCells.filter(c => !crateSet.has(c))
 
     // Игрок
@@ -217,7 +305,6 @@ export default class Location {
       })
       .slice(0, 10)
 
-    // Создаем сущности
     const entities = []
 
     // Игрок
@@ -239,7 +326,6 @@ export default class Location {
       }
     }
 
-    // Создаем локацию
     const location = new Location(
       { ...config, cols: width, rows: height },
       walls,
@@ -247,17 +333,16 @@ export default class Location {
       biomeName
     )
 
-    // Ящики (превращаем в стены-ящики)
+    // Ящики
     for (const [x, y] of crates) {
-      const tile = location.getTile(x, y)
-      if (tile?.isWalkable) {
-        location.grid[y][x] = new Wall(true)
-      }
+      const crateEntity = EntityFactory.createCrate(x, y)
+      location.engine.addEntity(crateEntity)
+      location.grid[y][x] = { type: 'crate', entity: crateEntity }
     }
 
     // Двери
     if (doorData?.length) {
-      const doors = doorData.map(d => new Door(d.x, d.y, d.locked))
+      const doors = doorData.map(d => ({ x: d.x, y: d.y, locked: d.locked || false }))
       location.setDoors(doors)
     }
 
@@ -268,8 +353,8 @@ export default class Location {
   static findStartInRoom(rooms, isFree) {
     const shuffled = [...rooms]
     for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
     }
 
     for (const room of shuffled) {

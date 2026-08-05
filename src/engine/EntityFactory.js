@@ -10,10 +10,16 @@ import AIComponent from './components/AIComponent.js'
 import MovementComponent from './components/MovementComponent.js'
 import InventoryComponent from './components/InventoryComponent.js'
 
+// Новые компоненты для окружения
+import EnvironmentComponent from './components/EnvironmentComponent.js'
+import DoorComponent from './components/DoorComponent.js'
+import ItemComponent from './components/ItemComponent.js'
+
 export default class EntityFactory {
+  // ===== Существующие методы =====
+
   static createPlayer(x, y, config = {}) {
     const entity = new Entity('player')
-
     entity
       .addComponent(new PositionComponent(x, y))
       .addComponent(new RenderComponent('@', '#88ff88'))
@@ -32,13 +38,11 @@ export default class EntityFactory {
       .addComponent(new PlayerComponent())
       .addComponent(new MovementComponent(12))
       .addComponent(new InventoryComponent(20))
-
     return entity
   }
 
   static createEnemy(x, y, type, enemyData) {
     const entity = new Entity('enemy')
-
     entity
       .addComponent(new PositionComponent(x, y))
       .addComponent(new RenderComponent(
@@ -62,99 +66,99 @@ export default class EntityFactory {
         fovRadius: enemyData.fovRadius || 8
       }))
       .addComponent(new MovementComponent(12))
-
     return entity
   }
 
-  static createItem(x, y, itemType, config = {}) {
-    const entity = new Entity('item')
+  // ===== НОВЫЕ МЕТОДЫ для объектов окружения =====
 
-    const itemChars = {
-      health: '♥',
-      mana: '♦',
-      weapon: '⚔',
-      armor: '♠',
-      gold: '$',
-      potion: '!',
-      scroll: '?'
-    }
-
-    const itemColors = {
-      health: '#ff4444',
-      mana: '#4444ff',
-      weapon: '#ffaa44',
-      armor: '#44aaff',
-      gold: '#ffdd44',
-      potion: '#ff66ff',
-      scroll: '#88ff88'
-    }
-
+  static createWall(x, y) {
+    const entity = new Entity('wall')
     entity
       .addComponent(new PositionComponent(x, y))
-      .addComponent(new RenderComponent(
-        itemChars[itemType] || '•',
-        itemColors[itemType] || '#aaaaaa'
-      ))
-
-    // Добавляем компонент предмета
-    entity.addComponent({
-      constructor: { name: 'ItemComponent' },
-      itemType: itemType,
-      config: config,
-      collected: false,
-      get name() {
-        const names = {
-          health: '💊 Аптечка',
-          mana: '⚡ Батарея',
-          weapon: '🔫 Оружие',
-          armor: '🛡️ Броня',
-          gold: '💰 Золото',
-          potion: '🧪 Зелье',
-          scroll: '📜 Свиток'
-        }
-        return names[this.itemType] || '📦 Предмет'
-      }
-    })
-
+      .addComponent(new RenderComponent('#', '#666666'))
+      .addComponent(new EnvironmentComponent({
+        type: 'wall',
+        solid: true,
+        blocksSight: true,
+        name: 'Стена'
+      }))
+    // Устанавливаем слой для рендера (стены ниже сущностей)
+    const render = entity.getComponent(RenderComponent)
+    if (render) render.layer = 1
     return entity
   }
 
   static createDoor(x, y, locked = false) {
     const entity = new Entity('door')
-
     entity
       .addComponent(new PositionComponent(x, y))
       .addComponent(new RenderComponent('+', '#aa8866'))
+      .addComponent(new EnvironmentComponent({
+        type: 'door',
+        solid: true,
+        blocksSight: true,
+        isInteractive: true,
+        name: locked ? 'Запертая дверь' : 'Дверь'
+      }))
+      .addComponent(new DoorComponent({ isLocked: locked }))
+    const render = entity.getComponent(RenderComponent)
+    if (render) render.layer = 1
+    return entity
+  }
 
-    entity.addComponent({
-      constructor: { name: 'DoorComponent' },
-      isOpen: false,
-      isLocked: locked,
-      open() {
-        if (this.isOpen || this.isLocked) return false
-        this.isOpen = true
-        const render = entity.getComponent(RenderComponent)
-        if (render) {
-          render.char = '/'
-          render.color = '#88aa66'
-        }
-        return true
-      },
-      close() {
-        if (!this.isOpen) return false
-        this.isOpen = false
-        const render = entity.getComponent(RenderComponent)
-        if (render) {
-          render.char = '+'
-          render.color = '#aa8866'
-        }
-        return true
-      },
-      toggle() {
-        return this.isOpen ? this.close() : this.open()
-      }
-    })
+  static createCrate(x, y) {
+    const entity = new Entity('crate')
+    entity
+      .addComponent(new PositionComponent(x, y))
+      .addComponent(new RenderComponent('■', '#aa8844'))
+      .addComponent(new EnvironmentComponent({
+        type: 'crate',
+        solid: true,
+        blocksSight: false,
+        isInteractive: true,
+        name: 'Ящик'
+      }))
+    const render = entity.getComponent(RenderComponent)
+    if (render) render.layer = 1
+    return entity
+  }
 
+  static createItem(x, y, itemType, config = {}) {
+    const entity = new Entity('item')
+    const charMap = {
+      health: '♥', mana: '♦', weapon: '⚔', armor: '♠',
+      gold: '$', potion: '!', scroll: '?'
+    }
+    const colorMap = {
+      health: '#ff4444', mana: '#4444ff', weapon: '#ffaa44',
+      armor: '#44aaff', gold: '#ffdd44', potion: '#ff66ff',
+      scroll: '#88ff88'
+    }
+    const nameMap = {
+      health: '💊 Аптечка', mana: '⚡ Батарея', weapon: '🔫 Оружие',
+      armor: '🛡️ Броня', gold: '💰 Золото', potion: '🧪 Зелье',
+      scroll: '📜 Свиток'
+    }
+
+    entity
+      .addComponent(new PositionComponent(x, y))
+      .addComponent(new RenderComponent(
+        charMap[itemType] || '•',
+        colorMap[itemType] || '#aaaaaa'
+      ))
+      .addComponent(new EnvironmentComponent({
+        type: 'item',
+        solid: false,
+        blocksSight: false,
+        isCollectible: true,
+        name: config.name || nameMap[itemType] || 'Предмет'
+      }))
+      .addComponent(new ItemComponent({
+        itemType,
+        onCollect: config.onCollect || null
+      }))
+    const render = entity.getComponent(RenderComponent)
+    if (render) render.layer = 2 // предметы выше стен
     return entity
   }
 }

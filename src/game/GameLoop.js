@@ -105,17 +105,14 @@ export default class GameLoop {
 
     if (allies.length === 0) return
 
-    for (let i = 0; i < allies.length; i++) {
-      const ally = allies[i]
+    // Сбрасываем видимость только один раз перед циклом
+    let first = true
+    for (const ally of allies) {
       const pos = ally.getComponent(PositionComponent)
       const playerComp = ally.getComponent(PlayerComponent)
       const radius = playerComp?.fovRadius || 8
-
-      this.currentLocation.computeFov(
-        pos.tileX, pos.tileY,
-        radius,
-        i === 0
-      )
+      this.currentLocation.computeFov(pos.tileX, pos.tileY, radius, first)
+      first = false
     }
   }
 
@@ -524,6 +521,30 @@ export default class GameLoop {
 
   onKeyDown(e) {
     this.input.handleKeyDown(e)
+
+    // Переключение отладки FOV
+    if (e.key === 'f' || e.key === 'F') {
+      if (this.renderer) {
+        this.renderer.debugFov = !this.renderer.debugFov
+        console.log('FOV Debug:', this.renderer.debugFov ? 'ON' : 'OFF')
+        e.preventDefault()
+      }
+    }
+    if (e.key === 'r' || e.key === 'R') {
+      if (this.renderer) {
+        this.renderer.debugShowRays = !this.renderer.debugShowRays
+        console.log('Show Rays:', this.renderer.debugShowRays ? 'ON' : 'OFF')
+        e.preventDefault()
+      }
+    }
+    if (e.key === 'v' || e.key === 'V') {
+      if (this.renderer) {
+        this.renderer.debugShowVisibleCells = !this.renderer.debugShowVisibleCells
+        console.log('Show Visible Cells:', this.renderer.debugShowVisibleCells ? 'ON' : 'OFF')
+        e.preventDefault()
+      }
+    }
+
     if (e.key >= '1' && e.key <= '9') {
       this.switchToCharacter(parseInt(e.key) - 1)
     }

@@ -5,28 +5,32 @@ export default class Fov {
     this.map = map
   }
 
-  compute(originX, originY, radius) {
+  // Добавляем параметр onVisibleCell – функция, вызываемая для каждой видимой клетки
+  compute(originX, originY, radius, onVisibleCell = null) {
     const map = this.map
+    const cols = map.cols
+    const rows = map.rows
 
     // Начальная клетка всегда видна
-    const startTile = map.getTile(originX, originY)
-    if (startTile) startTile.visible = true
+    if (onVisibleCell) {
+      onVisibleCell(originX, originY)
+    }
 
-    // Перебираем все клетки в квадрате радиуса
+    const radiusSq = radius * radius
+
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
         if (dx === 0 && dy === 0) continue
-        // Проверяем, что клетка в круге
-        if (dx * dx + dy * dy > radius * radius) continue
+        if (dx * dx + dy * dy > radiusSq) continue
 
         const x = originX + dx
         const y = originY + dy
-        if (x < 0 || x >= map.cols || y < 0 || y >= map.rows) continue
+        if (x < 0 || x >= cols || y < 0 || y >= rows) continue
 
-        // Проверяем линию видимости
         if (this._hasLineOfSight(originX, originY, x, y)) {
-          const tile = map.getTile(x, y)
-          if (tile) tile.visible = true
+          if (onVisibleCell) {
+            onVisibleCell(x, y)
+          }
         }
       }
     }
@@ -42,20 +46,18 @@ export default class Fov {
 
     let x = x0, y = y0
     while (true) {
-      // Если это не начальная клетка
       if (x !== x0 || y !== y0) {
-        // Если это целевая клетка — она всегда видна (если дошли)
         if (x === x1 && y === y1) {
           return true
         }
-        // Проверяем промежуточные клетки на блокировку обзора
-        const tile = map.getTile(x, y)
-        if (tile && tile.blocksSight) {
+        // Используем blocksSight из Location
+        if (map.blocksSight(x, y)) {
           return false
         }
       }
-      // Если достигли цели (но не вернули true, например, цель = начальная клетка)
+
       if (x === x1 && y === y1) break
+
       const e2 = 2 * err
       if (e2 > -dy) {
         err -= dy

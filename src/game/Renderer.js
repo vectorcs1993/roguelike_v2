@@ -5,7 +5,6 @@ import RenderComponent from '../engine/components/RenderComponent.js'
 import HealthComponent from '../engine/components/HealthComponent.js'
 import PlayerComponent from '../engine/components/PlayerComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
-import MovementComponent from 'src/engine/components/MovementComponent.js'
 
 export default class Renderer {
   static DEFAULT_TILE_SIZE = 48
@@ -33,6 +32,11 @@ export default class Renderer {
     this._lastCameraY = null
     this._lastTileSize = null
     this._visibleBoundsCache = null
+
+    // Отладка FOV
+    this.debugFov = false
+    this.debugShowRays = false
+    this.debugShowVisibleCells = false
   }
 
   resize(canvasW, canvasH, dpr = this.dpr) {
@@ -78,7 +82,6 @@ export default class Renderer {
       this._lastCameraX = camera.x
       this._lastCameraY = camera.y
       this._lastTileSize = ts
-
       this._visibleBoundsCache = {
         startX: Math.max(0, Math.floor(camera.x - this.canvasW / ts / 2) - 1),
         startY: Math.max(0, Math.floor(camera.y - this.canvasH / ts / 2) - 1),
@@ -96,63 +99,25 @@ export default class Renderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    // Получаем все сущности с позицией и рендером
     const renderableEntities = engine.getEntitiesWithComponents([
       PositionComponent,
       RenderComponent
     ])
 
-    // Собираем занятые клетки
-    const occupiedCells = new Set()
-    for (const entity of renderableEntities) {
-      if (!entity.active) continue
+    const visibleEntities = renderableEntities.filter(entity => {
       const pos = entity.getComponent(PositionComponent)
-      if (pos) {
-        occupiedCells.add(`${pos.tileX},${pos.tileY}`)
-      }
-    }
+      if (!pos) return false
+      const tx = pos.tileX, ty = pos.tileY
+      return tx >= startX && tx < endX && ty >= startY && ty < endY
+    })
 
-    // 1. Рисуем тайлы
-    const tilesByColor = new Map()
+    visibleEntities.sort((a, b) => {
+      const ra = a.getComponent(RenderComponent)
+      const rb = b.getComponent(RenderComponent)
+      return (ra.layer || 0) - (rb.layer || 0)
+    })
 
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
-        const tile = map.getTile(x, y)
-        if (!tile) continue
-        if (!tile.visible && !tile.explored) continue
-
-        const cellKey = `${x},${y}`
-        if (occupiedCells.has(cellKey)) continue
-
-        if (tile.char !== ' ' && tile.char !== undefined) {
-          const drawX = x * ts + ox
-          const drawY = y * ts + oy
-
-          let color = tile.visible ? '#888888' : '#333333'
-          if (tile.constructor?.name === 'Door' && tile.visible) {
-            color = '#aa8866'
-          }
-          if (tile.isCrate) {
-            color = tile.visible ? '#aa8844' : '#554422'
-          }
-
-          if (!tilesByColor.has(color)) {
-            tilesByColor.set(color, [])
-          }
-          tilesByColor.get(color).push({ char: tile.char, x: drawX, y: drawY })
-        }
-      }
-    }
-
-    for (const [color, tiles] of tilesByColor) {
-      ctx.fillStyle = color
-      for (const tile of tiles) {
-        ctx.fillText(tile.char, tile.x + ts / 2, tile.y + ts / 2)
-      }
-    }
-
-    // 2. Рисуем сущности
-    for (const entity of renderableEntities) {
+    for (const entity of visibleEntities) {
       if (!entity.active) continue
 
       const pos = entity.getComponent(PositionComponent)
@@ -163,33 +128,43 @@ export default class Renderer {
 
       if (!pos || !render) continue
 
-      // Проверяем видимость
-      const tile = map.getTile(pos.tileX, pos.tileY)
-      const isVisible = tile && tile.visible
       const isPlayer = !!player
+      const isEnemy = !!ai
+      const isVisible = render.visible
 
-      // Игрок всегда виден
-      if (!isVisible && !isPlayer) continue
+      let shouldDraw
+      if (isPlayer) {
+        shouldDraw = true
+      } else if (isEnemy) {
+        shouldDraw = isVisible // враги только если видны
+      } else {
+        shouldDraw = isVisible || render.explored // остальные если видны или исследованы
+      }
+
+      if (!shouldDraw) continue
 
       const drawX = pos.vx * ts + ox
       const drawY = pos.vy * ts + oy
 
-      // Определяем цвет
       let color = render.color || '#ffffff'
+
+      // Затемнение для explored, но не visible (кроме игроков и врагов)
+      if (!isPlayer && !isEnemy && !isVisible && render.explored) {
+        color = this.darkenColor(color, 0.3)
+      }
 
       if (entity === this._activeEntity) {
         color = isPlayer ? '#88ff88' : '#ff8844'
       } else if (isPlayer) {
         color = '#5272b6'
-      } else if (ai) {
-        color = isVisible ? '#d83232' : '#442222'
+      } else if (isEnemy && isVisible) {
+        color = '#d83232'
       }
 
       ctx.fillStyle = color
       ctx.fillText(render.char, drawX + ts / 2, drawY + ts / 2)
 
-      // Полоска HP для врагов
-      if (ai && health && health.isAlive && isVisible) {
+      if (isEnemy && health && health.isAlive && isVisible) {
         const hpWidth = ts * 0.8
         const hpHeight = 4
         const hpX = drawX + (ts - hpWidth) / 2
@@ -205,57 +180,152 @@ export default class Renderer {
       }
     }
 
-    // 3. Путь активной сущности
-    if (this._activeEntity) {
-      const movement = this._activeEntity.getComponent(MovementComponent)
-      if (movement && movement.path && movement.path.length > 0) {
-        ctx.fillStyle = '#666666'
-        for (const p of movement.path) {
-          const pathTile = map.getTile(p.x, p.y)
-          if (pathTile && (pathTile.visible || pathTile.explored)) {
-            const drawX = p.x * ts + ox
-            const drawY = p.y * ts + oy
-            ctx.fillText('·', drawX + ts / 2, drawY + ts / 2)
+    // Курсор мыши
+    if (this.hoverTileX !== null && this.hoverTileX >= 0 && this.hoverTileX < map.cols &&
+      this.hoverTileY !== null && this.hoverTileY >= 0 && this.hoverTileY < map.rows) {
+      const x = this.hoverTileX * ts + ox
+      const y = this.hoverTileY * ts + oy
+
+      // Проверяем, видна ли клетка (берём первую сущность)
+      let isVisible = false
+      const entitiesAt = map.getEntitiesAt?.(this.hoverTileX, this.hoverTileY) || []
+      for (const e of entitiesAt) {
+        const r = e.getComponent(RenderComponent)
+        if (r && r.visible) { isVisible = true; break }
+      }
+      if (!isVisible) {
+        // если нет сущностей, проверяем grid
+        const cell = map.grid[this.hoverTileY]?.[this.hoverTileX]
+        if (cell && cell.entity) {
+          const r = cell.entity.getComponent(RenderComponent)
+          if (r) isVisible = r.visible
+        }
+      }
+
+      ctx.strokeStyle = isVisible ? '#ffffff' : '#666666'
+      ctx.lineWidth = 1
+      ctx.setLineDash([])
+      ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
+    }
+
+    if (this.debugFov) {
+      this.drawFovDebug(map, engine, camera, ctx, ts, ox, oy)
+    }
+  }
+
+  darkenColor(hexColor, factor) {
+    let r, g, b
+    if (hexColor.startsWith('#')) {
+      const hex = hexColor.slice(1)
+      if (hex.length === 3) {
+        r = parseInt(hex[0] + hex[0], 16)
+        g = parseInt(hex[1] + hex[1], 16)
+        b = parseInt(hex[2] + hex[2], 16)
+      } else if (hex.length === 6) {
+        r = parseInt(hex.substring(0, 2), 16)
+        g = parseInt(hex.substring(2, 4), 16)
+        b = parseInt(hex.substring(4, 6), 16)
+      } else {
+        return '#333333'
+      }
+    } else {
+      return '#333333'
+    }
+    r = Math.floor(r * factor)
+    g = Math.floor(g * factor)
+    b = Math.floor(b * factor)
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  }
+
+  drawFovDebug(map, engine, camera, ctx, ts, ox, oy) {
+    let player = this._activeEntity
+    if (!player) {
+      const players = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
+      if (players.length > 0) player = players[0]
+    }
+    if (!player) return
+
+    const pos = player.getComponent(PositionComponent)
+    if (!pos) return
+
+    const px = pos.tileX
+    const py = pos.tileY
+    const radius = 8
+
+    ctx.strokeStyle = '#ff0000'
+    ctx.lineWidth = 1
+    ctx.setLineDash([4, 4])
+    ctx.beginPath()
+    ctx.arc(px * ts + ox + ts / 2, py * ts + oy + ts / 2, radius * ts, 0, 2 * Math.PI)
+    ctx.stroke()
+
+    if (this.debugShowRays) {
+      ctx.setLineDash([])
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (dx === 0 && dy === 0) continue
+          if (dx * dx + dy * dy > radius * radius) continue
+          const tx = px + dx
+          const ty = py + dy
+          if (tx < 0 || tx >= map.cols || ty < 0 || ty >= map.rows) continue
+
+          let isVisible = false
+          const entitiesAt = map.getEntitiesAt?.(tx, ty) || []
+          for (const e of entitiesAt) {
+            const r = e.getComponent(RenderComponent)
+            if (r && r.visible) { isVisible = true; break }
+          }
+          ctx.strokeStyle = isVisible ? 'rgba(0,255,0,0.3)' : 'rgba(255,0,0,0.3)'
+          ctx.lineWidth = 1
+          ctx.beginPath()
+          ctx.moveTo(px * ts + ox + ts / 2, py * ts + oy + ts / 2)
+          ctx.lineTo(tx * ts + ox + ts / 2, ty * ts + oy + ts / 2)
+          ctx.stroke()
+        }
+      }
+    }
+
+    if (this.debugShowVisibleCells) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          if (dx === 0 && dy === 0) continue
+          if (dx * dx + dy * dy > radius * radius) continue
+          const tx = px + dx
+          const ty = py + dy
+          if (tx < 0 || tx >= map.cols || ty < 0 || ty >= map.rows) continue
+
+          let isVisible = false, isExplored = false
+          const entitiesAt = map.getEntitiesAt?.(tx, ty) || []
+          for (const e of entitiesAt) {
+            const r = e.getComponent(RenderComponent)
+            if (r) {
+              if (r.visible) isVisible = true
+              if (r.explored) isExplored = true
+            }
+          }
+          if (isVisible) {
+            ctx.fillStyle = 'rgba(0,255,0,0.15)'
+            ctx.fillRect(tx * ts + ox, ty * ts + oy, ts, ts)
+          } else if (isExplored) {
+            ctx.fillStyle = 'rgba(255,255,0,0.10)'
+            ctx.fillRect(tx * ts + ox, ty * ts + oy, ts, ts)
           }
         }
       }
     }
 
-    // 4. Курсор
-    if (this.hoverTileX !== null && this.hoverTileX >= 0 && this.hoverTileX < map.cols &&
-      this.hoverTileY !== null && this.hoverTileY >= 0 && this.hoverTileY < map.rows) {
-
-      const x = this.hoverTileX * ts + ox
-      const y = this.hoverTileY * ts + oy
-
-      const hoverTile = map.getTile(this.hoverTileX, this.hoverTileY)
-      const isVisible = hoverTile && hoverTile.visible
-      const isExplored = hoverTile && hoverTile.explored
-
-      if (isVisible) {
-        ctx.strokeStyle = '#ffffff'
-      } else if (isExplored) {
-        ctx.strokeStyle = '#666666'
-      } else {
-        ctx.strokeStyle = '#333333'
-      }
-
-      ctx.lineWidth = 1
-      ctx.setLineDash([])
-      ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
-    }
-  }
-
-  zoom(delta) {
-    const oldTileSize = this.tileSize
-    let newTileSize = this.tileSize + delta
-    newTileSize = Math.max(12, Math.min(96, newTileSize))
-
-    if (newTileSize === oldTileSize) return false
-
-    this.tileSize = newTileSize
-    this.ctx.font = `${this.tileSize}px ${this.fontFamily}`
-
-    return true
+    ctx.font = '14px monospace'
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(`FOV Debug: Radius ${radius}`, 10, 20)
+    ctx.fillStyle = '#00ff00'
+    ctx.fillText('■ Visible', 10, 40)
+    ctx.fillStyle = '#ffff00'
+    ctx.fillText('■ Explored', 10, 56)
+    ctx.fillStyle = '#ff0000'
+    ctx.fillText('■ Blocked', 10, 72)
+    ctx.fillStyle = '#888888'
+    ctx.fillText('R - Toggle rays', 10, 92)
+    ctx.fillText('V - Toggle visible cells', 10, 108)
+    ctx.fillText('F - Toggle FOV debug', 10, 124)
   }
 }

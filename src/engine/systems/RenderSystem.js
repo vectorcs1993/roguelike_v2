@@ -23,7 +23,7 @@ export default class RenderSystem extends System {
       RenderComponent
     ])
 
-    // Сортируем по слою
+    // Сортируем по слою (чем больше слой, тем выше)
     entities.sort((a, b) => {
       const ra = a.getComponent(RenderComponent)
       const rb = b.getComponent(RenderComponent)
