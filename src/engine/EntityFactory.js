@@ -250,6 +250,7 @@ export default class EntityFactory {
     const bgColor = config.bgColor || itemData.bgColor || null
     const name = config.name || itemData.name || 'Предмет'
     const layer = config.layer || itemData.layer || 2
+    const count = config.count !== undefined ? config.count : 1
 
     const entity = new Entity('item')
     const render = new RenderComponent(char, color, bgColor)
@@ -277,6 +278,7 @@ export default class EntityFactory {
 
     entity.itemData = itemData
     entity.itemType = itemType || 'generic'
+    entity.itemCount = count
 
     if (itemData.effects) {
       entity.itemEffects = { ...itemData.effects }

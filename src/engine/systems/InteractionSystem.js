@@ -86,7 +86,7 @@ export default class InteractionSystem extends System {
         const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount
 
         if (count > 0) {
-          const itemEntity = EntityFactory.createItem(tileX, tileY, type)
+          const itemEntity = EntityFactory.createItem(tileX, tileY, type, { count })
           itemEntity.engine = this.engine
           this.engine.addEntity(itemEntity)
           if (loc) {
@@ -128,7 +128,9 @@ export default class InteractionSystem extends System {
         return false
       }
 
-      if (!inv.addItem(itemData)) {
+      const itemCount = target.itemCount !== undefined ? target.itemCount : 1
+
+      if (!inv.addItem(itemData, itemCount)) {
         logger.warn(LOG_MODULES.ACTION, `Не удалось добавить предмет в инвентарь`)
         return false
       }

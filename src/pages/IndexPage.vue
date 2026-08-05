@@ -47,6 +47,82 @@
 
       <!-- Правая панель -->
       <div class="col-4" style="display: flex; flex-direction: column; gap: 16px; min-height: 0;">
+        <!-- Игрок -->
+        <q-card flat square bordered dark style="flex-shrink: 0;">
+          <q-card-section class="bg-grey-9">
+            <div class="text-h6 flex items-center">
+              <q-icon name="person" class="q-mr-sm" />
+              Игрок
+              <q-badge color="blue" :label="playerStats?.name || '—'" class="q-ml-sm" />
+            </div>
+          </q-card-section>
+          <q-separator dark />
+          <q-card-section dark>
+            <template v-if="playerStats">
+              <!-- Здоровье -->
+              <div class="q-mb-sm">
+                <div class="row justify-between text-caption text-grey-5">
+                  <span>❤️ Здоровье</span>
+                  <span>{{ playerStats.hp }}/{{ playerStats.maxHp }}</span>
+                </div>
+                <q-linear-progress :value="playerStats.hpPercent" color="red" track-color="grey-8" size="12px" rounded />
+              </div>
+
+              <!-- Энергия -->
+              <div class="q-mb-sm">
+                <div class="row justify-between text-caption text-grey-5">
+                  <span>⚡ Энергия</span>
+                  <span>{{ playerStats.energy }}/{{ playerStats.maxEnergy }}</span>
+                </div>
+                <q-linear-progress :value="playerStats.energyPercent" color="amber" track-color="grey-8" size="12px" rounded />
+              </div>
+
+              <!-- Броня -->
+              <div class="row justify-between text-caption q-mb-xs">
+                <span class="text-grey-5">🛡️ Броня</span>
+                <span>{{ playerStats.armor }} ({{ playerStats.armorType }})</span>
+              </div>
+
+              <!-- Атака -->
+              <div class="row justify-between text-caption q-mb-xs">
+                <span class="text-grey-5">⚔️ Урон</span>
+                <span>{{ playerStats.damageMin }}-{{ playerStats.damageMax }} ({{ playerStats.damageType }})</span>
+              </div>
+
+              <!-- Точность -->
+              <div class="row justify-between text-caption q-mb-xs">
+                <span class="text-grey-5">🎯 Точность</span>
+                <span>{{ Math.round(playerStats.accuracy * 100) }}%</span>
+              </div>
+
+              <!-- Дальность -->
+              <div class="row justify-between text-caption q-mb-xs">
+                <span class="text-grey-5">📏 Дальность</span>
+                <span>{{ playerStats.attackRange }}</span>
+              </div>
+
+              <!-- Скорость -->
+              <div class="row justify-between text-caption q-mb-xs">
+                <span class="text-grey-5">⚡ Скорость</span>
+                <span>{{ playerStats.speed }}</span>
+              </div>
+
+              <!-- Инициатива -->
+              <div class="row justify-between text-caption q-mb-xs">
+                <span class="text-grey-5">🔄 Инициатива</span>
+                <span>{{ playerStats.initiative }}</span>
+              </div>
+
+              <!-- Позиция -->
+              <div class="row justify-between text-caption q-mb-xs">
+                <span class="text-grey-5">📍 Позиция</span>
+                <span>{{ playerStats.x }}, {{ playerStats.y }}</span>
+              </div>
+            </template>
+            <div v-else class="text-center text-grey-5 q-py-md">Игрок не найден</div>
+          </q-card-section>
+        </q-card>
+
         <!-- Сущности -->
         <q-card flat square bordered dark style="flex-shrink: 0;">
           <q-card-section class="bg-grey-9">
@@ -68,8 +144,8 @@
                 <q-item-section>
                   <q-item-label>
                     {{ ent.name }}
-                    <q-badge :color="ent.isPlayer ? 'blue' : ent.isEnemy ? 'red' : 'grey'" flat>
-                      {{ ent.isPlayer ? 'Игрок' : ent.isEnemy ? 'Враг' : ent.isEnvironment ? 'Окр.' : 'Предм.' }}
+                    <q-badge :color="ent.isEnemy ? 'red' : 'grey'" flat>
+                      {{ ent.isEnemy ? 'Враг' : ent.isEnvironment ? 'Окр.' : 'Предм.' }}
                     </q-badge>
                   </q-item-label>
                   <q-item-label>❤️ {{ ent.hp }}/{{ ent.maxHp }}</q-item-label>
@@ -79,7 +155,7 @@
                 </div>
               </q-item>
             </q-scroll-area>
-            <div v-else class="text-center text-grey-5 q-py-md">Нет персонажей</div>
+            <div v-else class="text-center text-grey-5 q-py-md">Нет сущностей</div>
           </q-card-section>
         </q-card>
 
@@ -180,6 +256,8 @@ import PlayerComponent from 'src/engine/components/PlayerComponent.js'
 import AIComponent from 'src/engine/components/AIComponent.js'
 import InventoryComponent from 'src/engine/components/InventoryComponent.js'
 import EnvironmentComponent from 'src/engine/components/EnvironmentComponent'
+import CombatComponent from 'src/engine/components/CombatComponent.js'
+import MovementComponent from 'src/engine/components/MovementComponent.js'
 
 const $q = useQuasar()
 
@@ -195,6 +273,7 @@ const entitiesList = ref([])
 const inventoryItems = ref([])
 const locationName = ref('')
 const selectedEntityId = ref(null)
+const playerStats = ref(null)
 
 // Диалог загрузки контента
 const contentDialog = ref(false)
@@ -270,6 +349,7 @@ function updateEntitiesList() {
   if (!game?.currentLocation) {
     entitiesList.value = []
     inventoryItems.value = []
+    playerStats.value = null
     return
   }
 
@@ -283,6 +363,8 @@ function updateEntitiesList() {
   ])
 
   const list = []
+  let playerFound = null
+
   for (const entity of entities) {
     const render = entity.getComponent(RenderComponent)
     const health = entity.getComponent(HealthComponent)
@@ -292,19 +374,50 @@ function updateEntitiesList() {
 
     if (!render || !health) continue
 
-    // Показываем только сущности, видимые игроку (игрок всегда виден)
-    if (!player && !render.visible) continue
+    // Игрок обрабатывается отдельно в блоке статов
+    if (player) {
+      const combat = entity.getComponent(CombatComponent)
+      const movement = entity.getComponent(MovementComponent)
+      const position = entity.getComponent(PositionComponent)
+      const playerConfig = GameConfig.getPlayer()
+
+      const maxEnergy = entity.maxEnergy ?? 100
+      const energy = entity.energy ?? maxEnergy
+
+      playerFound = {
+        id: entity.id,
+        name: playerConfig.name || 'Игрок',
+        char: render.char,
+        hp: health.hp,
+        maxHp: health.maxHp,
+        hpPercent: health.hpPercent,
+        energy: energy,
+        maxEnergy: maxEnergy,
+        energyPercent: maxEnergy > 0 ? energy / maxEnergy : 0,
+        armor: health.armor,
+        armorType: health.armorType,
+        damageMin: combat?.damageMin ?? 1,
+        damageMax: combat?.damageMax ?? 3,
+        damageType: combat?.damageType || 'physical',
+        accuracy: combat?.accuracy ?? 0.75,
+        attackRange: combat?.attackRange ?? 1,
+        initiative: combat?.initiative ?? 5,
+        speed: movement?.speed ?? 12,
+        x: position?.tileX ?? 0,
+        y: position?.tileY ?? 0
+      }
+      continue
+    }
+
+    // Показываем только сущности, видимые игроку
+    if (!render.visible) continue
 
     let teamColor = '#666666'
     let teamName = 'Нейтральный'
     let displayName
 
     // Определяем имя
-    if (player) {
-      teamColor = '#44aaff'
-      teamName = 'Игрок'
-      displayName = 'Игрок'
-    } else if (ai) {
+    if (ai) {
       teamColor = '#ff4444'
       teamName = 'Враг'
       // Берем имя из enemyData или из конфига
@@ -333,12 +446,6 @@ function updateEntitiesList() {
       }
     }
 
-    // Для игрока используем имя из конфига
-    if (player) {
-      const playerConfig = GameConfig.getPlayer()
-      displayName = playerConfig.name || 'Игрок'
-    }
-
     list.push({
       id: entity.id,
       name: displayName,
@@ -347,23 +454,22 @@ function updateEntitiesList() {
       teamName: teamName,
       hp: health.hp,
       maxHp: health.maxHp,
-      isPlayer: !!player,
+      isPlayer: false,
       isEnemy: !!ai,
       isEnvironment: !!env,
       isItem: entity.tag === 'item'
     })
   }
 
-  // Сортируем: сначала игрок, потом враги, потом остальные
+  // Сортируем: сначала враги, потом остальные
   list.sort((a, b) => {
-    if (a.isPlayer) return -1
-    if (b.isPlayer) return 1
     if (a.isEnemy && !b.isEnemy) return -1
     if (!a.isEnemy && b.isEnemy) return 1
     return 0
   })
 
   entitiesList.value = list
+  playerStats.value = playerFound
 
   const selected = game.selectedEntity
   if (selected) {

@@ -164,7 +164,7 @@ export default class PlayerActions {
       const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount
 
       if (count > 0) {
-        const itemEntity = EntityFactory.createItem(x, y, type)
+        const itemEntity = EntityFactory.createItem(x, y, type, { count })
         itemEntity.engine = this.engine
         this.engine.addEntity(itemEntity)
         this.location.grid[y][x] = { type: 'item', entity: itemEntity }
@@ -257,7 +257,9 @@ export default class PlayerActions {
     const inv = entity.getComponent(InventoryComponent)
     if (!inv) return false
 
-    if (!inv.addItem(itemData)) {
+    const itemCount = itemEntity.itemCount !== undefined ? itemEntity.itemCount : 1
+
+    if (!inv.addItem(itemData, itemCount)) {
       logger.info(LOG_MODULES.ACTION, 'Не удалось добавить предмет в инвентарь')
       return false
     }
