@@ -1,484 +1,177 @@
 {
+  "version": "1.0.0",
+  "player": {
+    "id": "player",
+    "name": "Игрок",
+    "char": "@",
+    "color": "#88ff88",
+    "bgColor": "#1a3a1a",
+    "layer": 4,
+    "hp": 55,
+    "maxHp": 55,
+    "armor": 0,
+    "damageMin": 3,
+    "damageMax": 6,
+    "damageType": "physical",
+    "range": 1,
+    "initiative": 6,
+    "accuracy": 0.75,
+    "fovRadius": 6,
+    "speed": 12,
+    "xpPerLevel": 20,
+    "maxLevel": 20,
+    "levelBonuses": {
+      "hp": 5,
+      "damage": 1,
+      "accuracy": 0.01
+    }
+  },
   "enemies": {
     "groaner": {
       "id": "groaner",
       "name": "Стонущий",
       "char": "g",
-      "color": "#88aaaa",
-      "bgColor": "#2a3a3a",
+      "color": "#88aa88",
+      "bgColor": "#1a2a1a",
       "layer": 3,
-      "hp": 20,
-      "maxHp": 20,
-      "armor": 0,
-      "damageMin": 3,
-      "damageMax": 6,
-      "damageType": "blunt",
+      "hp": 12,
+      "maxHp": 12,
+      "damageMin": 2,
+      "damageMax": 4,
+      "damageType": "physical",
       "range": 1,
-      "initiative": 2,
-      "accuracy": 0.60,
-      "fovRadius": 8,
-      "speed": 12,
-      "features": [
-        "deathScream"
-      ],
+      "accuracy": 0.6,
+      "initiative": 4,
+      "speed": 10,
+      "aiType": "aggressive",
+      "aggressionRange": 6,
+      "fovRadius": 6,
       "xp": 10,
-      "loot": {
-        "gold": {
-          "min": 1,
-          "max": 3,
-          "chance": 0.3
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "description": "Медленный, но опасный вблизи"
     },
     "crawler": {
       "id": "crawler",
       "name": "Ползун",
       "char": "c",
-      "color": "#88aa88",
-      "bgColor": "#1a2a1a",
+      "color": "#cc8844",
+      "bgColor": "#2a1a0a",
       "layer": 3,
-      "hp": 15,
-      "maxHp": 15,
-      "armor": 2,
-      "damageMin": 2,
-      "damageMax": 4,
-      "damageType": "bite",
+      "hp": 8,
+      "maxHp": 8,
+      "damageMin": 1,
+      "damageMax": 3,
+      "damageType": "physical",
       "range": 1,
-      "initiative": 4,
-      "accuracy": 0.70,
-      "fovRadius": 8,
-      "speed": 12,
-      "features": [
-        "infection"
-      ],
-      "infectionChance": 0.05,
-      "xp": 12,
-      "loot": {
-        "gold": {
-          "min": 1,
-          "max": 2,
-          "chance": 0.2
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "mold": {
-      "id": "mold",
-      "name": "Плесневик",
-      "char": "m",
-      "color": "#88aa55",
-      "bgColor": "#1a2a0a",
-      "layer": 3,
-      "hp": 25,
-      "maxHp": 25,
-      "armor": 1,
-      "damageMin": 4,
-      "damageMax": 8,
-      "damageType": "spore",
-      "range": 1,
+      "accuracy": 0.5,
       "initiative": 3,
-      "accuracy": 0.65,
-      "fovRadius": 8,
-      "speed": 12,
-      "features": [
-        "infection"
-      ],
-      "infectionChance": 0.05,
-      "xp": 15,
-      "loot": {
-        "gold": {
-          "min": 2,
-          "max": 4,
-          "chance": 0.4
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "clawer": {
-      "id": "clawer",
-      "name": "Когтистый",
-      "char": "C",
-      "color": "#cc8866",
-      "bgColor": "#3a2a1a",
-      "layer": 3,
-      "hp": 30,
-      "maxHp": 30,
-      "armor": 2,
-      "damageMin": 6,
-      "damageMax": 12,
-      "damageType": "slash",
-      "range": 1,
-      "initiative": 6,
-      "accuracy": 0.75,
-      "fovRadius": 8,
-      "speed": 12,
-      "features": [
-        "doubleAttack"
-      ],
-      "doubleAttackPenalty": 0.20,
-      "xp": 20,
-      "loot": {
-        "gold": {
-          "min": 2,
-          "max": 5,
-          "chance": 0.5
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "slime": {
-      "id": "slime",
-      "name": "Слизень",
-      "char": "s",
-      "color": "#66cc66",
-      "bgColor": "#1a3a1a",
-      "layer": 3,
-      "hp": 40,
-      "maxHp": 40,
-      "armor": 5,
-      "damageMin": 5,
-      "damageMax": 7,
-      "damageType": "acid",
-      "range": 1,
-      "initiative": 1,
-      "accuracy": 0.80,
-      "fovRadius": 8,
-      "speed": 12,
-      "features": [
-        "corrodeArmor"
-      ],
-      "armorReduction": 1,
-      "xp": 25,
-      "loot": {
-        "gold": {
-          "min": 3,
-          "max": 6,
-          "chance": 0.3
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "speed": 8,
+      "aiType": "aggressive",
+      "aggressionRange": 4,
+      "fovRadius": 4,
+      "xp": 8,
+      "description": "Слабый, но быстрый"
     },
     "runner": {
       "id": "runner",
-      "name": "Бегунок",
+      "name": "Бегун",
       "char": "r",
-      "color": "#aa8866",
-      "bgColor": "#2a1a0a",
+      "color": "#ff6644",
+      "bgColor": "#2a0a0a",
       "layer": 3,
-      "hp": 18,
-      "maxHp": 18,
-      "armor": 0,
-      "damageMin": 4,
-      "damageMax": 6,
-      "damageType": "bite",
+      "hp": 6,
+      "maxHp": 6,
+      "damageMin": 1,
+      "damageMax": 2,
+      "damageType": "physical",
       "range": 1,
+      "accuracy": 0.4,
       "initiative": 8,
-      "accuracy": 0.60,
-      "fovRadius": 10,
       "speed": 16,
-      "features": [
-        "fast"
-      ],
-      "xp": 15,
-      "loot": {
-        "gold": {
-          "min": 1,
-          "max": 3,
-          "chance": 0.2
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "aiType": "aggressive",
+      "aggressionRange": 10,
+      "fovRadius": 8,
+      "xp": 6,
+      "description": "Быстрый, но хрупкий"
     },
-    "fatso": {
-      "id": "fatso",
-      "name": "Толстяк",
-      "char": "F",
-      "color": "#aa8844",
-      "bgColor": "#3a2a0a",
+    "brute": {
+      "id": "brute",
+      "name": "Громила",
+      "char": "B",
+      "color": "#ff4444",
+      "bgColor": "#2a0a0a",
       "layer": 3,
-      "hp": 60,
-      "maxHp": 60,
-      "armor": 3,
-      "damageMin": 8,
-      "damageMax": 14,
-      "damageType": "blunt",
+      "hp": 25,
+      "maxHp": 25,
+      "damageMin": 5,
+      "damageMax": 9,
+      "damageType": "physical",
       "range": 1,
+      "accuracy": 0.65,
       "initiative": 2,
-      "accuracy": 0.70,
-      "fovRadius": 8,
       "speed": 8,
-      "features": [
-        "explodeOnDeath"
-      ],
-      "explosionDamageMin": 10,
-      "explosionDamageMax": 15,
-      "explosionRadius": 2,
-      "explosionInfection": 0.20,
-      "xp": 30,
-      "loot": {
-        "gold": {
-          "min": 5,
-          "max": 10,
-          "chance": 0.6
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "howler": {
-      "id": "howler",
-      "name": "Воющий",
-      "char": "h",
-      "color": "#aa88aa",
-      "bgColor": "#2a1a2a",
-      "layer": 3,
-      "hp": 22,
-      "maxHp": 22,
-      "armor": 1,
-      "damageMin": 0,
-      "damageMax": 0,
-      "damageType": "none",
-      "range": 1,
-      "initiative": 5,
-      "accuracy": 1.00,
-      "fovRadius": 8,
-      "speed": 12,
-      "features": [
-        "buffAllies"
-      ],
-      "initiativeBonus": 2,
-      "xp": 15,
-      "loot": {
-        "gold": {
-          "min": 2,
-          "max": 4,
-          "chance": 0.3
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "sticker": {
-      "id": "sticker",
-      "name": "Прилипала",
-      "char": "S",
-      "color": "#88ccaa",
-      "bgColor": "#1a2a2a",
-      "layer": 3,
-      "hp": 12,
-      "maxHp": 12,
-      "armor": 4,
-      "damageMin": 2,
-      "damageMax": 4,
-      "damageType": "immobilize",
-      "range": 1,
-      "initiative": 4,
-      "accuracy": 0.90,
-      "fovRadius": 8,
-      "speed": 12,
-      "features": [
-        "immobilize"
-      ],
-      "immobilizeDuration": 1,
-      "xp": 12,
-      "loot": {
-        "gold": {
-          "min": 1,
-          "max": 2,
-          "chance": 0.2
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "mushroom": {
-      "id": "mushroom",
-      "name": "Грибник",
-      "char": "M",
-      "color": "#aa77aa",
-      "bgColor": "#2a1a2a",
-      "layer": 3,
-      "hp": 35,
-      "maxHp": 35,
-      "armor": 2,
-      "damageMin": 6,
-      "damageMax": 10,
-      "damageType": "spore",
-      "range": 1,
-      "initiative": 3,
-      "accuracy": 0.70,
-      "fovRadius": 8,
-      "speed": 12,
-      "features": [
-        "leaveSpores"
-      ],
-      "sporeRadius": 3,
-      "sporeInfection": 0.10,
+      "aiType": "aggressive",
+      "aggressionRange": 5,
+      "fovRadius": 5,
       "xp": 20,
-      "loot": {
-        "gold": {
-          "min": 2,
-          "max": 5,
-          "chance": 0.4
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "description": "Медленный, но очень сильный"
     },
-    "nonhuman": {
-      "id": "nonhuman",
-      "name": "Нелюдь",
-      "char": "N",
-      "color": "#ccaa88",
-      "bgColor": "#3a2a1a",
+    "shadow": {
+      "id": "shadow",
+      "name": "Тень",
+      "char": "S",
+      "color": "#8888cc",
+      "bgColor": "#0a0a1a",
       "layer": 3,
-      "hp": 45,
-      "maxHp": 45,
-      "armor": 3,
+      "hp": 10,
+      "maxHp": 10,
+      "damageMin": 3,
+      "damageMax": 6,
+      "damageType": "shadow",
+      "range": 2,
+      "accuracy": 0.7,
+      "initiative": 7,
+      "speed": 14,
+      "aiType": "aggressive",
+      "aggressionRange": 8,
+      "fovRadius": 10,
+      "xp": 15,
+      "description": "Атакует издалека"
+    },
+    "boss": {
+      "id": "boss",
+      "name": "Босс",
+      "char": "&",
+      "color": "#ff4444",
+      "bgColor": "#2a0000",
+      "layer": 4,
+      "hp": 50,
+      "maxHp": 50,
       "damageMin": 8,
       "damageMax": 14,
-      "damageType": "weapon",
+      "damageType": "physical",
       "range": 1,
-      "initiative": 5,
-      "accuracy": 0.65,
-      "fovRadius": 10,
-      "speed": 12,
-      "features": [
-        "dropsWeapon",
-        "canFollowOrders"
-      ],
-      "xp": 25,
-      "loot": {
-        "gold": {
-          "min": 3,
-          "max": 7,
-          "chance": 0.5
-        },
-        "weapon": {
-          "chance": 0.2
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "ratKing": {
-      "id": "ratKing",
-      "name": "Крысиный король",
-      "char": "R",
-      "color": "#cc8866",
-      "bgColor": "#3a1a0a",
-      "layer": 3,
-      "hp": 30,
-      "maxHp": 30,
-      "armor": 1,
-      "damageMin": 2,
-      "damageMax": 6,
-      "damageType": "bite",
-      "range": 1,
-      "initiative": 7,
-      "accuracy": 0.80,
-      "fovRadius": 8,
-      "speed": 14,
-      "features": [
-        "summonRats"
-      ],
-      "summonCountMin": 1,
-      "summonCountMax": 3,
-      "xp": 30,
-      "loot": {
-        "gold": {
-          "min": 5,
-          "max": 10,
-          "chance": 0.7
-        }
-      },
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "zombie": {
-      "id": "zombie",
-      "name": "Зомби",
-      "char": "Z",
-      "color": "#55aa55",
-      "bgColor": "#1a2a1a",
-      "layer": 3,
-      "hp": 30,
-      "maxHp": 30,
-      "armor": 1,
-      "damageMin": 4,
-      "damageMax": 8,
-      "damageType": "blunt",
-      "range": 1,
-      "initiative": 3,
-      "accuracy": 0.65,
-      "fovRadius": 8,
+      "accuracy": 0.75,
+      "initiative": 4,
       "speed": 10,
-      "features": [
-        "undead"
-      ],
-      "xp": 15,
-      "loot": {
-        "gold": {
-          "min": 2,
-          "max": 5,
-          "chance": 0.4
-        }
-      },
+      "aiType": "boss",
+      "aggressionRange": 12,
+      "fovRadius": 12,
+      "xp": 50,
+      "description": "Опасный противник"
+    }
+  },
+  "environment": {
+    "floor": {
+      "id": "floor",
+      "name": "Пол",
+      "char": ".",
+      "color": "#333333",
+      "bgColor": "#1a1a1a",
+      "solid": false,
+      "blocksSight": false,
+      "isInteractive": false,
+      "isCollectible": false,
+      "layer": 0,
       "visibility": {
         "visibleByDefault": false,
         "exploredByDefault": false,
@@ -486,35 +179,69 @@
         "showWhenExplored": false
       }
     },
-    "ghost": {
-      "id": "ghost",
-      "name": "Призрак",
-      "char": "G",
-      "color": "#aaaaff",
-      "bgColor": "#1a1a3a",
-      "layer": 3,
-      "hp": 15,
-      "maxHp": 15,
-      "armor": 0,
-      "damageMin": 6,
-      "damageMax": 10,
-      "damageType": "magic",
-      "range": 2,
-      "initiative": 7,
-      "accuracy": 0.80,
-      "fovRadius": 10,
-      "speed": 14,
-      "features": [
-        "ethereal"
-      ],
-      "xp": 20,
-      "loot": {
-        "gold": {
-          "min": 3,
-          "max": 7,
-          "chance": 0.5
-        }
+    "wall": {
+      "id": "wall",
+      "name": "Стена",
+      "char": "#",
+      "color": "#666666",
+      "bgColor": "#333333",
+      "solid": true,
+      "blocksSight": true,
+      "isInteractive": false,
+      "isCollectible": false,
+      "layer": 1,
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": true
+      }
+    },
+    "door": {
+      "id": "door",
+      "name": "Дверь",
+      "char": "+",
+      "color": "#aa8866",
+      "bgColor": "#332211",
+      "solid": true,
+      "blocksSight": true,
+      "isInteractive": true,
+      "isCollectible": false,
+      "layer": 1,
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": true
       },
+      "states": {
+        "open": {
+          "char": "/",
+          "color": "#88cc88",
+          "bgColor": "#112211",
+          "solid": false,
+          "blocksSight": false
+        },
+        "closed": {
+          "char": "+",
+          "color": "#aa8866",
+          "bgColor": "#332211",
+          "solid": true,
+          "blocksSight": true
+        }
+      }
+    },
+    "crate": {
+      "id": "crate",
+      "name": "Ящик",
+      "char": "■",
+      "color": "#aa8844",
+      "bgColor": "#332211",
+      "solid": true,
+      "blocksSight": false,
+      "isInteractive": true,
+      "isCollectible": false,
+      "layer": 1,
       "visibility": {
         "visibleByDefault": false,
         "exploredByDefault": false,
@@ -524,6 +251,50 @@
     }
   },
   "items": {
+    "gold": {
+      "id": "gold",
+      "name": "Золото",
+      "char": "$",
+      "color": "#ffdd44",
+      "bgColor": "#2a1a00",
+      "layer": 2,
+      "type": "currency",
+      "category": "gold",
+      "value": 1,
+      "weight": 0.01,
+      "usable": false,
+      "effects": {},
+      "description": "Игровая валюта",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    },
+    "health": {
+      "id": "health",
+      "name": "Аптечка",
+      "char": "♥",
+      "color": "#ff4444",
+      "bgColor": "#2a0a0a",
+      "layer": 2,
+      "type": "consumable",
+      "category": "healing",
+      "value": 10,
+      "weight": 0.5,
+      "usable": true,
+      "effects": {
+        "heal": 15
+      },
+      "description": "Восстанавливает 15 HP",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    },
     "energy": {
       "id": "energy",
       "name": "Батарея",
@@ -593,44 +364,22 @@
         "showWhenExplored": false
       }
     },
-    "gold": {
-      "id": "gold",
-      "name": "Золото",
-      "char": "$",
-      "color": "#ffdd44",
-      "bgColor": "#2a1a00",
-      "layer": 2,
-      "type": "currency",
-      "category": "gold",
-      "value": 1,
-      "weight": 0.01,
-      "usable": false,
-      "effects": {},
-      "description": "Игровая валюта",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
     "potion": {
       "id": "potion",
       "name": "Зелье",
       "char": "!",
       "color": "#ff66ff",
-      "bgColor": "#2a0a2a",
+      "bgColor": "#1a0a1a",
       "layer": 2,
       "type": "consumable",
-      "category": "buff",
-      "value": 6,
+      "category": "healing",
+      "value": 8,
       "weight": 0.3,
       "usable": true,
       "effects": {
-        "buff": "strength",
-        "duration": 3
+        "heal": 8
       },
-      "description": "Увеличивает силу на 3 хода",
+      "description": "Восстанавливает 8 HP",
       "visibility": {
         "visibleByDefault": false,
         "exploredByDefault": false,
@@ -642,86 +391,18 @@
       "id": "scroll",
       "name": "Свиток",
       "char": "?",
-      "color": "#88ff88",
-      "bgColor": "#0a2a0a",
+      "color": "#dddd88",
+      "bgColor": "#1a1a0a",
       "layer": 2,
       "type": "consumable",
-      "category": "scroll",
-      "value": 20,
+      "category": "magic",
+      "value": 12,
       "weight": 0.1,
       "usable": true,
       "effects": {
-        "teleport": true
+        "identify": true
       },
-      "description": "Телепортирует в случайное место",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "potion_heal": {
-      "id": "potion_heal",
-      "name": "Малое зелье лечения",
-      "char": "♥",
-      "color": "#ff6666",
-      "bgColor": "#2a0a0a",
-      "layer": 2,
-      "type": "consumable",
-      "category": "healing",
-      "value": 8,
-      "weight": 0.3,
-      "usable": true,
-      "effects": {
-        "heal": 10
-      },
-      "description": "Восстанавливает 10 HP",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "potion_strength": {
-      "id": "potion_strength",
-      "name": "Зелье силы",
-      "char": "⚡",
-      "color": "#ffaa00",
-      "bgColor": "#2a1a00",
-      "layer": 2,
-      "type": "consumable",
-      "category": "buff",
-      "value": 12,
-      "weight": 0.3,
-      "usable": true,
-      "effects": {
-        "buff": "strength",
-        "duration": 5
-      },
-      "description": "Увеличивает силу на 5 ходов",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
-    },
-    "generic": {
-      "id": "generic",
-      "name": "Предмет",
-      "char": "•",
-      "color": "#ffffff",
-      "bgColor": "#1a1a1a",
-      "layer": 2,
-      "type": "misc",
-      "category": "other",
-      "value": 1,
-      "weight": 0.5,
-      "usable": false,
-      "effects": {},
-      "description": "Обычный предмет",
+      "description": "Идентифицирует предмет",
       "visibility": {
         "visibleByDefault": false,
         "exploredByDefault": false,
@@ -731,173 +412,263 @@
     }
   },
   "biomes": {
-    "residential": {
-      "id": "residential",
-      "name": "Жилой этаж",
-      "description": "Заброшенные жилые помещения",
+    "dungeon": {
+      "id": "dungeon",
+      "name": "Подземелье",
       "generation": {
-        "maxRooms": 22,
         "minRoomSize": 4,
-        "maxRoomSize": 7,
-        "doorChance": 0.6,
-        "roomSpacing": 1
+        "maxRoomSize": 8,
+        "maxRooms": 20,
+        "doorChance": 0.5
       },
       "enemyPool": [
         "groaner",
         "crawler",
         "runner",
-        "mold",
-        "sticker"
+        "brute",
+        "shadow"
+      ],
+      "enemyCount": {
+        "min": 4,
+        "max": 10
+      },
+      "itemPool": [
+        "gold",
+        "health",
+        "potion",
+        "weapon",
+        "armor"
+      ],
+      "itemWeights": [
+        25,
+        20,
+        15,
+        10,
+        10
+      ],
+      "itemCount": {
+        "min": 4,
+        "max": 10
+      },
+      "colors": {
+        "floor": "#333333",
+        "wall": "#666666",
+        "background": "#0a0a0a"
+      }
+    },
+    "cave": {
+      "id": "cave",
+      "name": "Пещера",
+      "generation": {
+        "minRoomSize": 5,
+        "maxRoomSize": 12,
+        "maxRooms": 12,
+        "doorChance": 0.3
+      },
+      "enemyPool": [
+        "crawler",
+        "runner",
+        "brute"
+      ],
+      "enemyCount": {
+        "min": 6,
+        "max": 14
+      },
+      "itemPool": [
+        "gold",
+        "energy",
+        "potion",
+        "scroll"
+      ],
+      "itemWeights": [
+        20,
+        15,
+        20,
+        10
+      ],
+      "itemCount": {
+        "min": 3,
+        "max": 8
+      },
+      "colors": {
+        "floor": "#444433",
+        "wall": "#665544",
+        "background": "#0a0806"
+      }
+    },
+    "ruins": {
+      "id": "ruins",
+      "name": "Руины",
+      "generation": {
+        "minRoomSize": 3,
+        "maxRoomSize": 6,
+        "maxRooms": 25,
+        "doorChance": 0.6
+      },
+      "enemyPool": [
+        "shadow",
+        "groaner",
+        "brute",
+        "boss"
       ],
       "enemyCount": {
         "min": 8,
-        "max": 12
-      },
-      "itemPool": [
-        "health",
-        "gold",
-        "potion",
-        "scroll",
-        "weapon",
-        "armor",
-        "energy"
-      ],
-      "itemWeights": [
-        30,
-        20,
-        15,
-        10,
-        10,
-        10,
-        5
-      ],
-      "itemCount": {
-        "min": 5,
-        "max": 10
-      }
-    },
-    "factory": {
-      "id": "factory",
-      "name": "Фабрика",
-      "description": "Заброшенное промышленное здание",
-      "generation": {
-        "maxRooms": 12,
-        "minRoomSize": 6,
-        "maxRoomSize": 10,
-        "doorChance": 0.4,
-        "roomSpacing": 2
-      },
-      "enemyPool": [
-        "groaner",
-        "clawer",
-        "slime",
-        "mold",
-        "fatso",
-        "nonhuman"
-      ],
-      "enemyCount": {
-        "min": 10,
         "max": 16
       },
       "itemPool": [
-        "health",
         "gold",
+        "health",
         "weapon",
         "armor",
-        "scroll",
-        "energy"
+        "scroll"
       ],
       "itemWeights": [
+        15,
         20,
-        25,
         15,
         15,
-        10,
-        15
+        10
       ],
       "itemCount": {
-        "min": 4,
-        "max": 8
+        "min": 5,
+        "max": 12
+      },
+      "colors": {
+        "floor": "#443333",
+        "wall": "#664444",
+        "background": "#0a0606"
       }
     },
-    "technical": {
-      "id": "technical",
-      "name": "Технический этаж",
-      "description": "Лабиринт технических помещений",
+    "forest": {
+      "id": "forest",
+      "name": "Лес",
       "generation": {
+        "minRoomSize": 6,
+        "maxRoomSize": 10,
         "maxRooms": 15,
-        "minRoomSize": 3,
-        "maxRoomSize": 6,
-        "doorChance": 0.7,
-        "roomSpacing": 1
+        "doorChance": 0.2
       },
       "enemyPool": [
         "runner",
-        "sticker",
-        "mushroom",
-        "howler",
-        "ratKing"
+        "crawler",
+        "shadow"
       ],
       "enemyCount": {
-        "min": 6,
-        "max": 10
-      },
-      "itemPool": [
-        "health",
-        "energy",
-        "gold",
-        "scroll",
-        "potion"
-      ],
-      "itemWeights": [
-        25,
-        20,
-        20,
-        15,
-        20
-      ],
-      "itemCount": {
-        "min": 6,
+        "min": 5,
         "max": 12
-      }
-    },
-    "graveyard": {
-      "id": "graveyard",
-      "name": "Кладбище",
-      "description": "Заброшенное кладбище с нежитью (тестовый биом)",
-      "generation": {
-        "maxRooms": 18,
-        "minRoomSize": 4,
-        "maxRoomSize": 8,
-        "doorChance": 0.3,
-        "roomSpacing": 2
-      },
-      "enemyPool": [
-        "zombie",
-        "ghost"
-      ],
-      "enemyCount": {
-        "min": 10,
-        "max": 15
       },
       "itemPool": [
-        "health",
         "gold",
-        "scroll",
-        "potion_heal",
-        "potion_strength"
+        "potion",
+        "energy",
+        "scroll"
       ],
       "itemWeights": [
-        20,
-        20,
         15,
         25,
-        20
+        15,
+        10
       ],
       "itemCount": {
-        "min": 4,
+        "min": 3,
         "max": 8
+      },
+      "colors": {
+        "floor": "#334433",
+        "wall": "#445544",
+        "background": "#060a06"
       }
     }
+  },
+  "world": {
+    "width": 60,
+    "height": 40,
+    "padding": 2,
+    "minRoomSize": 4,
+    "maxRoomSize": 8,
+    "maxRooms": 20,
+    "roomSpacing": 1,
+    "doorChance": 0.5,
+    "crateChance": 0.3,
+    "doorSpawnChance": 0.5,
+    "visibility": {
+      "items": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      },
+      "enemies": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      },
+      "environment": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": true
+      }
+    }
+  },
+  "combat": {
+    "baseAccuracy": 0.7,
+    "modifiers": {
+      "flanking": 0.1,
+      "highGround": 0.15,
+      "cover": -0.2,
+      "range": {
+        "melee": 0,
+        "short": -0.1,
+        "medium": -0.3,
+        "long": -0.5
+      }
+    }
+  },
+  "ui": {
+    "logger": {
+      "level": 2,
+      "enabledModules": [
+        "enemy",
+        "combat",
+        "movement",
+        "action",
+        "ai",
+        "turn",
+        "pathfinding",
+        "generation",
+        "system"
+      ]
+    },
+    "console": {
+      "maxMessages": 500,
+      "autoScroll": true
+    },
+    "camera": {
+      "speed": 15,
+      "lerpFactor": 0.15
+    },
+    "renderer": {
+      "tileSize": 48,
+      "minTileSize": 12,
+      "fontFamily": "Lucida Console, monospace"
+    },
+    "colors": {
+      "background": "#0a0a0a",
+      "player": "#88ff88",
+      "enemy": "#ff4444",
+      "healthBar": "#44ff44",
+      "healthBarLow": "#ffaa44",
+      "healthBarCritical": "#ff4444"
+    }
+  },
+  "debug": {
+    "enabled": false,
+    "showFov": false,
+    "showRays": false,
+    "showVisibleCells": false,
+    "showPathfinding": false,
+    "logActions": true
   }
 }

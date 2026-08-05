@@ -135,6 +135,13 @@ export default class ContentLoader {
         logger.debug(LOG_MODULES.SYSTEM, 'Обновлены цвета UI')
       }
 
+      // Обновляем настройки отладки
+      if (data.debug && typeof data.debug === 'object') {
+        GameConfig.setDebugConfig(data.debug)
+        loaded++
+        logger.debug(LOG_MODULES.SYSTEM, 'Обновлены настройки отладки')
+      }
+
       logger.info(LOG_MODULES.SYSTEM, `Загружено ${loaded} секций контента`)
 
       // Проверяем валидацию
