@@ -17,6 +17,7 @@ export default class TurnManager {
     this.enemyTurnIndex = 0
     this.enemyList = []
     this.isProcessingEnemyTurn = false
+    this.turnCount = 0
   }
 
   get engine() {
@@ -144,7 +145,9 @@ export default class TurnManager {
       return
     }
 
-    logger.info(LOG_MODULES.TURN, `Ход игрока: ${this.gameLoop.getEntityName(this.gameLoop.selectedEntity)}`)
+    this.turnCount++
+    const locationName = this.location?.name || 'Локация'
+    logger.info(LOG_MODULES.TURN, `${locationName}: Ход ${this.turnCount}`)
   }
 
   /** Сбрасывает состояние хода (при перезагрузке локации). */
@@ -152,6 +155,7 @@ export default class TurnManager {
     this.isPlayerTurn = true
     this.enemyTurnIndex = 0
     this.isProcessingEnemyTurn = false
+    this.turnCount = 0
 
     // Сбрасываем счётчик действий игрока.
     if (this.gameLoop.playerActions) {

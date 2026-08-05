@@ -79,6 +79,10 @@ export default class GameLoop {
     return this.currentLocation.engine.systems.find(s => s.name === name) || null
   }
 
+  get turnCount() {
+    return this.turnManager ? this.turnManager.turnCount : 0
+  }
+
   get selectedEntity() {
     const playerEntities = this.getPlayerEntities()
     if (playerEntities.length === 0) return null
@@ -143,6 +147,7 @@ export default class GameLoop {
   // ===== Действия игрока (делегируются PlayerActions) =====
 
   moveCharacter(dx, dy) { return this.playerActions.moveCharacter(dx, dy) }
+  wait() { return this.playerActions.wait() }
   pickupItem() { return this.playerActions.pickupItem() }
   dropItem(itemId) { return this.playerActions.dropItem(itemId) }
   dropAllItems() { return this.playerActions.dropAllItems() }
@@ -307,6 +312,11 @@ export default class GameLoop {
 
     if (e.code === 'KeyE') {
       this.interact()
+      e.preventDefault()
+    }
+
+    if (e.code === 'KeyP') {
+      this.wait()
       e.preventDefault()
     }
 

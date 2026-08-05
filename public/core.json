@@ -412,38 +412,35 @@
     }
   },
   "biomes": {
-    "dungeon": {
-      "id": "dungeon",
-      "name": "Подземелье",
+    "residential": {
+      "id": "residential",
+      "name": "Жилой этаж",
+      "description": "Заброшенные жилые квартиры самосбора Гигахруща. Коридоры, комнаты и общие кухни, где обитают бывшие жильцы.",
       "generation": {
         "minRoomSize": 4,
         "maxRoomSize": 8,
-        "maxRooms": 20,
-        "doorChance": 0.5
+        "maxRooms": 22,
+        "doorChance": 0.6
       },
       "enemyPool": [
         "groaner",
         "crawler",
-        "runner",
-        "brute",
-        "shadow"
+        "runner"
       ],
       "enemyCount": {
-        "min": 4,
-        "max": 10
+        "min": 5,
+        "max": 12
       },
       "itemPool": [
         "gold",
         "health",
         "potion",
-        "weapon",
-        "armor"
+        "weapon"
       ],
       "itemWeights": [
         25,
+        25,
         20,
-        15,
-        10,
         10
       ],
       "itemCount": {
@@ -451,24 +448,26 @@
         "max": 10
       },
       "colors": {
-        "floor": "#333333",
-        "wall": "#666666",
-        "background": "#0a0a0a"
+        "floor": "#3a3a3a",
+        "wall": "#6a6a6a",
+        "background": "#0d0d0d"
       }
     },
-    "cave": {
-      "id": "cave",
-      "name": "Пещера",
+    "factory": {
+      "id": "factory",
+      "name": "Фабрика",
+      "description": "Производственные цеха Гигахруща. Конвейеры, станки и роботы, сошедшие с ума.",
       "generation": {
-        "minRoomSize": 5,
+        "minRoomSize": 6,
         "maxRoomSize": 12,
-        "maxRooms": 12,
-        "doorChance": 0.3
+        "maxRooms": 14,
+        "doorChance": 0.4
       },
       "enemyPool": [
-        "crawler",
+        "brute",
         "runner",
-        "brute"
+        "crawler",
+        "shadow"
       ],
       "enemyCount": {
         "min": 6,
@@ -477,94 +476,55 @@
       "itemPool": [
         "gold",
         "energy",
-        "potion",
-        "scroll"
-      ],
-      "itemWeights": [
-        20,
-        15,
-        20,
-        10
-      ],
-      "itemCount": {
-        "min": 3,
-        "max": 8
-      },
-      "colors": {
-        "floor": "#444433",
-        "wall": "#665544",
-        "background": "#0a0806"
-      }
-    },
-    "ruins": {
-      "id": "ruins",
-      "name": "Руины",
-      "generation": {
-        "minRoomSize": 3,
-        "maxRoomSize": 6,
-        "maxRooms": 25,
-        "doorChance": 0.6
-      },
-      "enemyPool": [
-        "shadow",
-        "groaner",
-        "brute",
-        "boss"
-      ],
-      "enemyCount": {
-        "min": 8,
-        "max": 16
-      },
-      "itemPool": [
-        "gold",
-        "health",
         "weapon",
         "armor",
         "scroll"
       ],
       "itemWeights": [
-        15,
+        20,
         20,
         15,
         15,
         10
       ],
       "itemCount": {
-        "min": 5,
-        "max": 12
+        "min": 4,
+        "max": 10
       },
       "colors": {
-        "floor": "#443333",
-        "wall": "#664444",
-        "background": "#0a0606"
+        "floor": "#443322",
+        "wall": "#776644",
+        "background": "#0a0805"
       }
     },
-    "forest": {
-      "id": "forest",
-      "name": "Лес",
+    "technical": {
+      "id": "technical",
+      "name": "Технический этаж",
+      "description": "Лабиринты труб, кабелей и вентиляции Гигахруща. Здесь темно и тесно.",
       "generation": {
-        "minRoomSize": 6,
-        "maxRoomSize": 10,
-        "maxRooms": 15,
-        "doorChance": 0.2
+        "minRoomSize": 3,
+        "maxRoomSize": 6,
+        "maxRooms": 26,
+        "doorChance": 0.3
       },
       "enemyPool": [
-        "runner",
         "crawler",
-        "shadow"
+        "runner",
+        "shadow",
+        "brute"
       ],
       "enemyCount": {
-        "min": 5,
-        "max": 12
+        "min": 7,
+        "max": 15
       },
       "itemPool": [
         "gold",
-        "potion",
         "energy",
+        "potion",
         "scroll"
       ],
       "itemWeights": [
-        15,
+        20,
         25,
         15,
         10
@@ -574,9 +534,97 @@
         "max": 8
       },
       "colors": {
-        "floor": "#334433",
-        "wall": "#445544",
-        "background": "#060a06"
+        "floor": "#333a44",
+        "wall": "#556677",
+        "background": "#07090d"
+      }
+    },
+    "medical": {
+      "id": "medical",
+      "name": "Медицинский этаж",
+      "description": "Больничные палаты и лаборатории Гигахруща. Запах антисептика и заражённые пациенты.",
+      "generation": {
+        "minRoomSize": 4,
+        "maxRoomSize": 9,
+        "maxRooms": 18,
+        "doorChance": 0.5
+      },
+      "enemyPool": [
+        "groaner",
+        "shadow",
+        "crawler",
+        "boss"
+      ],
+      "enemyCount": {
+        "min": 5,
+        "max": 12
+      },
+      "itemPool": [
+        "health",
+        "potion",
+        "gold",
+        "scroll",
+        "armor"
+      ],
+      "itemWeights": [
+        30,
+        20,
+        15,
+        10,
+        10
+      ],
+      "itemCount": {
+        "min": 5,
+        "max": 12
+      },
+      "colors": {
+        "floor": "#3a3a3a",
+        "wall": "#6a6a6a",
+        "background": "#0a0a0a"
+      }
+    },
+    "administration": {
+      "id": "administration",
+      "name": "Администрация",
+      "description": "Офисы и кабинеты руководства Гигахруща. Охрана и элитные сотрудники.",
+      "generation": {
+        "minRoomSize": 5,
+        "maxRoomSize": 10,
+        "maxRooms": 16,
+        "doorChance": 0.7
+      },
+      "enemyPool": [
+        "shadow",
+        "brute",
+        "runner",
+        "boss"
+      ],
+      "enemyCount": {
+        "min": 6,
+        "max": 13
+      },
+      "itemPool": [
+        "gold",
+        "weapon",
+        "armor",
+        "scroll",
+        "health"
+      ],
+      "itemWeights": [
+        20,
+        15,
+        15,
+        10,
+        20
+      ],
+      "itemCount": {
+        "min": 4,
+        "max": 10
+      },
+      "colors": {
+        "floor": "#3a3a3a",
+        "wall": "#6a6a6a",
+        "background": "#0d0d0d"
       }
     }
   },

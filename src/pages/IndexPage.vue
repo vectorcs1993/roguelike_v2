@@ -10,7 +10,7 @@
           <q-card-section class="bg-grey-9">
             <div class="text-h6 flex items-center">
               <q-icon name="fmd_good" class="q-mr-sm" />
-              <div class="text-h6">Локация: {{ locationName }}</div>
+              <div class="text-h6">Локация: {{ locationName }} — Ход {{ turnCount }}</div>
               <q-space />
               <q-btn-group>
                 <q-btn label="Обновить" icon="refresh" @click="regenerateLevel" dark />
@@ -32,10 +32,15 @@
           <div class="absolute-bottom full-width q-pa-sm">
             <q-card-section flat bordered class="row bg-grey-9 justify-center">
               <div class="row q-gutter-sm">
+                <q-btn label="↖" @click="move(-1, -1)" />
                 <q-btn label="⬆" @click="move(0, -1)" />
-                <q-btn label="⬇" @click="move(0, 1)" />
+                <q-btn label="↗" @click="move(1, -1)" />
                 <q-btn label="⬅" @click="move(-1, 0)" />
                 <q-btn label="➡" @click="move(1, 0)" />
+                <q-btn label="↙" @click="move(-1, 1)" />
+                <q-btn label="⬇" @click="move(0, 1)" />
+                <q-btn label="↘" @click="move(1, 1)" />
+                <q-btn label="Ждать (P)" @click="waitTurn" />
                 <q-btn label="Атака" @click="attack" />
                 <q-btn label="Взаимодействие" @click="interact" />
                 <q-btn label="Поднять" @click="pickup" />
@@ -272,6 +277,7 @@ const consoleLogs = ref([])
 const entitiesList = ref([])
 const inventoryItems = ref([])
 const locationName = ref('')
+const turnCount = ref(0)
 const selectedEntityId = ref(null)
 const playerStats = ref(null)
 
@@ -355,6 +361,7 @@ function updateEntitiesList() {
 
   const engine = game.currentLocation.engine
   locationName.value = game.currentLocation.name
+  turnCount.value = game.turnCount ?? 0
 
   const entities = engine.getEntitiesWithComponents([
     PositionComponent,
@@ -496,6 +503,11 @@ function updateEntitiesList() {
 }
 
 function move(dx, dy) { game?.moveCharacter(dx, dy) }
+
+function waitTurn() {
+  const result = game?.wait()
+  if (result) addConsoleMessage('Ход пропущен', 'info')
+}
 
 function attack() {
   const result = game?.attackNearestEnemy()

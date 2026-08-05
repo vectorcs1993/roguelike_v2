@@ -75,6 +75,24 @@ export default class PlayerActions {
     }
   }
 
+  /**
+   * Пропускает ход игрока: расходует одно действие, ничего не делая.
+   * Когда действия заканчиваются — ход передаётся врагам.
+   */
+  wait() {
+    if (!this.turnManager.isPlayerTurn) return false
+
+    const entity = this.gameLoop.selectedEntity
+    if (!entity || !entity.active) return false
+
+    const health = entity.getComponent(HealthComponent)
+    if (!health || health.isDead) return false
+
+    logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} ждёт`)
+    this.consumeAction()
+    return true
+  }
+
   /** Перемещает выбранного персонажа на (dx, dy), обрабатывая атаку и взаимодействие. */
   moveCharacter(dx, dy) {
     if (!this.turnManager.isPlayerTurn) return false

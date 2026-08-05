@@ -125,6 +125,12 @@ export default class InputManager {
     if (this.keys['ArrowLeft'] || this.keys['KeyA']) x = -1
     if (this.keys['ArrowRight'] || this.keys['KeyD']) x = 1
 
+    // Диагональные перемещения (Q/E/Z/C)
+    if (this.keys['KeyQ']) { x = -1; y = -1 }
+    if (this.keys['KeyE']) { x = 1; y = -1 }
+    if (this.keys['KeyZ']) { x = -1; y = 1 }
+    if (this.keys['KeyC']) { x = 1; y = 1 }
+
     if (this.touchActive && (this.touchDirX !== 0 || this.touchDirY !== 0)) {
       x = this.touchDirX
       y = this.touchDirY
