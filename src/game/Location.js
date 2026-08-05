@@ -48,6 +48,8 @@ export default class Location {
     this.fov = new Fov(this)
     this.pathfinder = new Pathfinder(this)
 
+    this.addFloorTiles()
+
     this.revealAll()
     console.log(`[Location] Создана: ${this.name}, сущностей: ${this.engine.entities.length}`)
   }
@@ -66,6 +68,30 @@ export default class Location {
     for (const e of all) {
       const r = e.getComponent(RenderComponent)
       if (r) { r.visible = true; r.explored = true }
+    }
+  }
+
+  addFloorTiles() {
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        if (!this.grid[y][x]) {
+          const entitiesAt = this.engine.getEntitiesAt(x, y)
+          let hasWall = false
+          for (const entity of entitiesAt) {
+            const env = entity.getComponent(EnvironmentComponent)
+            if (env && (env.type === 'wall' || env.type === 'door' || env.type === 'crate')) {
+              hasWall = true
+              break
+            }
+          }
+          if (!hasWall) {
+            const floorEntity = EntityFactory.createFloor(x, y)
+            floorEntity.engine = this.engine
+            this.engine.addEntity(floorEntity)
+            this.grid[y][x] = { type: 'floor', entity: floorEntity }
+          }
+        }
+      }
     }
   }
 
@@ -92,6 +118,20 @@ export default class Location {
     }
   }
 
+  replaceEntityAt(x, y, newEntity) {
+    const oldCell = this.grid[y]?.[x]
+    if (oldCell && oldCell.entity) {
+      this.engine.removeEntity(oldCell.entity)
+    }
+    if (newEntity) {
+      newEntity.engine = this.engine
+      this.engine.addEntity(newEntity)
+      this.grid[y][x] = { type: newEntity.tag || 'entity', entity: newEntity }
+    } else {
+      this.grid[y][x] = null
+    }
+  }
+
   isTileWalkable(x, y) {
     if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return false
     const cell = this.grid[y][x]
@@ -102,6 +142,7 @@ export default class Location {
       return door ? door.isOpen : false
     }
     if (cell.type === 'crate') return false
+    if (cell.type === 'item') return true
     return true
   }
 
@@ -115,13 +156,14 @@ export default class Location {
       return door ? !door.isOpen : true
     }
     if (cell.type === 'crate') return false
+    if (cell.type === 'item') return false
     return false
   }
 
   getTile(x, y) {
     const cell = this.grid[y]?.[x]
     if (!cell) {
-      return { visible: false, explored: false, char: ' ', solid: false, blocksSight: false }
+      return { visible: false, explored: false, char: ' ', solid: false, blocksSight: false, bgColor: null }
     }
     const render = cell.entity.getComponent(RenderComponent)
     const env = cell.entity.getComponent(EnvironmentComponent)
@@ -129,6 +171,8 @@ export default class Location {
       visible: render ? render.visible : false,
       explored: render ? render.explored : false,
       char: render ? render.char : '?',
+      color: render ? render.color : '#ffffff',
+      bgColor: render ? render.bgColor : null,
       solid: env ? env.solid : false,
       blocksSight: env ? env.blocksSight : false
     }
@@ -303,6 +347,7 @@ export default class Location {
       biomeName
     )
 
+    // Добавляем ящики
     for (const [x, y] of crates) {
       const crateEntity = EntityFactory.createCrate(x, y)
       crateEntity.engine = location.engine
@@ -310,6 +355,7 @@ export default class Location {
       location.grid[y][x] = { type: 'crate', entity: crateEntity }
     }
 
+    // Добавляем предметы
     const itemPool = biome ? biome.itemPool : ['health', 'gold', 'potion']
     const itemWeights = biome ? biome.itemWeights : [30, 20, 15]
     const itemCount = biome ?
@@ -344,6 +390,12 @@ export default class Location {
       const itemEntity = EntityFactory.createItem(x, y, type)
       itemEntity.engine = location.engine
       location.engine.addEntity(itemEntity)
+
+      // Заменяем пол на предмет
+      const oldCell = location.grid[y][x]
+      if (oldCell && oldCell.entity) {
+        location.engine.removeEntity(oldCell.entity)
+      }
       location.grid[y][x] = { type: 'item', entity: itemEntity }
 
       const render = itemEntity.getComponent(RenderComponent)
@@ -353,6 +405,7 @@ export default class Location {
       }
     }
 
+    // Добавляем двери
     if (doorData?.length) {
       const doors = doorData.map(d => ({ x: d.x, y: d.y, locked: d.locked || false }))
       location.setDoors(doors)

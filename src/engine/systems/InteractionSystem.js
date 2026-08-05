@@ -8,6 +8,7 @@ import ItemComponent from '../components/ItemComponent.js'
 import HealthComponent from '../components/HealthComponent.js'
 import InventoryComponent from '../components/InventoryComponent.js'
 import RenderComponent from '../components/RenderComponent.js'
+import EntityFactory from '../EntityFactory.js'
 
 export default class InteractionSystem extends System {
   constructor() {
@@ -15,7 +16,7 @@ export default class InteractionSystem extends System {
     this.name = 'InteractionSystem'
   }
 
-  interact(actor, target, x, y) {
+  interact(actor, target) {
     if (!target || !target.active) return false
 
     const health = actor.getComponent(HealthComponent)
@@ -29,6 +30,7 @@ export default class InteractionSystem extends System {
     if (!actorPos || !targetPos) return false
     if (actorPos.chebyshevDistanceTo(targetPos) > 1) return false
 
+    // Дверь
     const door = target.getComponent(DoorComponent)
     if (door) {
       const success = door.toggle()
@@ -41,11 +43,14 @@ export default class InteractionSystem extends System {
       }
     }
 
+    // Ящик
     if (env.type === 'crate') {
       console.log('Ящик открыт!')
+      // Можно добавить loot из ящика
       return true
     }
 
+    // Сбор предмета
     if (env.isCollectible) {
       const item = target.getComponent(ItemComponent)
       if (!item || item.collected) return false
@@ -58,6 +63,7 @@ export default class InteractionSystem extends System {
         name: env.name || 'Предмет',
         char: render ? render.char : '?',
         color: render ? render.color : '#ffffff',
+        bgColor: render ? render.bgColor : null
       }
 
       const inv = actor.getComponent(InventoryComponent)
@@ -69,12 +75,33 @@ export default class InteractionSystem extends System {
       }
 
       item.collected = true
-      const loc = this.engine.currentLocation
-      if (loc && loc.grid && loc.grid[y]) {
-        loc.grid[y][x] = null
+
+      // Получаем позицию предмета
+      const pos = target.getComponent(PositionComponent)
+      if (pos) {
+        const tileX = pos.tileX
+        const tileY = pos.tileY
+
+        // Удаляем предмет из engine
+        this.engine.removeEntity(target)
+
+        // Создаем пол на месте предмета
+        const loc = this.engine.currentLocation
+        if (loc) {
+          const floorEntity = EntityFactory.createFloor(tileX, tileY)
+          floorEntity.engine = this.engine
+          this.engine.addEntity(floorEntity)
+          loc.grid[tileY][tileX] = { type: 'floor', entity: floorEntity }
+
+          // Делаем пол видимым
+          const floorRender = floorEntity.getComponent(RenderComponent)
+          if (floorRender) {
+            floorRender.visible = true
+            floorRender.explored = true
+          }
+        }
       }
 
-      this.engine.removeEntity(target)
       return true
     }
 

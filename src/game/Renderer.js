@@ -153,9 +153,13 @@ export default class Renderer {
       const drawY = pos.vy * ts + oy
 
       let color = render.color || '#ffffff'
+      let bgColor = render.bgColor || null
 
       if (!isPlayer && !isEnemy && !isVisible && render.explored) {
         color = this.darkenColor(color, 0.3)
+        if (bgColor) {
+          bgColor = this.darkenColor(bgColor, 0.3)
+        }
       }
 
       if (entity === this._activeEntity) {
@@ -164,6 +168,11 @@ export default class Renderer {
         color = uiColors.player || '#5272b6'
       } else if (isEnemy && isVisible) {
         color = uiColors.enemy || '#d83232'
+      }
+
+      if (bgColor) {
+        ctx.fillStyle = bgColor
+        ctx.fillRect(drawX, drawY, ts, ts)
       }
 
       ctx.fillStyle = color
@@ -196,13 +205,6 @@ export default class Renderer {
       for (const e of entitiesAt) {
         const r = e.getComponent(RenderComponent)
         if (r && r.visible) { isVisible = true; break }
-      }
-      if (!isVisible) {
-        const cell = map.grid[this.hoverTileY]?.[this.hoverTileX]
-        if (cell && cell.entity) {
-          const r = cell.entity.getComponent(RenderComponent)
-          if (r) isVisible = r.visible
-        }
       }
 
       ctx.strokeStyle = isVisible ? '#ffffff' : '#666666'

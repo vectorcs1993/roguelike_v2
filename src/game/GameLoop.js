@@ -293,21 +293,25 @@ export default class GameLoop {
     const engine = this.currentLocation.engine
 
     let itemEntity = null
+    let itemPos = null
 
+    // Ищем предмет на клетке игрока
     const entitiesAt = engine.getEntitiesAt(cx, cy)
     for (const e of entitiesAt) {
       const itemComp = e.getComponent(ItemComponent)
       if (itemComp && !itemComp.collected) {
         itemEntity = e
+        itemPos = e.getComponent(PositionComponent)
         break
       }
     }
 
+    // Если не нашли, проверяем grid
     if (!itemEntity) {
-      itemEntity = this.currentLocation.getEntityAt(cx, cy)
-      if (itemEntity) {
-        const itemComp = itemEntity.getComponent(ItemComponent)
-        if (!itemComp || itemComp.collected) itemEntity = null
+      const cell = this.currentLocation.grid[cy]?.[cx]
+      if (cell && cell.type === 'item') {
+        itemEntity = cell.entity
+        itemPos = itemEntity?.getComponent(PositionComponent)
       }
     }
 
@@ -337,6 +341,7 @@ export default class GameLoop {
       name: itemName,
       char: render ? render.char : '?',
       color: render ? render.color : '#ffffff',
+      bgColor: render ? render.bgColor : null
     }
 
     const inv = entity.getComponent(InventoryComponent)
@@ -348,12 +353,27 @@ export default class GameLoop {
     }
 
     itemComp.collected = true
-    const loc = this.currentLocation
-    if (loc && loc.grid && loc.grid[cy]) {
-      loc.grid[cy][cx] = null
+
+    // Сохраняем позицию перед удалением
+    const tileX = itemPos ? itemPos.tileX : cx
+    const tileY = itemPos ? itemPos.tileY : cy
+
+    // Удаляем предмет
+    this.currentLocation.engine.removeEntity(itemEntity)
+
+    // Создаем пол на месте предмета
+    const floorEntity = EntityFactory.createFloor(tileX, tileY)
+    floorEntity.engine = this.currentLocation.engine
+    this.currentLocation.engine.addEntity(floorEntity)
+    this.currentLocation.grid[tileY][tileX] = { type: 'floor', entity: floorEntity }
+
+    // Делаем пол видимым
+    const floorRender = floorEntity.getComponent(RenderComponent)
+    if (floorRender) {
+      floorRender.visible = true
+      floorRender.explored = true
     }
 
-    this.currentLocation.engine.removeEntity(itemEntity)
     logger.info(LOG_MODULES.ACTION, `${this.getEntityName(entity)} подобрал ${itemName}`)
     this.endPlayerTurn()
     return true
@@ -464,17 +484,25 @@ export default class GameLoop {
   }
 
   _createItemEntity(x, y, itemData) {
+    // Сначала удаляем пол на этой клетке
+    const cell = this.currentLocation.grid[y]?.[x]
+    if (cell && cell.entity) {
+      const env = cell.entity.getComponent(EnvironmentComponent)
+      if (env && env.type === 'floor') {
+        this.currentLocation.engine.removeEntity(cell.entity)
+      }
+    }
+
+    // Создаем предмет
     const itemEntity = EntityFactory.createItem(x, y, itemData.type || 'generic', {
       name: itemData.name,
       char: itemData.char,
       color: itemData.color,
-      onCollect: null
+      bgColor: itemData.bgColor
     })
 
     const render = itemEntity.getComponent(RenderComponent)
     if (render) {
-      render.char = itemData.char || render.char
-      render.color = itemData.color || render.color
       render.visible = true
       render.explored = true
     }
@@ -560,7 +588,7 @@ export default class GameLoop {
         if (target) {
           const env = target.getComponent(EnvironmentComponent)
           if (env && env.isInteractive) {
-            const success = this.interactionSystem.interact(entity, target, nx, ny)
+            const success = this.interactionSystem.interact(entity, target)
             if (success) {
               this.endPlayerTurn()
               return true

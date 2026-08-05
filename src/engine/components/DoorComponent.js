@@ -12,11 +12,17 @@ export default class DoorComponent extends Component {
     this.isOpen = config.isOpen || false
     this.isLocked = config.isLocked || false
 
-    // Настройки отображения теперь берутся из GameConfig
-    this.closedChar = config.closedChar || GameConfig.getSymbol('door', 'closed')
-    this.openChar = config.openChar || GameConfig.getSymbol('door', 'open')
-    this.closedColor = config.closedColor || GameConfig.getColor('door', 'closed')
-    this.openColor = config.openColor || GameConfig.getColor('door', 'open')
+    const envData = GameConfig.getEnvironment('door')
+    const closedState = envData.states.closed
+    const openState = envData.states.open
+
+    this.closedChar = config.closedChar || closedState.char
+    this.openChar = config.openChar || openState.char
+    this.closedColor = config.closedColor || closedState.color
+    this.openColor = config.openColor || openState.color
+    this.closedBgColor = config.closedBgColor || closedState.bgColor
+    this.openBgColor = config.openBgColor || openState.bgColor
+    this.layer = config.layer || envData.layer || 1
   }
 
   open() {
@@ -33,6 +39,8 @@ export default class DoorComponent extends Component {
     if (render) {
       render.char = this.openChar
       render.color = this.openColor
+      render.bgColor = this.openBgColor
+      render.layer = this.layer
     }
 
     const pos = this.entity.getComponent(PositionComponent)
@@ -59,6 +67,8 @@ export default class DoorComponent extends Component {
     if (render) {
       render.char = this.closedChar
       render.color = this.closedColor
+      render.bgColor = this.closedBgColor
+      render.layer = this.layer
     }
 
     const pos = this.entity.getComponent(PositionComponent)
