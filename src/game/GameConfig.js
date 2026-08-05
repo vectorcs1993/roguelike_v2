@@ -596,5 +596,4 @@ export const GameConfig = {
   }
 }
 
-export const GAME_DATA = GAME_CONFIG
 export default GAME_CONFIG

@@ -6,9 +6,7 @@ import BiomeGenerator from './BiomeGenerator.js'
 import { GameConfig } from './GameConfig.js'
 import Engine from '../engine/Engine.js'
 import EntityFactory from '../engine/EntityFactory.js'
-import MovementSystem from '../engine/systems/MovementSystem.js'
 import CombatSystem from '../engine/systems/CombatSystem.js'
-import HealthSystem from '../engine/systems/HealthSystem.js'
 import AISystem from '../engine/systems/AISystem.js'
 import InteractionSystem from '../engine/systems/InteractionSystem.js'
 import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
@@ -17,8 +15,6 @@ import PositionComponent from '../engine/components/PositionComponent.js'
 import RenderComponent from '../engine/components/RenderComponent.js'
 
 export default class Location {
-  #gameLoop = null
-
   constructor(config, walls, entities, biomeName = null, walkableCells = null) {
     this.biomeName = biomeName || 'Неизвестная локация'
     this.name = this.biomeName
@@ -31,9 +27,7 @@ export default class Location {
     )
 
     this.engine = new Engine()
-    this.engine.addSystem(new MovementSystem())
     this.engine.addSystem(new CombatSystem())
-    this.engine.addSystem(new HealthSystem())
     this.engine.addSystem(new AISystem())
     this.engine.addSystem(new InteractionSystem())
 
@@ -145,20 +139,6 @@ export default class Location {
         this.engine.addEntity(doorEntity)
         this.grid[y][x] = { type: 'door', entity: doorEntity }
       }
-    }
-  }
-
-  replaceEntityAt(x, y, newEntity) {
-    const oldCell = this.grid[y]?.[x]
-    if (oldCell && oldCell.entity) {
-      this.engine.removeEntity(oldCell.entity)
-    }
-    if (newEntity) {
-      newEntity.engine = this.engine
-      this.engine.addEntity(newEntity)
-      this.grid[y][x] = { type: newEntity.tag || 'entity', entity: newEntity }
-    } else {
-      this.grid[y][x] = null
     }
   }
 
@@ -293,17 +273,8 @@ export default class Location {
     return blocked
   }
 
-  setGameLoop(gameLoop) { this.#gameLoop = gameLoop }
-  getGameLoop() { return this.#gameLoop }
-
   static generateProcedural(biomeType = null) {
-    const biomeIds = GameConfig.getBiomeIds()
-    const selectedBiomeId = biomeType || biomeIds[Math.floor(Math.random() * biomeIds.length)]
-    const biome = GameConfig.getBiome(selectedBiomeId)
-
-    const genConfig = GameConfig.getBiomeGenerationConfig(selectedBiomeId)
-    const biomeName = biome ? biome.name : 'Зараженная зона'
-    const worldConfig = GameConfig.getWorldConfig()
+    const { biome, biomeName, worldConfig, genConfig } = this._selectBiome(biomeType)
 
     const generator = new BiomeGenerator({
       width: worldConfig.width,
@@ -319,6 +290,54 @@ export default class Location {
     const { walls, width, height, rooms, doors: doorData, walkableCells } = generator.generate()
 
     const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
+    const roomCells = this._collectRoomCells(rooms)
+    const isFree = (x, y) => !wallSet.has(`${x},${y}`)
+
+    // Определяем ящики и свободные клетки
+    const crateChance = worldConfig.crateChance || 0.3
+    const crateCount = Math.min(Math.floor(roomCells.length * crateChance), roomCells.length)
+    const crates = roomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
+    const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`))
+    const available = roomCells.filter(c => !crateSet.has(c))
+
+    const playerStart = this.findStartInRoom(rooms, isFree, crateSet)
+
+    // Создаём игрока и врагов
+    const entities = []
+    const player = EntityFactory.createPlayer(playerStart.x, playerStart.y)
+    entities.push(player)
+
+    const enemyPositions = this._createEnemies(entities, biome, available, playerStart)
+
+    const location = new Location(
+      { cols: width, rows: height },
+      walls,
+      entities,
+      biomeName,
+      walkableCells
+    )
+
+    this._placeCrates(location, crates)
+    this._placeItems(location, biome, available, playerStart, enemyPositions)
+    this._placeDoors(location, doorData)
+    this._setupBaseVisibility(location)
+
+    return location
+  }
+
+  /** Выбирает биом и возвращает связанные с ним конфигурации. */
+  static _selectBiome(biomeType) {
+    const biomeIds = GameConfig.getBiomeIds()
+    const selectedBiomeId = biomeType || biomeIds[Math.floor(Math.random() * biomeIds.length)]
+    const biome = GameConfig.getBiome(selectedBiomeId)
+    const biomeName = biome ? biome.name : 'Зараженная зона'
+    const worldConfig = GameConfig.getWorldConfig()
+    const genConfig = GameConfig.getBiomeGenerationConfig(selectedBiomeId)
+    return { selectedBiomeId, biome, biomeName, worldConfig, genConfig }
+  }
+
+  /** Собирает и перемешивает внутренние клетки всех комнат. */
+  static _collectRoomCells(rooms) {
     const roomCells = []
     for (const room of rooms) {
       for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
@@ -327,28 +346,15 @@ export default class Location {
         }
       }
     }
-
     for (let i = roomCells.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [roomCells[i], roomCells[j]] = [roomCells[j], roomCells[i]]
     }
+    return roomCells
+  }
 
-    const isFree = (x, y) => !wallSet.has(`${x},${y}`)
-
-    const crateChance = worldConfig.crateChance || 0.3
-    const crateCount = Math.min(Math.floor(roomCells.length * crateChance), roomCells.length)
-    const crates = roomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
-    const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`))
-
-    const available = roomCells.filter(c => !crateSet.has(c))
-
-    const playerStart = this.findStartInRoom(rooms, isFree, crateSet)
-
-    const entities = []
-
-    const player = EntityFactory.createPlayer(playerStart.x, playerStart.y)
-    entities.push(player)
-
+  /** Создаёт врагов на свободных клетках и возвращает их позиции. */
+  static _createEnemies(entities, biome, available, playerStart) {
     const enemyPool = biome ? biome.enemyPool : ['groaner', 'crawler', 'runner']
     const enemyCount = biome ?
       Math.floor(Math.random() * (biome.enemyCount.max - biome.enemyCount.min + 1)) + biome.enemyCount.min :
@@ -371,23 +377,21 @@ export default class Location {
       }
     }
 
-    const location = new Location(
-      { cols: width, rows: height },
-      walls,
-      entities,
-      biomeName,
-      walkableCells
-    )
+    return enemyPositions
+  }
 
-    // Добавляем ящики
+  /** Добавляет ящики на указанные клетки. */
+  static _placeCrates(location, crates) {
     for (const [x, y] of crates) {
       const crateEntity = EntityFactory.createCrate(x, y)
       crateEntity.engine = location.engine
       location.engine.addEntity(crateEntity)
       location.grid[y][x] = { type: 'crate', entity: crateEntity }
     }
+  }
 
-    // Добавляем предметы
+  /** Добавляет предметы на свободные клетки с учётом весов биома. */
+  static _placeItems(location, biome, available, playerStart, enemyPositions) {
     const itemPool = biome ? biome.itemPool : ['health', 'gold', 'potion']
     const itemWeights = biome ? biome.itemWeights : [30, 20, 15]
     const itemCount = biome ?
@@ -429,15 +433,18 @@ export default class Location {
       }
       location.grid[y][x] = { type: 'item', entity: itemEntity }
     }
+  }
 
-    // Добавляем двери
+  /** Добавляет двери на карту. */
+  static _placeDoors(location, doorData) {
     if (doorData?.length) {
       const doors = doorData.map(d => ({ x: d.x, y: d.y, locked: d.locked || false }))
       location.setDoors(doors)
     }
+  }
 
-    // Устанавливаем explored для базовых объектов (стены и пол)
-    // Это нужно чтобы showWhenExplored работало для них
+  /** Устанавливает explored для базовых объектов (стены и пол). */
+  static _setupBaseVisibility(location) {
     for (let y = 0; y < location.rows; y++) {
       for (let x = 0; x < location.cols; x++) {
         const cell = location.grid[y][x]
@@ -456,8 +463,6 @@ export default class Location {
         }
       }
     }
-
-    return location
   }
 
   static findStartInRoom(rooms, isFree, occupiedSet) {

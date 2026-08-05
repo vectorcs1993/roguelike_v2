@@ -158,20 +158,4 @@ class Logger {
 // Создаем экземпляр логгера без зависимости от GameConfig
 export const logger = new Logger()
 
-// Функция для обновления конфига логгера из GameConfig (вызывается после загрузки)
-export function configureLoggerFromConfig(gameConfig) {
-  if (!gameConfig) return
-
-  const uiConfig = gameConfig.ui || {}
-  const loggerConfig = uiConfig.logger || {}
-
-  if (loggerConfig.level !== undefined) {
-    logger.setLevel(loggerConfig.level)
-  }
-
-  if (loggerConfig.enabledModules) {
-    logger.setModules(loggerConfig.enabledModules)
-  }
-}
-
 export default Logger

@@ -1,7 +1,7 @@
 <!-- src/pages/IndexPage.vue -->
 
 <template>
-  <q-page class="q-pa-md" style="background: #121212; height: 100vh; display: flex; flex-direction: column;" ref="pageRef">
+  <q-page class="q-pa-md text-h6" style="background: #121212; height: 100vh; display: flex; flex-direction: column;" ref="pageRef">
 
     <div class="row q-col-gutter-md" style="flex: 1; min-height: 0;">
       <!-- Canvas -->
@@ -40,7 +40,7 @@
                 <q-btn label="↙" @click="move(-1, 1)" />
                 <q-btn label="⬇" @click="move(0, 1)" />
                 <q-btn label="↘" @click="move(1, 1)" />
-                <q-btn label="Ждать (P)" @click="waitTurn" />
+                <q-btn label="Ждать" @click="waitTurn" />
                 <q-btn label="Атака" @click="attack" />
                 <q-btn label="Взаимодействие" @click="interact" />
                 <q-btn label="Поднять" @click="pickup" />
@@ -57,7 +57,7 @@
           <q-card-section class="bg-grey-9">
             <div class="text-h6 flex items-center">
               <q-icon name="person" class="q-mr-sm" />
-              Игрок
+              Персонаж
               <q-badge color="blue" :label="playerStats?.name || '—'" class="q-ml-sm" />
             </div>
           </q-card-section>
@@ -65,61 +65,59 @@
           <q-card-section dark>
             <template v-if="playerStats">
               <!-- Здоровье -->
-              <div class="q-mb-sm">
-                <div class="row justify-between text-caption text-grey-5">
+              <div>
+                <div class="row justify-between">
                   <span>❤️ Здоровье</span>
                   <span>{{ playerStats.hp }}/{{ playerStats.maxHp }}</span>
                 </div>
-                <q-linear-progress :value="playerStats.hpPercent" color="red" track-color="grey-8" size="12px" rounded />
               </div>
 
               <!-- Энергия -->
-              <div class="q-mb-sm">
-                <div class="row justify-between text-caption text-grey-5">
+              <div>
+                <div class="row justify-between ">
                   <span>⚡ Энергия</span>
                   <span>{{ playerStats.energy }}/{{ playerStats.maxEnergy }}</span>
                 </div>
-                <q-linear-progress :value="playerStats.energyPercent" color="amber" track-color="grey-8" size="12px" rounded />
               </div>
 
               <!-- Броня -->
-              <div class="row justify-between text-caption q-mb-xs">
+              <div class="row justify-between">
                 <span class="text-grey-5">🛡️ Броня</span>
                 <span>{{ playerStats.armor }} ({{ playerStats.armorType }})</span>
               </div>
 
               <!-- Атака -->
-              <div class="row justify-between text-caption q-mb-xs">
+              <div class="row justify-between ">
                 <span class="text-grey-5">⚔️ Урон</span>
                 <span>{{ playerStats.damageMin }}-{{ playerStats.damageMax }} ({{ playerStats.damageType }})</span>
               </div>
 
               <!-- Точность -->
-              <div class="row justify-between text-caption q-mb-xs">
+              <div class="row justify-between">
                 <span class="text-grey-5">🎯 Точность</span>
                 <span>{{ Math.round(playerStats.accuracy * 100) }}%</span>
               </div>
 
               <!-- Дальность -->
-              <div class="row justify-between text-caption q-mb-xs">
+              <div class="row justify-between">
                 <span class="text-grey-5">📏 Дальность</span>
                 <span>{{ playerStats.attackRange }}</span>
               </div>
 
               <!-- Скорость -->
-              <div class="row justify-between text-caption q-mb-xs">
+              <div class="row justify-between">
                 <span class="text-grey-5">⚡ Скорость</span>
                 <span>{{ playerStats.speed }}</span>
               </div>
 
               <!-- Инициатива -->
-              <div class="row justify-between text-caption q-mb-xs">
+              <div class="row justify-between">
                 <span class="text-grey-5">🔄 Инициатива</span>
                 <span>{{ playerStats.initiative }}</span>
               </div>
 
               <!-- Позиция -->
-              <div class="row justify-between text-caption q-mb-xs">
+              <div class="row justify-between">
                 <span class="text-grey-5">📍 Позиция</span>
                 <span>{{ playerStats.x }}, {{ playerStats.y }}</span>
               </div>
@@ -593,14 +591,8 @@ function regenerateLevel() {
 }
 
 function revealFullMap() {
-  if (!game?.currentLocation?.map) return
-  const map = game.currentLocation.map
-  for (let y = 0; y < map.rows; y++) {
-    for (let x = 0; x < map.cols; x++) {
-      const tile = map.getTile(x, y)
-      if (tile) tile.visible = tile.explored = true
-    }
-  }
+  if (!game?.currentLocation) return
+  game.currentLocation.revealAll()
   addConsoleMessage('Карта открыта', 'success')
 }
 

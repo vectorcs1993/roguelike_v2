@@ -3,7 +3,6 @@
 import Entity from './Entity.js'
 import PositionComponent from './components/PositionComponent.js'
 import HealthComponent from './components/HealthComponent.js'
-import PlayerComponent from './components/PlayerComponent.js'
 import AIComponent from './components/AIComponent.js'
 
 export default class Engine {
@@ -47,10 +46,6 @@ export default class Engine {
       if (!e.active) return false
       return componentClasses.every(C => e.hasComponent(C))
     })
-  }
-
-  getPlayerEntities() {
-    return this.getEntitiesWithComponent(PlayerComponent)
   }
 
   getEnemyEntities() {

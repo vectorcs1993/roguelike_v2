@@ -27,7 +27,6 @@ export default class GameLoop {
     this.ctx = canvas.getContext('2d')
 
     this.currentLocation = initialLocation || Location.generateProcedural(biomeType)
-    this.currentLocation.setGameLoop(this)
     this.currentLocation.engine.currentLocation = this.currentLocation
 
     const engine = this.currentLocation.engine
@@ -252,7 +251,6 @@ export default class GameLoop {
   /** Общая логика установки новой локации после перезагрузки. */
   _setupLocation(location) {
     this.currentLocation = location
-    this.currentLocation.setGameLoop(this)
     this.currentLocation.engine.currentLocation = this.currentLocation
 
     const engine = this.currentLocation.engine

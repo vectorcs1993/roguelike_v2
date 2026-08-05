@@ -287,24 +287,8 @@ export function isItemUsable(itemData) {
   return !!(effects && Object.keys(effects).length > 0)
 }
 
-// ===== РЕГИСТРАЦИЯ КАСТОМНЫХ ЭФФЕКТОВ =====
-//
-// Позволяет модам добавлять собственные эффекты:
-//   registerEffect('myEffect', (ctx) => { ... return true/false/string })
-
-export function registerEffect(name, handler) {
-  if (!name || typeof handler !== 'function') {
-    logger.warn(LOG_MODULES.ACTION, 'registerEffect: name и handler обязательны')
-    return false
-  }
-  EFFECT_HANDLERS[name] = handler
-  logger.info(LOG_MODULES.ACTION, `Зарегистрирован эффект предмета: "${name}"`)
-  return true
-}
-
 export default {
   EFFECT_HANDLERS,
   applyItemEffects,
-  isItemUsable,
-  registerEffect
+  isItemUsable
 }

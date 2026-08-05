@@ -7,16 +7,18 @@ export default class InputManager {
     this.touchActive = false
     this.touchDirX = 0
     this.touchDirY = 0
-    this.clickX = 0
-    this.clickY = 0
-    this.clicked = false
     this.mouseX = 0
     this.mouseY = 0
     this.mouseOnCanvas = false
+    this.clickX = 0
+    this.clickY = 0
+  }
 
-    this._attackPressed = false
-    this._interactPressed = false
-    this._switchPressed = false
+  handleClick(e) {
+    if (e.button === 0) {
+      this.clickX = e.offsetX
+      this.clickY = e.offsetY
+    }
   }
 
   handleMouseMove(e) {
@@ -29,59 +31,16 @@ export default class InputManager {
     this.mouseOnCanvas = false
   }
 
-  getMouseTile(camera, renderer) {
-    if (!this.mouseOnCanvas) return null
-    const worldX = (this.mouseX - renderer.halfW) / renderer.tileSize + camera.x
-    const worldY = (this.mouseY - renderer.halfH) / renderer.tileSize + camera.y
-    return { x: worldX | 0, y: worldY | 0, worldX, worldY }
-  }
-
-  handleClick(e) {
-    if (e.button === 0) {
-      this.clickX = e.offsetX
-      this.clickY = e.offsetY
-      this.clicked = true
-    }
-  }
-
-  consumeClick() {
-    if (!this.clicked) return null
-    this.clicked = false
-    return { x: this.clickX, y: this.clickY }
-  }
-
   handleKeyDown(e) {
     this.keys[e.code] = true
 
-    if (e.code === 'Space' || e.code === 'Enter') {
-      this._attackPressed = true
-      e.preventDefault()
-    }
-    if (e.code === 'KeyE') {
-      this._interactPressed = true
-    }
-    if (e.code === 'Tab') {
-      this._switchPressed = true
-      e.preventDefault()
-    }
-
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Enter', 'Tab'].includes(e.code)) {
       e.preventDefault()
     }
   }
 
   handleKeyUp(e) {
     this.keys[e.code] = false
-
-    if (e.code === 'Space' || e.code === 'Enter') {
-      this._attackPressed = false
-    }
-    if (e.code === 'KeyE') {
-      this._interactPressed = false
-    }
-    if (e.code === 'Tab') {
-      this._switchPressed = false
-    }
   }
 
   handleTouchStart(e) {
@@ -139,8 +98,4 @@ export default class InputManager {
     if (x === 0 && y === 0) return null
     return { x, y }
   }
-
-  isAttackPressed() { return this._attackPressed }
-  isInteractPressed() { return this._interactPressed }
-  isSwitchPressed() { return this._switchPressed }
 }

@@ -15,7 +15,6 @@ import MovementComponent from '../engine/components/MovementComponent.js'
 import EntityFactory from '../engine/EntityFactory.js'
 import { logger, LOG_MODULES } from './Logger.js'
 import { applyItemEffects, isItemUsable } from './ItemEffects.js'
-import { GameConfig } from './GameConfig.js'
 
 export default class PlayerActions {
   constructor(gameLoop) {
@@ -114,8 +113,8 @@ export default class PlayerActions {
     // Ящик: игрок разбивает его, наступая на клетку.
     // Разбитие занимает целый ход — игрок остаётся на месте.
     const targetCell = this.location.grid[newY]?.[newX]
-    if (targetCell && targetCell.type === 'crate') {
-      this.breakCrate(newX, newY)
+    if (targetCell && targetCell.type === 'crate' && targetCell.entity) {
+      this.interactionSystem.breakCrate(entity, targetCell.entity)
       this.consumeAction()
       return true
     }
@@ -175,63 +174,6 @@ export default class PlayerActions {
     return true
   }
 
-  /**
-   * Разбивает ящик на клетке (x, y): удаляет его с уровня,
-   * создаёт пол на его месте и с шансом из конфига выпадает
-   * случайный предмет со случайным количеством (0-999).
-   */
-  breakCrate(x, y) {
-    const cell = this.location.grid[y]?.[x]
-    if (!cell || cell.type !== 'crate') return
-
-    const crateEntity = cell.entity
-    if (crateEntity) {
-      this.engine.removeEntity(crateEntity)
-    }
-
-    // Создаём пол на месте ящика
-    const floorEntity = EntityFactory.createFloor(x, y)
-    floorEntity.engine = this.engine
-    this.engine.addEntity(floorEntity)
-    this.location.grid[y][x] = { type: 'floor', entity: floorEntity }
-
-    const floorRender = floorEntity.getComponent(RenderComponent)
-    if (floorRender) {
-      floorRender.visible = true
-      floorRender.explored = true
-    }
-
-    logger.info(LOG_MODULES.ACTION, `Ящик разбит!`)
-
-    // Выпадение лута из конфига
-    const worldConfig = GameConfig.getWorldConfig()
-    const crateLoot = worldConfig.crateLoot || {}
-    const dropChance = crateLoot.dropChance !== undefined ? crateLoot.dropChance : 0.5
-    const items = crateLoot.items && crateLoot.items.length ? crateLoot.items : ['gold']
-    const minCount = crateLoot.minCount !== undefined ? crateLoot.minCount : 0
-    const maxCount = crateLoot.maxCount !== undefined ? crateLoot.maxCount : 999
-
-    if (Math.random() < dropChance) {
-      const type = items[Math.floor(Math.random() * items.length)]
-      const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount
-
-      if (count > 0) {
-        const itemEntity = EntityFactory.createItem(x, y, type, { count })
-        itemEntity.engine = this.engine
-        this.engine.addEntity(itemEntity)
-        this.location.grid[y][x] = { type: 'item', entity: itemEntity }
-
-        const itemRender = itemEntity.getComponent(RenderComponent)
-        if (itemRender) {
-          itemRender.visible = true
-          itemRender.explored = true
-        }
-
-        logger.info(LOG_MODULES.ACTION, `Из ящика выпало: ${type} x${count}`)
-      }
-    }
-  }
-
   /** Подбирает предмет с клетки выбранного персонажа. */
   pickupItem() {
     if (!this.turnManager.isPlayerTurn) return false
@@ -245,16 +187,13 @@ export default class PlayerActions {
     const cx = pos.tileX
     const cy = pos.tileY
 
-    let itemEntity = null
-    let itemPos = null
-
     // Ищем предмет на клетке игрока
+    let itemEntity = null
     const entitiesAt = this.engine.getEntitiesAt(cx, cy)
     for (const e of entitiesAt) {
       const itemComp = e.getComponent(ItemComponent)
       if (itemComp && !itemComp.collected) {
         itemEntity = e
-        itemPos = e.getComponent(PositionComponent)
         break
       }
     }
@@ -264,7 +203,6 @@ export default class PlayerActions {
       const cell = this.location.grid[cy]?.[cx]
       if (cell && cell.type === 'item') {
         itemEntity = cell.entity
-        itemPos = itemEntity?.getComponent(PositionComponent)
       }
     }
 
@@ -273,74 +211,11 @@ export default class PlayerActions {
       return false
     }
 
-    const env = itemEntity.getComponent(EnvironmentComponent)
-    if (!env || !env.isCollectible) {
-      logger.info(LOG_MODULES.ACTION, 'Здесь нет предметов для подбора')
-      return false
+    const success = this.interactionSystem.pickupItem(entity, itemEntity)
+    if (success) {
+      this.consumeAction()
     }
-
-    const itemComp = itemEntity.getComponent(ItemComponent)
-    if (!itemComp || itemComp.collected) {
-      logger.info(LOG_MODULES.ACTION, 'Этот предмет уже собран')
-      return false
-    }
-
-    const itemName = env.name || 'предмет'
-
-    const render = itemEntity.getComponent(RenderComponent)
-
-    // Берём эффекты и флаг usable из конфига предмета (itemData сущности),
-    // чтобы предмет можно было использовать после подбора.
-    const sourceItemData = itemEntity.itemData || {}
-    const itemEffects = itemEntity.itemEffects || sourceItemData.effects || {}
-
-    const itemData = {
-      id: Date.now() + Math.random() * 1000,
-      type: itemComp.itemType || 'generic',
-      name: itemName,
-      char: render ? render.char : '?',
-      color: render ? render.color : '#ffffff',
-      bgColor: render ? render.bgColor : null,
-      usable: sourceItemData.usable !== undefined ? sourceItemData.usable : (Object.keys(itemEffects).length > 0),
-      effects: { ...itemEffects },
-      description: sourceItemData.description || null
-    }
-
-    const inv = entity.getComponent(InventoryComponent)
-    if (!inv) return false
-
-    const itemCount = itemEntity.itemCount !== undefined ? itemEntity.itemCount : 1
-
-    if (!inv.addItem(itemData, itemCount)) {
-      logger.info(LOG_MODULES.ACTION, 'Не удалось добавить предмет в инвентарь')
-      return false
-    }
-
-    itemComp.collected = true
-
-    // Сохраняем позицию перед удалением
-    const tileX = itemPos ? itemPos.tileX : cx
-    const tileY = itemPos ? itemPos.tileY : cy
-
-    // Удаляем предмет
-    this.engine.removeEntity(itemEntity)
-
-    // Создаем пол на месте предмета
-    const floorEntity = EntityFactory.createFloor(tileX, tileY)
-    floorEntity.engine = this.engine
-    this.engine.addEntity(floorEntity)
-    this.location.grid[tileY][tileX] = { type: 'floor', entity: floorEntity }
-
-    // Делаем пол видимым
-    const floorRender = floorEntity.getComponent(RenderComponent)
-    if (floorRender) {
-      floorRender.visible = true
-      floorRender.explored = true
-    }
-
-    logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} подобрал ${itemName}`)
-    this.consumeAction()
-    return true
+    return success
   }
 
   /** Выбрасывает один предмет из инвентаря выбранного персонажа. */

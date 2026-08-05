@@ -55,19 +55,4 @@ export default class CombatSystem extends System {
       render.flash(color, duration)
     }
   }
-
-  getAttackers() {
-    return this.engine.getEntitiesWithComponents([
-      PositionComponent,
-      CombatComponent,
-      HealthComponent
-    ])
-  }
-
-  getTargets() {
-    return this.engine.getEntitiesWithComponents([
-      PositionComponent,
-      HealthComponent
-    ])
-  }
 }
