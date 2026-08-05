@@ -292,6 +292,9 @@ function updateEntitiesList() {
 
     if (!render || !health) continue
 
+    // Показываем только сущности, видимые игроку (игрок всегда виден)
+    if (!player && !render.visible) continue
+
     let teamColor = '#666666'
     let teamName = 'Нейтральный'
     let displayName

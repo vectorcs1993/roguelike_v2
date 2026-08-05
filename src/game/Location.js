@@ -19,7 +19,7 @@ import RenderComponent from '../engine/components/RenderComponent.js'
 export default class Location {
   #gameLoop = null
 
-  constructor(config, walls, entities, biomeName = null) {
+  constructor(config, walls, entities, biomeName = null, walkableCells = null) {
     this.biomeName = biomeName || 'Неизвестная локация'
     this.name = this.biomeName
 
@@ -47,7 +47,7 @@ export default class Location {
     this.fov = new Fov(this)
     this.pathfinder = new Pathfinder(this)
 
-    this.addFloorTiles()
+    this.addFloorTiles(walkableCells)
 
     console.log(`[Location] Создана: ${this.name}, сущностей: ${this.engine.entities.length}`)
   }
@@ -73,7 +73,35 @@ export default class Location {
     }
   }
 
-  addFloorTiles() {
+  addFloorTiles(walkableCells = null) {
+    // Если переданы проходимые клетки (комнаты + коридоры) - добавляем пол только в них.
+    // Иначе (для совместимости) - добавляем пол во все пустые клетки.
+    const cells = walkableCells || []
+    const useWalkable = walkableCells !== null
+
+    if (useWalkable) {
+      for (const [x, y] of cells) {
+        if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) continue
+        if (this.grid[y][x]) continue
+        const entitiesAt = this.engine.getEntitiesAt(x, y)
+        let hasWall = false
+        for (const entity of entitiesAt) {
+          const env = entity.getComponent(EnvironmentComponent)
+          if (env && (env.type === 'wall' || env.type === 'door' || env.type === 'crate')) {
+            hasWall = true
+            break
+          }
+        }
+        if (!hasWall) {
+          const floorEntity = EntityFactory.createFloor(x, y)
+          floorEntity.engine = this.engine
+          this.engine.addEntity(floorEntity)
+          this.grid[y][x] = { type: 'floor', entity: floorEntity }
+        }
+      }
+      return
+    }
+
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         if (!this.grid[y][x]) {
@@ -288,7 +316,7 @@ export default class Location {
       padding: worldConfig.padding || 2
     })
 
-    const { walls, width, height, rooms, doors: doorData } = generator.generate()
+    const { walls, width, height, rooms, doors: doorData, walkableCells } = generator.generate()
 
     const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
     const roomCells = []
@@ -347,7 +375,8 @@ export default class Location {
       { cols: width, rows: height },
       walls,
       entities,
-      biomeName
+      biomeName,
+      walkableCells
     )
 
     // Добавляем ящики

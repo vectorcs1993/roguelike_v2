@@ -64,12 +64,19 @@ export default class BiomeGenerator {
 
     const doorData = this.placeDoors(map, rooms)
 
+    // Собираем проходимые клетки ТОЛЬКО из комнат и коридоров.
+    // Исключаем искусственную границу и заполненные пустоты,
+    // которые removeInaccessibleWalls делает проходимыми, но которые
+    // не являются частью реального подземелья (игрок туда не ступит).
+    const walkableCells = this.collectWalkableCells(map, rooms)
+
     return {
       walls,
       width: this.width,
       height: this.height,
       rooms,
-      doors: doorData
+      doors: doorData,
+      walkableCells
     }
   }
 
@@ -184,6 +191,49 @@ export default class BiomeGenerator {
     return doorData
   }
 
+  collectWalkableCells(map, rooms) {
+    // Затравка - все клетки комнат (включая стены комнат, т.к. они проходимы).
+    // Затем BFS распространяется по проходимым клеткам (map === false),
+    // захватывая коридоры, но НЕ выходя за границу карты.
+    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]]
+    const visited = new Set()
+    const queue = []
+
+    for (const r of rooms) {
+      for (let y = r.y; y < r.y + r.h; y++) {
+        for (let x = r.x; x < r.x + r.w; x++) {
+          if (x <= 0 || x >= this.width - 1 || y <= 0 || y >= this.height - 1) continue
+          const key = `${x},${y}`
+          if (!visited.has(key)) {
+            visited.add(key)
+            queue.push([x, y])
+          }
+        }
+      }
+    }
+
+    while (queue.length) {
+      const [x, y] = queue.pop()
+      for (const [dx, dy] of dirs) {
+        const nx = x + dx, ny = y + dy
+        if (nx <= 0 || nx >= this.width - 1 || ny <= 0 || ny >= this.height - 1) continue
+        if (map[ny][nx] !== false) continue
+        const key = `${nx},${ny}`
+        if (!visited.has(key)) {
+          visited.add(key)
+          queue.push([nx, ny])
+        }
+      }
+    }
+
+    const walkableCells = []
+    for (const key of visited) {
+      const [x, y] = key.split(',').map(Number)
+      walkableCells.push([x, y])
+    }
+    return walkableCells
+  }
+
   isChokepoint(map, x, y) {
     const isWalk = (nx, ny) =>
       nx >= 0 && nx < this.width && ny >= 0 && ny < this.height && map[ny][nx] === false
@@ -281,7 +331,8 @@ export default class BiomeGenerator {
       width: this.width || 20,
       height: this.height || 20,
       rooms: [],
-      doors: []
+      doors: [],
+      walkableCells: []
     }
   }
 }
