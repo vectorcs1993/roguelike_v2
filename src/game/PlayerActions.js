@@ -82,11 +82,13 @@ export default class PlayerActions {
 
       if (targetAI && targetHealth && !targetHealth.isDead) {
         if (this.combatSystem) {
-          const success = this.combatSystem.attack(entity, targetEntity)
-          if (success) {
-            logger.info(LOG_MODULES.COMBAT, `${this.gameLoop.getEntityName(entity)} атаковал ${this.gameLoop.getEntityName(targetEntity)}!`)
+          const damage = this.combatSystem.attack(entity, targetEntity)
+          const attackerName = this.gameLoop.getEntityName(entity)
+          const targetName = this.gameLoop.getEntityName(targetEntity)
+          if (damage > 0) {
+            logger.info(LOG_MODULES.COMBAT, `${attackerName} наносит ${damage} урона ${targetName}.`)
           } else {
-            logger.info(LOG_MODULES.COMBAT, `${this.gameLoop.getEntityName(entity)} промахнулся!`)
+            logger.info(LOG_MODULES.COMBAT, `${attackerName} промахивается по ${targetName}.`)
           }
           this.turnManager.endPlayerTurn()
           return true
@@ -405,11 +407,13 @@ export default class PlayerActions {
 
     if (!this.combatSystem) return false
 
-    const success = this.combatSystem.attack(entity, nearest)
-    if (success) {
-      logger.info(LOG_MODULES.COMBAT, `${this.gameLoop.getEntityName(entity)} атаковал ${this.gameLoop.getEntityName(nearest)}!`)
+    const damage = this.combatSystem.attack(entity, nearest)
+    const attackerName = this.gameLoop.getEntityName(entity)
+    const targetName = this.gameLoop.getEntityName(nearest)
+    if (damage > 0) {
+      logger.info(LOG_MODULES.COMBAT, `${attackerName} наносит ${damage} урона ${targetName}.`)
     } else {
-      logger.info(LOG_MODULES.COMBAT, `${this.gameLoop.getEntityName(entity)} промахнулся!`)
+      logger.info(LOG_MODULES.COMBAT, `${attackerName} промахивается по ${targetName}.`)
     }
     this.turnManager.endPlayerTurn()
     return true

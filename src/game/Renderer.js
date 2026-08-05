@@ -267,6 +267,12 @@ export default class Renderer {
         displayColor = isPlayer ? (this.colors.player || '#88ff88') : '#ff8844'
       }
 
+      // Вспышка атаки/урона (перекрывает обычный цвет)
+      render.clearExpiredFlash()
+      if (render.isFlashing()) {
+        displayColor = render.flashColor
+      }
+
       // Рисуем символ
       ctx.fillStyle = displayColor
       ctx.fillText(displayChar, drawX + ts / 2, drawY + ts / 2)

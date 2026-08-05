@@ -7,7 +7,6 @@ export default class PlayerComponent extends Component {
     super()
     this.isPlayerControlled = true
     this.canSwitchTo = true
-    this.fovRadius = 12
     this.team = 'player'
   }
 }

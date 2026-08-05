@@ -92,7 +92,7 @@ export default class EntityFactory {
       }))
       .addComponent(new AIComponent({
         type: data.aiType || 'aggressive',
-        aggressionRange: data.aggressionRange || data.fovRadius || 8,
+        aggressionRange: data.aggressionRange || 8,
         fovRadius: data.fovRadius || 8
       }))
       .addComponent(new MovementComponent(speed))

@@ -6,6 +6,8 @@ import HealthComponent from '../components/HealthComponent.js'
 import AIComponent from '../components/AIComponent.js'
 import CombatComponent from '../components/CombatComponent.js'
 import PlayerComponent from '../components/PlayerComponent.js'
+import RenderComponent from '../components/RenderComponent.js'
+import { logger, LOG_MODULES } from '../../game/Logger.js'
 
 export default class AISystem extends System {
   constructor() {
@@ -60,7 +62,14 @@ export default class AISystem extends System {
       if (minDist <= combat.attackRange) {
         const combatSystem = this.engine.systems.find(s => s.name === 'CombatSystem')
         if (combatSystem) {
-          combatSystem.attack(enemy, nearestPlayer)
+          const damage = combatSystem.attack(enemy, nearestPlayer)
+          const enemyName = this._getEntityName(enemy)
+          const playerName = this._getEntityName(nearestPlayer)
+          if (damage > 0) {
+            logger.info(LOG_MODULES.COMBAT, `${enemyName} наносит ${damage} урона ${playerName}.`)
+          } else {
+            logger.info(LOG_MODULES.COMBAT, `${enemyName} промахивается по ${playerName}.`)
+          }
           return true
         }
       } else {
@@ -136,6 +145,13 @@ export default class AISystem extends System {
         return
       }
     }
+  }
+
+  /** Возвращает имя сущности для логов (символ + имя). */
+  _getEntityName(entity) {
+    const render = entity.getComponent(RenderComponent)
+    const name = entity.tag || 'Сущность'
+    return render ? `${render.char} ${name}` : name
   }
 
   update() { }
