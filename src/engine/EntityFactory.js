@@ -9,24 +9,19 @@ import PlayerComponent from './components/PlayerComponent.js'
 import AIComponent from './components/AIComponent.js'
 import MovementComponent from './components/MovementComponent.js'
 import InventoryComponent from './components/InventoryComponent.js'
-
-// Новые компоненты для окружения
 import EnvironmentComponent from './components/EnvironmentComponent.js'
 import DoorComponent from './components/DoorComponent.js'
 import ItemComponent from './components/ItemComponent.js'
+import { GAME_DATA } from '../game/GameData.js'
 
 export default class EntityFactory {
-  // ===== Существующие методы =====
-
+  // --- Игрок ---
   static createPlayer(x, y, config = {}) {
     const entity = new Entity('player')
     entity
       .addComponent(new PositionComponent(x, y))
-      .addComponent(new RenderComponent('@', '#88ff88'))
-      .addComponent(new HealthComponent(
-        config.hp || 25,
-        config.maxHp || 25
-      ))
+      .addComponent(new RenderComponent(GAME_DATA.symbols.player, GAME_DATA.colors.player))
+      .addComponent(new HealthComponent(config.hp || 25, config.maxHp || 25))
       .addComponent(new CombatComponent({
         damageMin: config.damageMin || 3,
         damageMax: config.damageMax || 6,
@@ -41,18 +36,16 @@ export default class EntityFactory {
     return entity
   }
 
+  // --- Враг ---
   static createEnemy(x, y, type, enemyData) {
     const entity = new Entity('enemy')
+    const char = GAME_DATA.symbols.enemies[type] || '?'
+    const color = GAME_DATA.colors.enemies[type] || '#ffffff'
+
     entity
       .addComponent(new PositionComponent(x, y))
-      .addComponent(new RenderComponent(
-        enemyData.char,
-        enemyData.color
-      ))
-      .addComponent(new HealthComponent(
-        enemyData.hp,
-        enemyData.hp
-      ))
+      .addComponent(new RenderComponent(char, color))
+      .addComponent(new HealthComponent(enemyData.hp, enemyData.hp))
       .addComponent(new CombatComponent({
         damageMin: enemyData.damageMin,
         damageMax: enemyData.damageMax,
@@ -69,30 +62,34 @@ export default class EntityFactory {
     return entity
   }
 
-  // ===== НОВЫЕ МЕТОДЫ для объектов окружения =====
-
+  // --- Стена ---
   static createWall(x, y) {
     const entity = new Entity('wall')
     entity
       .addComponent(new PositionComponent(x, y))
-      .addComponent(new RenderComponent('#', '#666666'))
+      .addComponent(new RenderComponent(GAME_DATA.symbols.wall, GAME_DATA.colors.wall))
       .addComponent(new EnvironmentComponent({
         type: 'wall',
         solid: true,
         blocksSight: true,
         name: 'Стена'
       }))
-    // Устанавливаем слой для рендера (стены ниже сущностей)
     const render = entity.getComponent(RenderComponent)
     if (render) render.layer = 1
     return entity
   }
 
-  static createDoor(x, y, locked = false) {
+  // --- Дверь ---
+  static createDoor(x, y, locked = false, options = {}) {
     const entity = new Entity('door')
+    const closedChar = options.closedChar || GAME_DATA.symbols.door.closed
+    const openChar = options.openChar || GAME_DATA.symbols.door.open
+    const closedColor = options.closedColor || GAME_DATA.colors.door.closed
+    const openColor = options.openColor || GAME_DATA.colors.door.open
+
     entity
       .addComponent(new PositionComponent(x, y))
-      .addComponent(new RenderComponent('+', '#aa8866'))
+      .addComponent(new RenderComponent(closedChar, closedColor))
       .addComponent(new EnvironmentComponent({
         type: 'door',
         solid: true,
@@ -100,17 +97,24 @@ export default class EntityFactory {
         isInteractive: true,
         name: locked ? 'Запертая дверь' : 'Дверь'
       }))
-      .addComponent(new DoorComponent({ isLocked: locked }))
+      .addComponent(new DoorComponent({
+        isLocked: locked,
+        closedChar,
+        openChar,
+        closedColor,
+        openColor
+      }))
     const render = entity.getComponent(RenderComponent)
     if (render) render.layer = 1
     return entity
   }
 
+  // --- Ящик ---
   static createCrate(x, y) {
     const entity = new Entity('crate')
     entity
       .addComponent(new PositionComponent(x, y))
-      .addComponent(new RenderComponent('■', '#aa8844'))
+      .addComponent(new RenderComponent(GAME_DATA.symbols.crate, GAME_DATA.colors.crate))
       .addComponent(new EnvironmentComponent({
         type: 'crate',
         solid: true,
@@ -123,20 +127,18 @@ export default class EntityFactory {
     return entity
   }
 
+  // --- Предмет ---
   static createItem(x, y, itemType, config = {}) {
     const entity = new Entity('item')
-    const charMap = {
-      health: '♥', mana: '♦', weapon: '⚔', armor: '♠',
-      gold: '$', potion: '!', scroll: '?'
-    }
-    const colorMap = {
-      health: '#ff4444', mana: '#4444ff', weapon: '#ffaa44',
-      armor: '#44aaff', gold: '#ffdd44', potion: '#ff66ff',
-      scroll: '#88ff88'
-    }
+    const charMap = GAME_DATA.symbols.items
+    const colorMap = GAME_DATA.colors.items
     const nameMap = {
-      health: '💊 Аптечка', mana: '⚡ Батарея', weapon: '🔫 Оружие',
-      armor: '🛡️ Броня', gold: '💰 Золото', potion: '🧪 Зелье',
+      health: '💊 Аптечка',
+      mana: '⚡ Батарея',
+      weapon: '🔫 Оружие',
+      armor: '🛡️ Броня',
+      gold: '💰 Золото',
+      potion: '🧪 Зелье',
       scroll: '📜 Свиток'
     }
 
@@ -153,12 +155,9 @@ export default class EntityFactory {
         isCollectible: true,
         name: config.name || nameMap[itemType] || 'Предмет'
       }))
-      .addComponent(new ItemComponent({
-        itemType,
-        onCollect: config.onCollect || null
-      }))
+      .addComponent(new ItemComponent({ itemType, onCollect: config.onCollect || null }))
     const render = entity.getComponent(RenderComponent)
-    if (render) render.layer = 2 // предметы выше стен
+    if (render) render.layer = 2
     return entity
   }
 }

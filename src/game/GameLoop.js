@@ -13,9 +13,11 @@ import HealthComponent from '../engine/components/HealthComponent.js'
 import CombatComponent from '../engine/components/CombatComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
 import RenderComponent from '../engine/components/RenderComponent.js'
+import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
 
-// +++ Импорт AISystem +++
+// Системы
 import AISystem from '../engine/systems/AISystem.js'
+import InteractionSystem from '../engine/systems/InteractionSystem.js'
 
 export default class GameLoop {
   constructor(canvas, config, initialLocation = null, biomeType = null) {
@@ -62,9 +64,14 @@ export default class GameLoop {
     this.enemyList = []
     this.isProcessingEnemyTurn = false
 
-    // +++ Создаём экземпляр AISystem и привязываем engine +++
+    // Создаём системы
     this.aiSystem = new AISystem()
     this.aiSystem.engine = this.currentLocation.engine
+
+    this.interactionSystem = new InteractionSystem()
+    this.interactionSystem.engine = this.currentLocation.engine
+    // Добавляем InteractionSystem в engine (хотя он не требует update)
+    this.currentLocation.engine.addSystem(this.interactionSystem)
 
     this.initializeFovForAllAllies()
     this.updateEnemyList()
@@ -105,7 +112,6 @@ export default class GameLoop {
 
     if (allies.length === 0) return
 
-    // Сбрасываем видимость только один раз перед циклом
     let first = true
     for (const ally of allies) {
       const pos = ally.getComponent(PositionComponent)
@@ -158,6 +164,7 @@ export default class GameLoop {
     return render ? `${render.char} ${name}` : name
   }
 
+  // ---- НОВАЯ ВЕРСИЯ moveCharacter с поддержкой InteractionSystem ----
   moveCharacter(dx, dy) {
     if (!this.isPlayerTurn) return false
 
@@ -175,26 +182,30 @@ export default class GameLoop {
     if (newX < 0 || newX >= this.currentLocation.cols ||
       newY < 0 || newY >= this.currentLocation.rows) return false
 
-    // ★★★ ПРОСТАЯ ПРОВЕРКА ★★★
+    // Проверяем проходимость
     if (!this.currentLocation.isTileWalkable(newX, newY)) {
-      const tile = this.currentLocation.getTile(newX, newY)
-      if (tile?.onClick) {
-        const result = tile.onClick(entity, true, this)
-        if (result) {
-          this.endPlayerTurn()
-          return true
+      // Если клетка непроходима, ищем интерактивный объект
+      const targetEntity = this.currentLocation.getEntityAt(newX, newY)
+      if (targetEntity) {
+        const env = targetEntity.getComponent(EnvironmentComponent)
+        if (env && env.isInteractive) {
+          const success = this.interactionSystem.interact(entity, targetEntity, newX, newY)
+          if (success) {
+            this.endPlayerTurn()
+            return true
+          }
         }
       }
       return false
     }
 
+    // Проверяем, есть ли враг на клетке
     const engine = this.currentLocation.engine
+    // Проверяем, есть ли враг на клетке для атаки
     const targetEntity = engine.getFirstEntityAt(newX, newY)
-
     if (targetEntity && targetEntity.active) {
       const targetHealth = targetEntity.getComponent(HealthComponent)
       const targetAI = targetEntity.getComponent(AIComponent)
-
       if (targetAI && targetHealth && !targetHealth.isDead) {
         const combatSystem = engine.systems.find(s => s.name === 'CombatSystem')
         if (combatSystem) {
@@ -205,11 +216,11 @@ export default class GameLoop {
             return true
           }
         }
-        return false
+        return false   // атака не удалась
       }
-      return false
+      // Если это не враг (дверь, предмет, ящик) — просто игнорируем, движение разрешено
     }
-
+    // Движение
     pos.moveTo(newX, newY)
     this.endPlayerTurn()
     return true
@@ -259,6 +270,7 @@ export default class GameLoop {
     return false
   }
 
+  // ---- НОВАЯ ВЕРСИЯ interact с поддержкой InteractionSystem ----
   interact() {
     if (!this.isPlayerTurn) return false
 
@@ -274,13 +286,17 @@ export default class GameLoop {
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue
-
-        const tile = this.currentLocation.getTile(cx + dx, cy + dy)
-        if (tile?.onClick) {
-          const result = tile.onClick(entity, true, this)
-          if (result) {
-            this.endPlayerTurn()
-            return true
+        const nx = cx + dx
+        const ny = cy + dy
+        const target = this.currentLocation.getEntityAt(nx, ny)
+        if (target) {
+          const env = target.getComponent(EnvironmentComponent)
+          if (env && env.isInteractive) {
+            const success = this.interactionSystem.interact(entity, target, nx, ny)
+            if (success) {
+              this.endPlayerTurn()
+              return true
+            }
           }
         }
       }
@@ -319,54 +335,44 @@ export default class GameLoop {
     this.isProcessingEnemyTurn = true
     this.enemyTurnIndex = 0
 
-    // Запускаем ход врагов
     this.processNextEnemy()
   }
 
   processNextEnemy() {
-    // Если ход перешел к игроку - останавливаемся
     if (this.isPlayerTurn) {
       this.isProcessingEnemyTurn = false
       return
     }
 
-    // Обновляем список живых врагов
     this.updateEnemyList()
     this.enemyList = this.enemyList.filter(e => {
       const health = e.getComponent(HealthComponent)
       return health && !health.isDead
     })
 
-    // Если врагов нет или всех обработали - заканчиваем
     if (this.enemyList.length === 0 || this.enemyTurnIndex >= this.enemyList.length) {
       this.isProcessingEnemyTurn = false
       this.endEnemyTurn()
       return
     }
 
-    // Берем текущего врага
     const enemy = this.enemyList[this.enemyTurnIndex]
 
-    // Пропускаем мертвых или неактивных
     if (!enemy || !enemy.active) {
       this.enemyTurnIndex++
       this.processNextEnemy()
       return
     }
 
-    // +++ Враг делает одно действие через AISystem +++
     const actionDone = this.aiSystem.performTurn(enemy, this.currentLocation)
 
     if (actionDone) {
       logger.debug(LOG_MODULES.AI, `${this.getEntityName(enemy)} сделал действие`)
     }
 
-    // Переходим к следующему врагу
     this.enemyTurnIndex++
     this.processNextEnemy()
   }
-
-  // Удаляем старый метод performEnemyAction, он больше не нужен
 
   endEnemyTurn() {
     logger.info(LOG_MODULES.TURN, 'Враги завершили ход')
@@ -391,22 +397,18 @@ export default class GameLoop {
   update(dt) {
     const engine = this.currentLocation.engine
 
-    // Обновляем ECS (движение, анимации)
     engine.update(dt)
 
-    // Проверяем, есть ли живые игроки
     const playerEntities = this.getPlayerEntities()
     if (playerEntities.length === 0) {
       this.reloadLocation()
       return
     }
 
-    // Обновляем FOV
     if (this.selectedEntity && this.selectedEntity.active) {
       this.initializeFovForAllAllies()
     }
 
-    // Обновляем камеру
     this.camera.update(dt, this.input)
   }
 
@@ -502,8 +504,9 @@ export default class GameLoop {
       this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, this.renderer.tileSize)
     }
 
-    // Обновляем ссылку на engine в aiSystem
+    // Обновляем ссылки на engine в системах
     this.aiSystem.engine = this.currentLocation.engine
+    this.interactionSystem.engine = this.currentLocation.engine
 
     this.initializeFovForAllAllies()
     this.isPlayerTurn = true
@@ -522,7 +525,6 @@ export default class GameLoop {
   onKeyDown(e) {
     this.input.handleKeyDown(e)
 
-    // Переключение отладки FOV
     if (e.key === 'f' || e.key === 'F') {
       if (this.renderer) {
         this.renderer.debugFov = !this.renderer.debugFov
@@ -547,6 +549,12 @@ export default class GameLoop {
 
     if (e.key >= '1' && e.key <= '9') {
       this.switchToCharacter(parseInt(e.key) - 1)
+    }
+
+    // Добавляем обработку клавиши E для взаимодействия
+    if (e.key === 'e' || e.key === 'E') {
+      this.interact()
+      e.preventDefault()
     }
 
     if (this.isPlayerTurn) {

@@ -3,16 +3,12 @@
 import Fov from './Fov.js'
 import Pathfinder from './Pathfinder.js'
 import BiomeGenerator from './BiomeGenerator.js'
-import { ENEMIES } from './EnemyData.js'
-
-// ECS
+import { GAME_DATA } from './GameData.js'
 import Engine from '../engine/Engine.js'
 import EntityFactory from '../engine/EntityFactory.js'
 import MovementSystem from '../engine/systems/MovementSystem.js'
 import CombatSystem from '../engine/systems/CombatSystem.js'
 import HealthSystem from '../engine/systems/HealthSystem.js'
-
-// Компоненты
 import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
 import DoorComponent from '../engine/components/DoorComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
@@ -28,34 +24,26 @@ export default class Location {
 
     this.cols = config.cols
     this.rows = config.rows
-
-    // Хранилище клеток (только стены, двери, ящики)
     this.grid = Array.from({ length: this.rows }, () =>
       Array.from({ length: this.cols }, () => null)
     )
 
-    // ECS Engine
     this.engine = new Engine()
-
-    // Добавляем системы
     this.engine.addSystem(new MovementSystem())
     this.engine.addSystem(new CombatSystem())
     this.engine.addSystem(new HealthSystem())
 
-    // Добавляем все сущности (игроки, враги, объекты)
     for (const entity of entities) {
       this.engine.addEntity(entity)
+      entity.engine = this.engine
     }
 
-    // Строим стены (они же добавляются в grid)
     this.setWalls(walls)
 
     this.fov = new Fov(this)
     this.pathfinder = new Pathfinder(this)
 
-    // Открываем карту для теста (можно убрать)
     this.revealAll()
-
     console.log(`[Location] Создана: ${this.name}, сущностей: ${this.engine.entities.length}`)
   }
 
@@ -65,21 +53,14 @@ export default class Location {
         const cell = this.grid[y][x]
         if (cell && cell.entity) {
           const render = cell.entity.getComponent(RenderComponent)
-          if (render) {
-            render.visible = true
-            render.explored = true
-          }
+          if (render) { render.visible = true; render.explored = true }
         }
       }
     }
-    // Также все сущности с RenderComponent
     const all = this.engine.getEntitiesWithComponents([RenderComponent])
     for (const e of all) {
       const r = e.getComponent(RenderComponent)
-      if (r) {
-        r.visible = true
-        r.explored = true
-      }
+      if (r) { r.visible = true; r.explored = true }
     }
   }
 
@@ -87,6 +68,7 @@ export default class Location {
     for (const [x, y] of pillars) {
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
         const wallEntity = EntityFactory.createWall(x, y)
+        wallEntity.engine = this.engine
         this.engine.addEntity(wallEntity)
         this.grid[y][x] = { type: 'wall', entity: wallEntity }
       }
@@ -98,6 +80,7 @@ export default class Location {
       const { x, y, locked } = d
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
         const doorEntity = EntityFactory.createDoor(x, y, locked)
+        doorEntity.engine = this.engine
         this.engine.addEntity(doorEntity)
         this.grid[y][x] = { type: 'door', entity: doorEntity }
       }
@@ -133,7 +116,6 @@ export default class Location {
   }
 
   getTile(x, y) {
-    // Для совместимости со старым кодом (Fov, Pathfinder)
     const cell = this.grid[y]?.[x]
     if (!cell) {
       return { visible: false, explored: false, char: ' ', solid: false, blocksSight: false }
@@ -155,11 +137,9 @@ export default class Location {
   }
 
   getEntitiesAt(x, y) {
-    // Возвращаем все сущности на клетке (из grid и из engine)
     const result = []
     const cell = this.grid[y]?.[x]
     if (cell && cell.entity) result.push(cell.entity)
-    // Также ищем в engine (враги, игроки)
     const engineEntities = this.engine.getEntitiesAt(x, y)
     for (const e of engineEntities) {
       if (!result.includes(e)) result.push(e)
@@ -167,12 +147,14 @@ export default class Location {
     return result
   }
 
+  updateDoorState() {
+    // Синхронизация не требуется, но оставляем для совместимости
+  }
+
   // --- FOV ---
 
   computeFov(originX, originY, radius, resetVisibility = true) {
     const engine = this.engine
-
-    // Сбрасываем видимость у всех сущностей с RenderComponent
     if (resetVisibility) {
       const all = engine.getEntitiesWithComponents([RenderComponent])
       for (const entity of all) {
@@ -181,9 +163,7 @@ export default class Location {
       }
     }
 
-    // Callback для отметки видимых клеток
     const onVisibleCell = (x, y) => {
-      // Получаем все сущности на этой клетке
       const entitiesAt = this.getEntitiesAt(x, y)
       for (const entity of entitiesAt) {
         const render = entity.getComponent(RenderComponent)
@@ -191,16 +171,12 @@ export default class Location {
       }
     }
 
-    // Вычисляем FOV
     this.fov.compute(originX | 0, originY | 0, radius, onVisibleCell)
 
-    // Помечаем все видимые как исследованные
     const all = engine.getEntitiesWithComponents([RenderComponent])
     for (const entity of all) {
       const render = entity.getComponent(RenderComponent)
-      if (render && render.visible) {
-        render.explored = true
-      }
+      if (render && render.visible) render.explored = true
     }
   }
 
@@ -226,8 +202,6 @@ export default class Location {
     }
     return blocked
   }
-
-  // --- Геттеры/сеттеры ---
 
   setGameLoop(gameLoop) { this.#gameLoop = gameLoop }
   getGameLoop() { return this.#gameLoop }
@@ -286,17 +260,14 @@ export default class Location {
 
     const isFree = (x, y) => !wallSet.has(`${x},${y}`)
 
-    // Ящики
     const crateCount = Math.min(15, roomCells.length)
     const crates = roomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
     const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`))
 
     const available = roomCells.filter(c => !crateSet.has(c))
 
-    // Игрок
     const playerStart = this.findStartInRoom(rooms, isFree)
 
-    // Враги
     const enemyTypes = ['groaner', 'crawler', 'runner', 'mold', 'sticker']
     const enemyPositions = available
       .filter(c => {
@@ -307,7 +278,6 @@ export default class Location {
 
     const entities = []
 
-    // Игрок
     const player = EntityFactory.createPlayer(playerStart.x, playerStart.y, {
       hp: 25,
       damageMin: 3,
@@ -315,11 +285,10 @@ export default class Location {
     })
     entities.push(player)
 
-    // Враги
     for (const pos of enemyPositions) {
       const [x, y] = pos.split(',').map(Number)
       const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)]
-      const data = ENEMIES[type]
+      const data = GAME_DATA.enemyData[type]
       if (data) {
         const enemy = EntityFactory.createEnemy(x, y, type, data)
         entities.push(enemy)
@@ -333,14 +302,13 @@ export default class Location {
       biomeName
     )
 
-    // Ящики
     for (const [x, y] of crates) {
       const crateEntity = EntityFactory.createCrate(x, y)
+      crateEntity.engine = location.engine
       location.engine.addEntity(crateEntity)
       location.grid[y][x] = { type: 'crate', entity: crateEntity }
     }
 
-    // Двери
     if (doorData?.length) {
       const doors = doorData.map(d => ({ x: d.x, y: d.y, locked: d.locked || false }))
       location.setDoors(doors)
