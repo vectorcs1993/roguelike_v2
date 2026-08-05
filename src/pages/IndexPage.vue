@@ -23,12 +23,12 @@
           <div class="absolute-bottom full-width q-pa-sm">
             <q-card-section flat bordered class="row bg-grey-9 justify-center">
               <div class="row q-gutter-sm">
-                <q-btn label="⬆" @click="move(0, -1)" />
-                <q-btn label="⬇" @click="move(0, 1)" />
-                <q-btn label="⬅" @click="move(-1, 0)" />
-                <q-btn label="➡" @click="move(1, 0)" />
-                <q-btn label="Атака" @click="attack" />
-                <q-btn label="Взаимодействие" @click="interact" />
+                <q-btn label="⬆" dense @click="move(0, -1)" />
+                <q-btn label="⬇" dense @click="move(0, 1)" />
+                <q-btn label="⬅" dense @click="move(-1, 0)" />
+                <q-btn label="➡" dense @click="move(1, 0)" />
+                <q-btn label="⚔️ Атака" icon="swords" dense @click="attack" />
+                <q-btn label="E (Взаимодействие)" icon="hand" dense @click="interact" />
               </div>
             </q-card-section>
           </div>
@@ -42,25 +42,25 @@
             <div class="text-h6 flex items-center">
               <q-icon name="groups" class="q-mr-sm" />
               Отряд
-              <q-badge color="grey-7" :label="charactersList.length" class="q-ml-sm" />
+              <q-badge color="grey-7" :label="entitiesList.length" class="q-ml-sm" />
             </div>
           </q-card-section>
           <q-separator dark />
           <q-card-section style="height: 200px; overflow-y: auto;" dark>
-            <q-scroll-area v-if="charactersList.length > 0" dark style="width: 100%; height: 100%;">
-              <q-item v-for="(char, idx) in charactersList" :key="char.id" :active="char.id === selectedCharId" clickable dark
+            <q-scroll-area v-if="entitiesList.length > 0" dark style="width: 100%; height: 100%;">
+              <q-item v-for="(ent, idx) in entitiesList" :key="ent.id" :active="ent.id === selectedEntityId" clickable dark
                 @click="switchToCharacter(idx)">
                 <q-item-section avatar dark>
-                  <q-chip :style="{ backgroundColor: char.teamColor, color: 'white' }">
-                    {{ char.char }}
+                  <q-chip :style="{ backgroundColor: ent.teamColor, color: 'white' }">
+                    {{ ent.char }}
                   </q-chip>
                 </q-item-section>
                 <q-item-section>
-                  <q-item-label>{{ char.name }}</q-item-label>
-                  <q-item-label>❤️ {{ char.hp }}/{{ char.maxHp }}</q-item-label>
+                  <q-item-label>{{ ent.name }}</q-item-label>
+                  <q-item-label>❤️ {{ ent.hp }}/{{ ent.maxHp }}</q-item-label>
                 </q-item-section>
                 <div class="row q-gutter-sm">
-                  <q-btn icon="center_focus_strong" label="Центр" dense @click.stop="centerOnCharacter(char.id)" dark />
+                  <q-btn icon="center_focus_strong" label="Центр" dense @click.stop="centerOnCharacter(ent.id)" dark />
                 </div>
               </q-item>
             </q-scroll-area>
@@ -99,6 +99,13 @@ import GameLoop from 'src/game/GameLoop.js'
 import config from 'src/game/config.json'
 import { logger, LOG_LEVEL } from 'src/game/Logger.js'
 
+// ECS
+import PositionComponent from 'src/engine/components/PositionComponent.js'
+import RenderComponent from 'src/engine/components/RenderComponent.js'
+import HealthComponent from 'src/engine/components/HealthComponent.js'
+import PlayerComponent from 'src/engine/components/PlayerComponent.js'
+import AIComponent from 'src/engine/components/AIComponent.js'
+
 const canvasRef = ref(null)
 const consoleScrollAreaRef = ref(null)
 const pageRef = ref(null)
@@ -107,41 +114,32 @@ let resizeTimeout = null
 let updateInterval = null
 
 const consoleLogs = ref([])
-const charactersList = ref([])
+const entitiesList = ref([])
 const locationName = ref('')
-const selectedCharId = ref(null)
+const selectedEntityId = ref(null)
 
-// ★★★ ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ КЛАВИАТУРЫ ★★★
+// ========== ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ КЛАВИАТУРЫ ==========
+
 function onGlobalKeyDown(event) {
-  // Игнорируем если ввод в полях
-  if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
-    return
-  }
-  // Игнорируем если нажата кнопка на кнопке (чтобы не конфликтовать)
-  if (event.target.tagName === 'BUTTON') {
-    return
-  }
+  if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return
+  if (event.target.tagName === 'BUTTON') return
 
-  // Проксируем в GameLoop
   if (game?.onKeyDown) {
     game.onKeyDown(event)
   }
 }
 
 function onGlobalKeyUp(event) {
-  if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
-    return
-  }
-  if (event.target.tagName === 'BUTTON') {
-    return
-  }
+  if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return
+  if (event.target.tagName === 'BUTTON') return
 
   if (game?.onKeyUp) {
     game.onKeyUp(event)
   }
 }
 
-// Лог
+// ========== ЛОГ ==========
+
 function addConsoleMessage(text, type = 'info') {
   const now = new Date()
   const time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
@@ -176,33 +174,64 @@ function loggerCallback(level, module, message) {
 logger.addCallback(loggerCallback)
 onUnmounted(() => logger.removeCallback(loggerCallback))
 
-function updateCharactersList() {
+// ========== ОБНОВЛЕНИЕ СПИСКА СУЩНОСТЕЙ ==========
+
+function updateEntitiesList() {
   if (!game?.currentLocation) {
-    charactersList.value = []
+    entitiesList.value = []
     return
   }
+
+  const engine = game.currentLocation.engine
   locationName.value = game.currentLocation.name
-  const all = game.currentLocation.getAllCharacters()
-  const visible = all.filter(c => {
-    const tile = game.currentLocation.getTile(Math.floor(c.x), Math.floor(c.y))
-    return c.isPlayerControlled || (tile && tile.visible)
-  })
 
-  charactersList.value = visible.map(c => ({
-    id: c.id,
-    name: c.name,
-    char: c.char,
-    isActive: c.isActive,
-    isPlayerControlled: c.isPlayerControlled,
-    teamColor: c.team?.color || '#666',
-    teamName: c.team?.name || '?',
-    hp: c.hp,
-    maxHp: c.maxHp,
-  }))
+  // Получаем все сущности с позицией и рендером
+  const entities = engine.getEntitiesWithComponents([
+    PositionComponent,
+    RenderComponent,
+    HealthComponent
+  ])
 
-  const selected = game.selectedCharacter
-  if (selected) selectedCharId.value = selected.id
+  const list = []
+  for (const entity of entities) {
+    const render = entity.getComponent(RenderComponent)
+    const health = entity.getComponent(HealthComponent)
+    const player = entity.getComponent(PlayerComponent)
+    const ai = entity.getComponent(AIComponent)
+
+    if (!render || !health) continue
+
+    // Определяем команду
+    let teamColor = '#666666'
+    let teamName = 'Нейтральный'
+
+    if (player) {
+      teamColor = '#44aaff'
+      teamName = 'Игрок'
+    } else if (ai) {
+      teamColor = '#ff4444'
+      teamName = 'Враг'
+    }
+
+    list.push({
+      id: entity.id,
+      name: entity.tag || 'Сущность',
+      char: render.char,
+      teamColor: teamColor,
+      teamName: teamName,
+      hp: health.hp,
+      maxHp: health.maxHp,
+      isPlayer: !!player
+    })
+  }
+
+  entitiesList.value = list
+
+  const selected = game.selectedEntity
+  if (selected) selectedEntityId.value = selected.id
 }
+
+// ========== ДЕЙСТВИЯ ==========
 
 function move(dx, dy) { game?.moveCharacter(dx, dy) }
 
@@ -228,17 +257,18 @@ function initGame() {
     game = new GameLoop(canvas, config)
     game.initRenderer(rect.width, rect.height, dpr)
     game.start()
-    addConsoleMessage('Игра запущена', 'success')
-    updateCharactersList()
-    if (updateInterval) clearInterval(updateInterval)
-    updateInterval = setInterval(updateCharactersList, 100)
+    addConsoleMessage('Игра запущена (ECS)', 'success')
+    updateEntitiesList()
 
-    // ★★★ РЕГИСТРИРУЕМ ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ ★★★
+    if (updateInterval) clearInterval(updateInterval)
+    updateInterval = setInterval(updateEntitiesList, 100)
+
     document.addEventListener('keydown', onGlobalKeyDown)
     document.addEventListener('keyup', onGlobalKeyUp)
 
   } catch (e) {
     addConsoleMessage(`Ошибка: ${e.message}`, 'error')
+    console.error(e)
   }
 }
 
@@ -261,37 +291,23 @@ function revealFullMap() {
   addConsoleMessage('Карта открыта', 'success')
 }
 
-function centerOnCharacter(characterId) { game?.centerOnCharacter(characterId) }
+function centerOnCharacter(entityId) { game?.centerOnCharacter(entityId) }
 function switchToCharacter(index) { game?.switchToCharacter(index) }
 
+// ========== ОБРАБОТЧИКИ CANVAS ==========
 
-function onCanvasClick(event) {
-  game?.onClick?.(event)
-}
+function onCanvasClick(event) { game?.onClick?.(event) }
+function onMouseMove(event) { game?.onMouseMove?.(event) }
+function onMouseLeave(event) { game?.onMouseLeave?.(event) }
+function onTouchStart(event) { game?.onTouchStart?.(event) }
+function onTouchMove(event) { game?.onTouchMove?.(event) }
+function onTouchEnd(event) { game?.onTouchEnd?.(event) }
 
-function onMouseMove(event) {
-  game?.onMouseMove?.(event)
-}
+// ========== ЖИЗНЕННЫЙ ЦИКЛ ==========
 
-function onMouseLeave(event) {
-  game?.onMouseLeave?.(event)
-}
-
-function onTouchStart(event) {
-  game?.onTouchStart?.(event)
-}
-
-function onTouchMove(event) {
-  game?.onTouchMove?.(event)
-}
-
-function onTouchEnd(event) {
-  game?.onTouchEnd?.(event)
-}
-
-// Жизненный цикл
 onMounted(() => {
   nextTick(initGame)
+
   window.addEventListener('resize', () => {
     if (resizeTimeout) clearTimeout(resizeTimeout)
     resizeTimeout = setTimeout(() => {
@@ -311,7 +327,6 @@ onMounted(() => {
 onUnmounted(() => {
   game?.stop?.()
   if (updateInterval) clearInterval(updateInterval)
-  // ★★★ УДАЛЯЕМ ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ ★★★
   document.removeEventListener('keydown', onGlobalKeyDown)
   document.removeEventListener('keyup', onGlobalKeyUp)
 })

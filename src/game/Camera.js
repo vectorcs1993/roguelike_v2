@@ -1,3 +1,7 @@
+// src/game/Camera.js
+
+import PositionComponent from '../engine/components/PositionComponent.js'
+
 export default class Camera {
   constructor(x, y, speed) {
     this.x = x
@@ -7,7 +11,7 @@ export default class Camera {
     this.viewportHeight = 0
     this.tileSize = 48
 
-    this.followCharacter = null
+    this.followEntity = null
   }
 
   setViewportSize(width, height, tileSize) {
@@ -16,23 +20,41 @@ export default class Camera {
     this.tileSize = tileSize
   }
 
-  follow(character) {
-    this.followCharacter = character
+  followEntity(entity) {
+    this.followEntity = entity
+  }
+
+  // Алиас для обратной совместимости
+  follow(entity) {
+    this.followEntity = entity
   }
 
   stopFollowing() {
-    this.followCharacter = null
+    this.followEntity = null
   }
 
   update() {
-    if (this.followCharacter) {
-      // Плавное следование за персонажем
-      const targetX = this.followCharacter.x
-      const targetY = this.followCharacter.y
+    if (this.followEntity) {
+      let targetX, targetY
 
-      const lerpFactor = 0.15
-      this.x = this.x + (targetX - this.x) * lerpFactor
-      this.y = this.y + (targetY - this.y) * lerpFactor
+      // Проверяем, Entity ли это (есть метод getComponent)
+      if (this.followEntity.getComponent) {
+        const pos = this.followEntity.getComponent(PositionComponent)
+        if (pos) {
+          targetX = pos.x
+          targetY = pos.y
+        }
+      } else {
+        // Старый Character (для обратной совместимости)
+        targetX = this.followEntity.x
+        targetY = this.followEntity.y
+      }
+
+      if (targetX !== undefined && targetY !== undefined) {
+        const lerpFactor = 0.15
+        this.x = this.x + (targetX - this.x) * lerpFactor
+        this.y = this.y + (targetY - this.y) * lerpFactor
+      }
     }
   }
 

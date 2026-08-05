@@ -1,8 +1,21 @@
+// src/game/GameLoop.js
+
 import Camera from './Camera.js'
 import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
 import Location from './Location.js'
 import { logger, LOG_MODULES } from './Logger.js'
+
+// ECS импорты
+import PositionComponent from '../engine/components/PositionComponent.js'
+import PlayerComponent from '../engine/components/PlayerComponent.js'
+import HealthComponent from '../engine/components/HealthComponent.js'
+import CombatComponent from '../engine/components/CombatComponent.js'
+import AIComponent from '../engine/components/AIComponent.js'
+import RenderComponent from '../engine/components/RenderComponent.js'
+
+// +++ Импорт AISystem +++
+import AISystem from '../engine/systems/AISystem.js'
 
 export default class GameLoop {
   constructor(canvas, config, initialLocation = null, biomeType = null) {
@@ -13,13 +26,24 @@ export default class GameLoop {
     this.currentLocation = initialLocation || Location.generateProcedural(config, biomeType)
     this.currentLocation.setGameLoop(this)
 
-    const characters = this.currentLocation.getAllCharacters()
-    const playerChars = characters.filter(c => c.team?.isPlayerControlled)
-    playerChars.forEach(c => c.isActive = true)
+    // Получаем сущности из ECS
+    const engine = this.currentLocation.engine
+    const playerEntities = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
 
-    const mainChar = playerChars[0] || characters[0]
-    this.camera = new Camera(mainChar.x, mainChar.y, config.cameraSpeed)
-    this.camera.follow(mainChar)
+    // Активируем игроков
+    for (const entity of playerEntities) {
+      entity.active = true
+    }
+
+    // Настраиваем камеру на первого игрока
+    const mainPlayer = playerEntities[0]
+    if (mainPlayer) {
+      const pos = mainPlayer.getComponent(PositionComponent)
+      this.camera = new Camera(pos.x, pos.y, config.cameraSpeed)
+      this.camera.follow(mainPlayer)
+    } else {
+      this.camera = new Camera(0, 0, config.cameraSpeed)
+    }
 
     this.input = new InputManager(config.swipeThreshold)
     this.renderer = null
@@ -32,151 +56,206 @@ export default class GameLoop {
     this.lastFrameTime = 0
     this._lastRenderTime = 0
 
-    this.selectedCharIndex = 0
+    this.selectedEntityIndex = 0
     this.isPlayerTurn = true
     this.enemyTurnIndex = 0
     this.enemyList = []
     this.isProcessingEnemyTurn = false
 
+    // +++ Создаём экземпляр AISystem и привязываем engine +++
+    this.aiSystem = new AISystem()
+    this.aiSystem.engine = this.currentLocation.engine
+
     this.initializeFovForAllAllies()
     this.updateEnemyList()
   }
 
-  get selectedCharacter() {
-    const playerChars = this.getPlayerCharacters()
-    if (playerChars.length === 0) return null
-    if (this.selectedCharIndex >= playerChars.length) this.selectedCharIndex = 0
-    return playerChars[this.selectedCharIndex]
+  // ========== ГЕТТЕРЫ ==========
+
+  get selectedEntity() {
+    const playerEntities = this.getPlayerEntities()
+    if (playerEntities.length === 0) return null
+    if (this.selectedEntityIndex >= playerEntities.length) this.selectedEntityIndex = 0
+    return playerEntities[this.selectedEntityIndex]
   }
 
-  getPlayerCharacters() {
-    return this.currentLocation.getAllCharacters().filter(c => c.team?.isPlayerControlled && !c.isDead)
+  getPlayerEntities() {
+    const engine = this.currentLocation.engine
+    return engine.getEntitiesWithComponents([PlayerComponent, PositionComponent, HealthComponent])
+      .filter(e => {
+        const health = e.getComponent(HealthComponent)
+        return health && !health.isDead
+      })
   }
 
   updateEnemyList() {
-    this.enemyList = this.currentLocation.getAllCharacters().filter(
-      c => c.team && !c.team.isPlayerControlled && !c.isDead
-    )
+    const engine = this.currentLocation.engine
+    this.enemyList = engine.getEntitiesWithComponents([AIComponent, PositionComponent, HealthComponent])
+      .filter(e => {
+        const health = e.getComponent(HealthComponent)
+        return health && !health.isDead
+      })
   }
 
+  // ========== FOV ==========
+
   initializeFovForAllAllies() {
-    const allies = this.currentLocation.getAllCharacters().filter(c => c.isPlayerControlled || c.canSwitchTo)
-    if (!allies.length) return
+    const engine = this.currentLocation.engine
+    const allies = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
+
+    if (allies.length === 0) return
 
     for (let i = 0; i < allies.length; i++) {
       const ally = allies[i]
+      const pos = ally.getComponent(PositionComponent)
+      const playerComp = ally.getComponent(PlayerComponent)
+      const radius = playerComp?.fovRadius || 8
+
       this.currentLocation.computeFov(
-        Math.floor(ally.x), Math.floor(ally.y),
-        ally.fovRadius || 8,
+        pos.tileX, pos.tileY,
+        radius,
         i === 0
       )
     }
   }
 
-  initRenderer(canvasWidth, canvasHeight, dpr) {
-    this.renderer = new Renderer(this.ctx, this.config)
-    this.renderer.dpr = dpr || window.devicePixelRatio || 1
-    this.renderer.resize(canvasWidth, canvasHeight, this.renderer.dpr)
-    if (this.camera) {
-      this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
-    }
-  }
-
-  resize(canvasWidth, canvasHeight, dpr) {
-    if (this.renderer) {
-      this.renderer.dpr = dpr || window.devicePixelRatio || 1
-      this.renderer.resize(canvasWidth, canvasHeight, this.renderer.dpr)
-      if (this.camera) {
-        this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
-      }
-    }
-  }
+  // ========== УПРАВЛЕНИЕ ПЕРСОНАЖАМИ ==========
 
   switchToNextCharacter() {
-    const playerChars = this.getPlayerCharacters()
-    if (playerChars.length <= 1) return
-    this.selectedCharIndex = (this.selectedCharIndex + 1) % playerChars.length
-    this.camera.follow(playerChars[this.selectedCharIndex])
+    const playerEntities = this.getPlayerEntities()
+    if (playerEntities.length <= 1) return
+
+    this.selectedEntityIndex = (this.selectedEntityIndex + 1) % playerEntities.length
+    const entity = playerEntities[this.selectedEntityIndex]
+    this.camera.follow(entity)
     this.initializeFovForAllAllies()
   }
 
   switchToCharacter(index) {
-    const playerChars = this.getPlayerCharacters()
-    if (index < 0 || index >= playerChars.length) return
-    this.selectedCharIndex = index
-    this.camera.follow(playerChars[index])
+    const playerEntities = this.getPlayerEntities()
+    if (index < 0 || index >= playerEntities.length) return
+
+    this.selectedEntityIndex = index
+    const entity = playerEntities[index]
+    this.camera.follow(entity)
     this.initializeFovForAllAllies()
   }
 
-  centerOnCharacter(characterId) {
-    const char = this.currentLocation.getAllCharacters().find(c => c.id === characterId)
-    if (char) {
-      this.camera.setPosition(char.x, char.y)
-      this.camera.follow(char)
+  centerOnCharacter(entityId) {
+    const engine = this.currentLocation.engine
+    const entity = engine.getEntity(entityId)
+    if (entity) {
+      const pos = entity.getComponent(PositionComponent)
+      if (pos) {
+        this.camera.setPosition(pos.x, pos.y)
+        this.camera.follow(entity)
+      }
     }
+  }
+
+  // ========== ДЕЙСТВИЯ ИГРОКА ==========
+
+  getEntityName(entity) {
+    const render = entity.getComponent(RenderComponent)
+    const name = entity.tag || 'Сущность'
+    return render ? `${render.char} ${name}` : name
   }
 
   moveCharacter(dx, dy) {
     if (!this.isPlayerTurn) return false
-    const char = this.selectedCharacter
-    if (!char || char.isDead) return false
 
-    const newX = Math.floor(char.x) + dx
-    const newY = Math.floor(char.y) + dy
+    const entity = this.selectedEntity
+    if (!entity || !entity.active) return false
+
+    const pos = entity.getComponent(PositionComponent)
+    const health = entity.getComponent(HealthComponent)
+
+    if (!pos || !health || health.isDead) return false
+
+    const newX = pos.tileX + dx
+    const newY = pos.tileY + dy
 
     if (newX < 0 || newX >= this.currentLocation.cols ||
       newY < 0 || newY >= this.currentLocation.rows) return false
 
-    const allChars = this.currentLocation.getAllCharacters()
+    // ★★★ ПРОСТАЯ ПРОВЕРКА ★★★
+    if (!this.currentLocation.isTileWalkable(newX, newY)) {
+      const tile = this.currentLocation.getTile(newX, newY)
+      if (tile?.onClick) {
+        const result = tile.onClick(entity, true, this)
+        if (result) {
+          this.endPlayerTurn()
+          return true
+        }
+      }
+      return false
+    }
 
-    for (const other of allChars) {
-      if (other === char) continue
-      if (Math.floor(other.x) === newX && Math.floor(other.y) === newY) {
-        if (!other.team?.isPlayerControlled && !other.isDead) {
-          const success = char.attack(other)
+    const engine = this.currentLocation.engine
+    const targetEntity = engine.getFirstEntityAt(newX, newY)
+
+    if (targetEntity && targetEntity.active) {
+      const targetHealth = targetEntity.getComponent(HealthComponent)
+      const targetAI = targetEntity.getComponent(AIComponent)
+
+      if (targetAI && targetHealth && !targetHealth.isDead) {
+        const combatSystem = engine.systems.find(s => s.name === 'CombatSystem')
+        if (combatSystem) {
+          const success = combatSystem.attack(entity, targetEntity)
           if (success) {
-            logger.info(LOG_MODULES.COMBAT, `${char.name} атаковал ${other.name}!`)
+            logger.info(LOG_MODULES.COMBAT, `${this.getEntityName(entity)} атаковал ${this.getEntityName(targetEntity)}!`)
             this.endPlayerTurn()
             return true
           }
         }
         return false
       }
-    }
-
-    if (!this.currentLocation.isTileWalkable(newX, newY)) {
-      const tile = this.currentLocation.getTile(newX, newY)
-      if (tile?.constructor?.name === 'Door' && tile.onClick(char, true, this)) {
-        this.endPlayerTurn()
-        return true
-      }
       return false
     }
 
-    char.moveTo(newX, newY, allChars)
+    pos.moveTo(newX, newY)
     this.endPlayerTurn()
     return true
   }
 
   attackNearestEnemy() {
     if (!this.isPlayerTurn) return false
-    const char = this.selectedCharacter
-    if (!char || char.isDead) return false
 
-    let nearest = null, minDist = Infinity
-    for (const other of this.currentLocation.getAllCharacters()) {
-      if (other === char || other.team?.isPlayerControlled || other.isDead) continue
-      const dist = char.getChebyshevDistanceTo(other)
-      if (dist < minDist && dist <= char.attackRange + 1) {
+    const entity = this.selectedEntity
+    if (!entity || !entity.active) return false
+
+    const pos = entity.getComponent(PositionComponent)
+    const combat = entity.getComponent(CombatComponent)
+    const health = entity.getComponent(HealthComponent)
+
+    if (!pos || !combat || !health || health.isDead) return false
+
+    const engine = this.currentLocation.engine
+    const enemies = engine.getEntitiesWithComponents([AIComponent, PositionComponent, HealthComponent])
+
+    let nearest = null
+    let minDist = Infinity
+
+    for (const enemy of enemies) {
+      const enemyPos = enemy.getComponent(PositionComponent)
+      const enemyHealth = enemy.getComponent(HealthComponent)
+      if (!enemyPos || !enemyHealth || enemyHealth.isDead) continue
+
+      const dist = pos.chebyshevDistanceTo(enemyPos)
+      if (dist < minDist && dist <= combat.attackRange + 1) {
         minDist = dist
-        nearest = other
+        nearest = enemy
       }
     }
 
     if (!nearest) return false
-    const success = char.attack(nearest)
+
+    const combatSystem = engine.systems.find(s => s.name === 'CombatSystem')
+    if (!combatSystem) return false
+
+    const success = combatSystem.attack(entity, nearest)
     if (success) {
-      logger.info(LOG_MODULES.COMBAT, `${char.name} атаковал ${nearest.name}!`)
+      logger.info(LOG_MODULES.COMBAT, `${this.getEntityName(entity)} атаковал ${this.getEntityName(nearest)}!`)
       this.endPlayerTurn()
       return true
     }
@@ -185,259 +264,169 @@ export default class GameLoop {
 
   interact() {
     if (!this.isPlayerTurn) return false
-    const char = this.selectedCharacter
-    if (!char || char.isDead) return false
 
-    const cx = Math.floor(char.x), cy = Math.floor(char.y)
+    const entity = this.selectedEntity
+    if (!entity || !entity.active) return false
+
+    const pos = entity.getComponent(PositionComponent)
+    if (!pos) return false
+
+    const cx = pos.tileX
+    const cy = pos.tileY
+
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue
+
         const tile = this.currentLocation.getTile(cx + dx, cy + dy)
-        if (tile?.onClick && tile.onClick(char, true, this)) {
-          this.endPlayerTurn()
-          return true
+        if (tile?.onClick) {
+          const result = tile.onClick(entity, true, this)
+          if (result) {
+            this.endPlayerTurn()
+            return true
+          }
         }
       }
     }
     return false
   }
 
+  // ========== УПРАВЛЕНИЕ ХОДАМИ ==========
+
   endPlayerTurn() {
     if (!this.isPlayerTurn) return
+
+    logger.info(LOG_MODULES.TURN, 'Игрок завершил ход')
     this.isPlayerTurn = false
     this.enemyTurnIndex = 0
+
     this.updateEnemyList()
     this.startEnemyTurn()
   }
 
   startEnemyTurn() {
     if (this.isPlayerTurn || this.isProcessingEnemyTurn) return
-    this.updateEnemyList()
-    this.enemyList = this.enemyList.filter(e => e && !e.isDead)
 
-    if (!this.enemyList.length) {
+    this.updateEnemyList()
+    this.enemyList = this.enemyList.filter(e => {
+      const health = e.getComponent(HealthComponent)
+      return health && !health.isDead
+    })
+
+    if (this.enemyList.length === 0) {
       this.endEnemyTurn()
       return
     }
 
+    logger.info(LOG_MODULES.TURN, `Ход врагов (${this.enemyList.length})`)
     this.isProcessingEnemyTurn = true
     this.enemyTurnIndex = 0
-    this.processEnemyTurn()
+
+    // Запускаем ход врагов
+    this.processNextEnemy()
   }
 
-  processEnemyTurn() {
+  processNextEnemy() {
+    // Если ход перешел к игроку - останавливаемся
     if (this.isPlayerTurn) {
       this.isProcessingEnemyTurn = false
       return
     }
 
+    // Обновляем список живых врагов
     this.updateEnemyList()
-    this.enemyList = this.enemyList.filter(e => e && !e.isDead)
+    this.enemyList = this.enemyList.filter(e => {
+      const health = e.getComponent(HealthComponent)
+      return health && !health.isDead
+    })
 
-    if (!this.enemyList.length || this.enemyTurnIndex >= this.enemyList.length) {
+    // Если врагов нет или всех обработали - заканчиваем
+    if (this.enemyList.length === 0 || this.enemyTurnIndex >= this.enemyList.length) {
       this.isProcessingEnemyTurn = false
       this.endEnemyTurn()
       return
     }
 
+    // Берем текущего врага
     const enemy = this.enemyList[this.enemyTurnIndex]
-    if (!enemy || enemy.isDead) {
+
+    // Пропускаем мертвых или неактивных
+    if (!enemy || !enemy.active) {
       this.enemyTurnIndex++
-      this.processEnemyTurn()
+      this.processNextEnemy()
       return
     }
 
-    const actionDone = this.performEnemyAction(enemy)
+    // +++ Враг делает одно действие через AISystem +++
+    const actionDone = this.aiSystem.performTurn(enemy, this.currentLocation)
+
     if (actionDone) {
-      logger.debug(LOG_MODULES.AI, `${enemy.name} сделал ход`)
+      logger.debug(LOG_MODULES.AI, `${this.getEntityName(enemy)} сделал действие`)
     }
 
+    // Переходим к следующему врагу
     this.enemyTurnIndex++
-    this.processEnemyTurn()
+    this.processNextEnemy()
   }
 
-  performEnemyAction(enemy) {
-    if (enemy.isDead) return false
-
-    const allChars = this.currentLocation.getAllCharacters()
-    const players = allChars.filter(c => c.team?.isPlayerControlled && !c.isDead)
-
-    if (players.length === 0) return false
-
-    let nearestPlayer = null
-    let minDist = Infinity
-
-    for (const player of players) {
-      const dist = enemy.getChebyshevDistanceTo(player)
-      if (dist < minDist) {
-        minDist = dist
-        nearestPlayer = player
-      }
-    }
-
-    if (!nearestPlayer) return this.enemyWander(enemy)
-
-    if (minDist <= enemy.attackRange) {
-      enemy.attack(nearestPlayer)
-      return true
-    }
-
-    const moved = this.enemyMoveToPlayer(enemy, nearestPlayer)
-    if (!moved) {
-      return this.enemyWander(enemy)
-    }
-
-    return true
-  }
-
-  enemyMoveToPlayer(enemy, target) {
-    const fromX = Math.floor(enemy.x)
-    const fromY = Math.floor(enemy.y)
-    const toX = Math.floor(target.x)
-    const toY = Math.floor(target.y)
-
-    if (fromX === toX && fromY === toY) return false
-
-    const allChars = this.currentLocation.getAllCharacters()
-
-    const path = this.currentLocation.findPath(fromX, fromY, toX, toY, enemy)
-
-    if (path && path.length > 1) {
-      const nextStep = path[1]
-
-      const isOccupied = allChars.some(c => c !== enemy && Math.floor(c.x) === nextStep.x && Math.floor(c.y) === nextStep.y)
-      const isWalkable = this.currentLocation.isTileWalkable(nextStep.x, nextStep.y)
-
-      if (!isOccupied && isWalkable) {
-        enemy.moveTo(nextStep.x, nextStep.y, allChars)
-        return true
-      }
-    }
-
-    return this.enemyMoveSimple(enemy, target)
-  }
-
-  enemyMoveSimple(enemy, target) {
-    const allChars = this.currentLocation.getAllCharacters()
-    const fromX = Math.floor(enemy.x)
-    const fromY = Math.floor(enemy.y)
-    const toX = Math.floor(target.x)
-    const toY = Math.floor(target.y)
-
-    const dx = Math.sign(toX - fromX)
-    const dy = Math.sign(toY - fromY)
-
-    const moves = []
-
-    if (dx !== 0 && dy !== 0) {
-      moves.push([dx, dy])
-      moves.push([dx, 0])
-      moves.push([0, dy])
-    } else if (dx !== 0) {
-      moves.push([dx, 0])
-      moves.push([0, dy])
-      moves.push([dx, dy])
-    } else if (dy !== 0) {
-      moves.push([0, dy])
-      moves.push([dx, 0])
-      moves.push([dx, dy])
-    }
-
-    for (const [mx, my] of moves) {
-      const nx = fromX + mx
-      const ny = fromY + my
-
-      if (nx < 0 || nx >= this.currentLocation.cols ||
-        ny < 0 || ny >= this.currentLocation.rows) continue
-
-      if (this.currentLocation.isTileWalkable(nx, ny)) {
-        const occupied = allChars.some(c => c !== enemy && Math.floor(c.x) === nx && Math.floor(c.y) === ny)
-        if (!occupied) {
-          enemy.moveTo(nx, ny, allChars)
-          return true
-        }
-      }
-    }
-
-    return false
-  }
-
-  enemyWander(enemy) {
-    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]]
-    for (let i = dirs.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-        ;[dirs[i], dirs[j]] = [dirs[j], dirs[i]]
-    }
-
-    const allChars = this.currentLocation.getAllCharacters()
-    for (const [mx, my] of dirs) {
-      const nx = Math.floor(enemy.x) + mx
-      const ny = Math.floor(enemy.y) + my
-
-      if (nx < 0 || nx >= this.currentLocation.cols ||
-        ny < 0 || ny >= this.currentLocation.rows) continue
-
-      if (this.currentLocation.isTileWalkable(nx, ny)) {
-        const occupied = allChars.some(c => c !== enemy && Math.floor(c.x) === nx && Math.floor(c.y) === ny)
-        if (!occupied) {
-          enemy.moveTo(nx, ny, allChars)
-          return true
-        }
-      }
-    }
-    return false
-  }
+  // Удаляем старый метод performEnemyAction, он больше не нужен
 
   endEnemyTurn() {
+    logger.info(LOG_MODULES.TURN, 'Враги завершили ход')
     this.isPlayerTurn = true
     this.enemyTurnIndex = 0
     this.isProcessingEnemyTurn = false
 
     this.initializeFovForAllAllies()
 
-    const playerChars = this.getPlayerCharacters()
-    if (!playerChars.length) {
+    const playerEntities = this.getPlayerEntities()
+    if (playerEntities.length === 0) {
       logger.info(LOG_MODULES.SYSTEM, 'Игрок мёртв! Перезагрузка...')
       this.reloadLocation()
       return
     }
 
-    logger.info(LOG_MODULES.TURN, `Ход игрока: ${this.selectedCharacter?.name}`)
+    logger.info(LOG_MODULES.TURN, `Ход игрока: ${this.getEntityName(this.selectedEntity)}`)
   }
 
-  update(dt) {
-    const allChars = this.currentLocation.getAllCharacters()
-    for (const c of allChars) {
-      if (!c.isDead) c.update(dt, this.currentLocation, allChars)
-    }
+  // ========== ОБНОВЛЕНИЕ ==========
 
-    if (this.currentLocation.removeDeadCharacters()) {
+  update(dt) {
+    const engine = this.currentLocation.engine
+
+    // Обновляем ECS (движение, анимации)
+    engine.update(dt)
+
+    // Проверяем, есть ли живые игроки
+    const playerEntities = this.getPlayerEntities()
+    if (playerEntities.length === 0) {
       this.reloadLocation()
       return
     }
 
-    if (this.selectedCharacter && !this.selectedCharacter.isDead) {
+    // Обновляем FOV
+    if (this.selectedEntity && this.selectedEntity.active) {
       this.initializeFovForAllAllies()
     }
 
+    // Обновляем камеру
     this.camera.update(dt, this.input)
   }
 
   render() {
     if (!this.renderer) return
-    const char = this.selectedCharacter
+
+    const entity = this.selectedEntity
     this.renderer.hoverTileX = this.hoverTileX
     this.renderer.hoverTileY = this.hoverTileY
     this.renderer.mouseScreenX = this.input.mouseX
     this.renderer.mouseScreenY = this.input.mouseY
     this.renderer._location = this.currentLocation
-    this.renderer._activeCharacter = char
-    this.renderer._previewPath = null
+    this.renderer._activeEntity = entity
 
     this.renderer.draw(
       this.currentLocation,
-      this.currentLocation.getAllCharacters(),
-      this.currentLocation.items,
+      this.currentLocation.engine,
       this.camera,
       this.input
     )
@@ -463,6 +452,27 @@ export default class GameLoop {
     this.animationId = requestAnimationFrame(t => this.gameLoop(t))
   }
 
+  // ========== РЕНДЕРЕР ==========
+
+  initRenderer(canvasWidth, canvasHeight, dpr) {
+    this.renderer = new Renderer(this.ctx, this.config)
+    this.renderer.dpr = dpr || window.devicePixelRatio || 1
+    this.renderer.resize(canvasWidth, canvasHeight, this.renderer.dpr)
+    if (this.camera) {
+      this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
+    }
+  }
+
+  resize(canvasWidth, canvasHeight, dpr) {
+    if (this.renderer) {
+      this.renderer.dpr = dpr || window.devicePixelRatio || 1
+      this.renderer.resize(canvasWidth, canvasHeight, this.renderer.dpr)
+      if (this.camera) {
+        this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
+      }
+    }
+  }
+
   start() {
     this.lastTime = performance.now()
     this.lastFrameTime = performance.now()
@@ -481,16 +491,22 @@ export default class GameLoop {
     this.currentLocation = Location.generateProcedural(this.config)
     this.currentLocation.setGameLoop(this)
 
-    const playerChars = this.currentLocation.getAllCharacters().filter(c => c.team?.isPlayerControlled)
-    playerChars.forEach(c => c.isActive = true)
+    const engine = this.currentLocation.engine
+    const playerEntities = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
 
-    const mainChar = playerChars[0] || this.currentLocation.getAllCharacters()[0]
-    this.camera.setPosition(mainChar.x, mainChar.y)
-    this.camera.follow(mainChar)
+    const mainPlayer = playerEntities[0]
+    if (mainPlayer) {
+      const pos = mainPlayer.getComponent(PositionComponent)
+      this.camera.setPosition(pos.x, pos.y)
+      this.camera.follow(mainPlayer)
+    }
 
     if (this.renderer && this.camera) {
       this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, this.renderer.tileSize)
     }
+
+    // Обновляем ссылку на engine в aiSystem
+    this.aiSystem.engine = this.currentLocation.engine
 
     this.initializeFovForAllAllies()
     this.isPlayerTurn = true
@@ -498,6 +514,8 @@ export default class GameLoop {
     this.isProcessingEnemyTurn = false
     this.updateEnemyList()
   }
+
+  // ========== ОБРАБОТЧИКИ ==========
 
   onTouchStart(e) { this.input.handleTouchStart(e) }
   onTouchMove(e) { this.input.handleTouchMove(e) }
@@ -520,6 +538,10 @@ export default class GameLoop {
 
   onKeyUp(e) { this.input.handleKeyUp(e) }
   onMouseMove(e) { this.input.handleMouseMove(e) }
-  onMouseLeave() { this.input.handleMouseLeave(); this.hoverTileX = null; this.hoverTileY = null }
+  onMouseLeave() {
+    this.input.handleMouseLeave()
+    this.hoverTileX = null
+    this.hoverTileY = null
+  }
   onContextMenu(e) { e.preventDefault(); return false }
 }

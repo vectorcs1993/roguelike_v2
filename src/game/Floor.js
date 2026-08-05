@@ -1,17 +1,17 @@
+// src/game/Floor.js
+
 import Tile from './Tile.js'
 
 export default class Floor extends Tile {
   constructor() {
-    const floorConfig = {
+    super(0, ' ', {
       name: '📍 Пол',
-      isWalkable: true,
+      solid: false,
       blocksSight: false
-    }
-
-    super(0, ' ', floorConfig)
+    })
   }
 
   onClick() {
-    return null;
+    return null
   }
 }

@@ -1,4 +1,12 @@
-// Renderer.js
+// src/game/Renderer.js
+
+import PositionComponent from '../engine/components/PositionComponent.js'
+import RenderComponent from '../engine/components/RenderComponent.js'
+import HealthComponent from '../engine/components/HealthComponent.js'
+import PlayerComponent from '../engine/components/PlayerComponent.js'
+import AIComponent from '../engine/components/AIComponent.js'
+import MovementComponent from 'src/engine/components/MovementComponent.js'
+
 export default class Renderer {
   static DEFAULT_TILE_SIZE = 48
   static MIN_TILE_SIZE = 12
@@ -17,8 +25,7 @@ export default class Renderer {
     this.hoverTileX = null
     this.hoverTileY = null
     this._location = null
-    this._activeCharacter = null
-    this._previewPath = null
+    this._activeEntity = null
     this.dpr = window.devicePixelRatio || 1
     this.fontFamily = Renderer.DEFAULT_FONT_FAMILY
 
@@ -61,7 +68,7 @@ export default class Renderer {
     this._lastCameraY = null
   }
 
-  draw(map, characters, items, camera, input) {
+  draw(map, engine, camera) {
     const ctx = this.ctx
     const ts = this.tileSize
     const ox = this.halfW - camera.x * ts
@@ -82,7 +89,6 @@ export default class Renderer {
 
     const { startX, startY, endX, endY } = this._visibleBoundsCache
 
-    // Очистка
     ctx.fillStyle = '#000000'
     ctx.fillRect(0, 0, this.canvasW, this.canvasH)
 
@@ -90,15 +96,23 @@ export default class Renderer {
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
-    // Множество клеток с персонажами
+    // Получаем все сущности с позицией и рендером
+    const renderableEntities = engine.getEntitiesWithComponents([
+      PositionComponent,
+      RenderComponent
+    ])
+
+    // Собираем занятые клетки
     const occupiedCells = new Set()
-    for (const char of characters) {
-      const tileX = Math.floor(char.x)
-      const tileY = Math.floor(char.y)
-      occupiedCells.add(`${tileX},${tileY}`)
+    for (const entity of renderableEntities) {
+      if (!entity.active) continue
+      const pos = entity.getComponent(PositionComponent)
+      if (pos) {
+        occupiedCells.add(`${pos.tileX},${pos.tileY}`)
+      }
     }
 
-    // 1. РИСУЕМ ТАЙЛЫ (только если на клетке НЕТ персонажа)
+    // 1. Рисуем тайлы
     const tilesByColor = new Map()
 
     for (let y = startY; y < endY; y++) {
@@ -137,86 +151,66 @@ export default class Renderer {
       }
     }
 
-    // 2. РИСУЕМ ПРЕДМЕТЫ
-    if (this._location?.items) {
-      const itemsByColor = new Map()
-      for (const item of this._location.items) {
-        if (item.collected) continue
+    // 2. Рисуем сущности
+    for (const entity of renderableEntities) {
+      if (!entity.active) continue
 
-        const itemX = Math.floor(item.x)
-        const itemY = Math.floor(item.y)
-        const cellKey = `${itemX},${itemY}`
+      const pos = entity.getComponent(PositionComponent)
+      const render = entity.getComponent(RenderComponent)
+      const health = entity.getComponent(HealthComponent)
+      const player = entity.getComponent(PlayerComponent)
+      const ai = entity.getComponent(AIComponent)
 
-        if (occupiedCells.has(cellKey)) continue
+      if (!pos || !render) continue
 
-        const tile = map.getTile(itemX, itemY)
-        const isVisible = tile && tile.visible
-        const isExplored = tile && tile.explored
+      // Проверяем видимость
+      const tile = map.getTile(pos.tileX, pos.tileY)
+      const isVisible = tile && tile.visible
+      const isPlayer = !!player
 
-        if (isVisible || isExplored) {
-          const drawX = item.x * ts + ox
-          const drawY = item.y * ts + oy
-          const color = isVisible ? '#aaaaaa' : '#555555'
-          if (!itemsByColor.has(color)) {
-            itemsByColor.set(color, [])
-          }
-          itemsByColor.get(color).push({ char: item.char, x: drawX, y: drawY })
-        }
+      // Игрок всегда виден
+      if (!isVisible && !isPlayer) continue
+
+      const drawX = pos.vx * ts + ox
+      const drawY = pos.vy * ts + oy
+
+      // Определяем цвет
+      let color = render.color || '#ffffff'
+
+      if (entity === this._activeEntity) {
+        color = isPlayer ? '#88ff88' : '#ff8844'
+      } else if (isPlayer) {
+        color = '#5272b6'
+      } else if (ai) {
+        color = isVisible ? '#d83232' : '#442222'
       }
-      for (const [color, items] of itemsByColor) {
-        ctx.fillStyle = color
-        for (const item of items) {
-          ctx.fillText(item.char, item.x + ts / 2, item.y + ts / 2)
-        }
-      }
-    }
 
-    // 3. РИСУЕМ ПЕРСОНАЖЕЙ
-    for (const char of characters) {
-      // Проверяем видимость персонажа
-      const tile = map.getTile(Math.floor(char.x), Math.floor(char.y))
-      const isVisible = this._location?.isCharacterVisibleForPlayerTeam(char) ?? (tile && tile.visible)
+      ctx.fillStyle = color
+      ctx.fillText(render.char, drawX + ts / 2, drawY + ts / 2)
 
-      // ВСЕГДА рисуем игрока, даже если не виден (он всегда виден)
-      const isPlayer = char.team?.isPlayerControlled
-      if (isVisible || isPlayer) {
-        const drawX = char.vx * ts + ox
-        const drawY = char.vy * ts + oy
+      // Полоска HP для врагов
+      if (ai && health && health.isAlive && isVisible) {
+        const hpWidth = ts * 0.8
+        const hpHeight = 4
+        const hpX = drawX + (ts - hpWidth) / 2
+        const hpY = drawY - 6
 
-        let color
-        if (char === this._activeCharacter) {
-          color = char.isPlayerControlled ? '#88ff88' : '#d83232'
-        } else if (char.isPlayerControlled) {
-          color = '#5272b6'
-        } else {
-          color = isVisible ? '#d83232' : '#442222'
-        }
+        ctx.fillStyle = '#333333'
+        ctx.fillRect(hpX, hpY, hpWidth, hpHeight)
 
-        ctx.fillStyle = color
-        ctx.fillText(char.char, drawX + ts / 2, drawY + ts / 2)
+        const hpPercent = health.hp / health.maxHp
+        const hpColor = hpPercent > 0.6 ? '#44ff44' : hpPercent > 0.3 ? '#ffaa44' : '#ff4444'
+        ctx.fillStyle = hpColor
+        ctx.fillRect(hpX, hpY, hpWidth * hpPercent, hpHeight)
       }
     }
 
-    // 4. ПРЕВЬЮ ПУТИ
-    if (this._previewPath?.length) {
-      ctx.fillStyle = '#4a9eff'
-      for (let i = 1; i < this._previewPath.length - 1; i++) {
-        const p = this._previewPath[i]
-        const pathTile = map.getTile(p.x, p.y)
-        if (pathTile && (pathTile.visible || pathTile.explored)) {
-          const drawX = p.x * ts + ox
-          const drawY = p.y * ts + oy
-          ctx.fillText('·', drawX + ts / 2, drawY + ts / 2)
-        }
-      }
-    }
-
-    // 5. ПУТЬ АКТИВНОГО ПЕРСОНАЖА
-    if (this._activeCharacter?.path?.length) {
-      const activeTile = map.getTile(Math.floor(this._activeCharacter.x), Math.floor(this._activeCharacter.y))
-      if (activeTile && activeTile.visible) {
+    // 3. Путь активной сущности
+    if (this._activeEntity) {
+      const movement = this._activeEntity.getComponent(MovementComponent)
+      if (movement && movement.path && movement.path.length > 0) {
         ctx.fillStyle = '#666666'
-        for (const p of this._activeCharacter.path) {
+        for (const p of movement.path) {
           const pathTile = map.getTile(p.x, p.y)
           if (pathTile && (pathTile.visible || pathTile.explored)) {
             const drawX = p.x * ts + ox
@@ -227,30 +221,28 @@ export default class Renderer {
       }
     }
 
-    // 6. КУРСОР
-    if (!input.isCameraMovingNow() && this.hoverTileX !== null && (!this._activeCharacter || this._activeCharacter.isPlayerControlled)) {
+    // 4. Курсор
+    if (this.hoverTileX !== null && this.hoverTileX >= 0 && this.hoverTileX < map.cols &&
+      this.hoverTileY !== null && this.hoverTileY >= 0 && this.hoverTileY < map.rows) {
+
       const x = this.hoverTileX * ts + ox
       const y = this.hoverTileY * ts + oy
 
-      if (this.hoverTileX >= 0 && this.hoverTileX < map.cols &&
-        this.hoverTileY >= 0 && this.hoverTileY < map.rows) {
+      const hoverTile = map.getTile(this.hoverTileX, this.hoverTileY)
+      const isVisible = hoverTile && hoverTile.visible
+      const isExplored = hoverTile && hoverTile.explored
 
-        const hoverTile = map.getTile(this.hoverTileX, this.hoverTileY)
-        const isVisible = hoverTile && hoverTile.visible
-        const isExplored = hoverTile && hoverTile.explored
-
-        if (isVisible) {
-          ctx.strokeStyle = '#ffffff'
-        } else if (isExplored) {
-          ctx.strokeStyle = '#666666'
-        } else {
-          ctx.strokeStyle = '#333333'
-        }
-
-        ctx.lineWidth = 1
-        ctx.setLineDash([])
-        ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
+      if (isVisible) {
+        ctx.strokeStyle = '#ffffff'
+      } else if (isExplored) {
+        ctx.strokeStyle = '#666666'
+      } else {
+        ctx.strokeStyle = '#333333'
       }
+
+      ctx.lineWidth = 1
+      ctx.setLineDash([])
+      ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
     }
   }
 

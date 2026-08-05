@@ -1,72 +1,71 @@
+// src/game/Fov.js
+
 export default class Fov {
   constructor(map) {
     this.map = map
   }
 
   compute(originX, originY, radius) {
-    for (let octant = 0; octant < 8; octant++) {
-      this._cast(originX, originY, 1, 1.0, 0.0, radius, this._getTransform(octant))
-    }
-  }
-
-  _getTransform(octant) {
-    const transforms = [
-      (x, y) => ({ x, y: -y }),
-      (x, y) => ({ x: y, y: -x }),
-      (x, y) => ({ x: y, y }),
-      (x, y) => ({ x, y }),
-      (x, y) => ({ x: -x, y }),
-      (x, y) => ({ x: -y, y: x }),
-      (x, y) => ({ x: -y, y: -x }),
-      (x, y) => ({ x: -x, y: -y })
-    ]
-    return transforms[octant]
-  }
-
-  _cast(originX, originY, row, startSlope, endSlope, radius, transform) {
-    if (startSlope < endSlope) return
-
-    let nextStartSlope = startSlope
     const map = this.map
 
-    for (let i = row; i <= radius; i++) {
-      let blocked = false
-      const dy = -i
+    // Начальная клетка всегда видна
+    const startTile = map.getTile(originX, originY)
+    if (startTile) startTile.visible = true
 
-      for (let dx = -i; dx <= 0; dx++) {
-        const leftSlope = (dx - 0.5) / (dy + 0.5)
-        const rightSlope = (dx + 0.5) / (dy - 0.5)
+    // Перебираем все клетки в квадрате радиуса
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        if (dx === 0 && dy === 0) continue
+        // Проверяем, что клетка в круге
+        if (dx * dx + dy * dy > radius * radius) continue
 
-        if (startSlope < rightSlope) continue
-        if (endSlope > leftSlope) break
+        const x = originX + dx
+        const y = originY + dy
+        if (x < 0 || x >= map.cols || y < 0 || y >= map.rows) continue
 
-        const world = transform(dx, dy)
-        const worldX = originX + world.x
-        const worldY = originY + world.y
-
-        if (dx * dx + dy * dy < radius * radius) {
-          const tile = map.getTile(worldX, worldY)
+        // Проверяем линию видимости
+        if (this._hasLineOfSight(originX, originY, x, y)) {
+          const tile = map.getTile(x, y)
           if (tile) tile.visible = true
         }
+      }
+    }
+  }
 
-        if (blocked) {
-          const tile = map.getTile(worldX, worldY)
-          if (tile?.blocksSight) {
-            nextStartSlope = rightSlope
-          } else {
-            blocked = false
-            startSlope = nextStartSlope
-          }
-        } else {
-          const tile = map.getTile(worldX, worldY)
-          if (tile?.blocksSight && i < radius) {
-            blocked = true
-            this._cast(originX, originY, i + 1, startSlope, leftSlope, radius, transform)
-            nextStartSlope = rightSlope
-          }
+  _hasLineOfSight(x0, y0, x1, y1) {
+    const map = this.map
+    const dx = Math.abs(x1 - x0)
+    const dy = Math.abs(y1 - y0)
+    const sx = x0 < x1 ? 1 : -1
+    const sy = y0 < y1 ? 1 : -1
+    let err = dx - dy
+
+    let x = x0, y = y0
+    while (true) {
+      // Если это не начальная клетка
+      if (x !== x0 || y !== y0) {
+        // Если это целевая клетка — она всегда видна (если дошли)
+        if (x === x1 && y === y1) {
+          return true
+        }
+        // Проверяем промежуточные клетки на блокировку обзора
+        const tile = map.getTile(x, y)
+        if (tile && tile.blocksSight) {
+          return false
         }
       }
-      if (blocked) break
+      // Если достигли цели (но не вернули true, например, цель = начальная клетка)
+      if (x === x1 && y === y1) break
+      const e2 = 2 * err
+      if (e2 > -dy) {
+        err -= dy
+        x += sx
+      }
+      if (e2 < dx) {
+        err += dx
+        y += sy
+      }
     }
+    return true
   }
 }

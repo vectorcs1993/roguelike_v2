@@ -1,4 +1,4 @@
-import { LOG_MODULES, logger } from './Logger.js'
+// src/game/Tile.js
 
 export default class Tile {
   constructor(type, char, config = {}) {
@@ -7,8 +7,9 @@ export default class Tile {
     this.visible = false
     this.explored = false
 
-    this._isWalkable = config.isWalkable !== undefined ? config.isWalkable : (type === 0)
-    this._blocksSight = config.blocksSight !== undefined ? config.blocksSight : (type === 1)
+    // ★★★ УПРОЩАЕМ: только solid ★★★
+    this.solid = config.solid !== undefined ? config.solid : (type === 1)
+    this.blocksSight = config.blocksSight !== undefined ? config.blocksSight : (type === 1)
 
     this.name = config.name || this.getDefaultName()
     this.color = config.color || '#888888'
@@ -26,9 +27,8 @@ export default class Tile {
     if (this.isItem) {
       return this.getItemName(this.itemType)
     }
-    if (this.isWalkable) return '📍 Пол'
-    if (this.blocksSight) return '🧱 Стена'
-    return '📦 Препятствие'
+    if (this.solid) return '🧱 Стена'
+    return '📍 Пол'
   }
 
   static getItemName(itemType) {
@@ -56,7 +56,7 @@ export default class Tile {
   static createItem(x, y, itemType = 'generic') {
     const tile = new Tile(3, Tile.getItemChar(itemType), {
       name: Tile.getItemName(itemType),
-      isWalkable: true,
+      solid: false,
       blocksSight: false,
       isItem: true,
       itemType: itemType,
@@ -78,7 +78,7 @@ export default class Tile {
     return {
       name: this.name,
       type: 'tile',
-      isWalkable: this.isWalkable,
+      solid: this.solid,
       blocksSight: this.blocksSight
     }
   }
@@ -89,17 +89,15 @@ export default class Tile {
     return true
   }
 
-  get isWalkable() { return this._isWalkable }
-  set isWalkable(value) { this._isWalkable = value }
+  get isWalkable() { return !this.solid }
+  set isWalkable(value) { this.solid = !value }
 
-  get isWall() { return !this._isWalkable }
-
-  get blocksSight() { return this._blocksSight }
-  set blocksSight(value) { this._blocksSight = value }
+  get isWall() { return this.solid }
 
   onClick(activeCharacter, isAdjacent, gameLoop) {
     if (this.isItem && isAdjacent) {
-      logger.info(LOG_MODULES.ACTION, `${activeCharacter.name} подобрал предмет: ${this.name}`)
+      const name = activeCharacter?.name || 'Кто-то'
+      console.log(`${name} подобрал предмет: ${this.name}`)
       this.collect()
       if (gameLoop?.currentLocation) {
         gameLoop.currentLocation.removeItemAt(this.x, this.y)

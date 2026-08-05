@@ -1,3 +1,5 @@
+// src/game/Door.js
+
 import Tile from './Tile.js'
 import { LOG_MODULES, logger } from './Logger.js'
 
@@ -5,7 +7,7 @@ export default class Door extends Tile {
   constructor(x, y, isLocked = false) {
     super(4, '+', {
       name: isLocked ? '🚪 Запертая дверь' : '🚪 Дверь',
-      isWalkable: false,
+      solid: true,
       blocksSight: true,
       color: '#aa8866',
       exploredColor: '#443322'
@@ -19,8 +21,8 @@ export default class Door extends Tile {
   open() {
     if (this.isOpen || this.isLocked) return false
     this.isOpen = true
-    this._isWalkable = true
-    this._blocksSight = false
+    this.solid = false
+    this.blocksSight = false
     this.char = '/'
     this.name = '🚪 Открытая дверь'
     return true
@@ -29,8 +31,8 @@ export default class Door extends Tile {
   close() {
     if (!this.isOpen) return false
     this.isOpen = false
-    this._isWalkable = false
-    this._blocksSight = true
+    this.solid = true
+    this.blocksSight = true
     this.char = '+'
     this.name = this.isLocked ? '🚪 Запертая дверь' : '🚪 Дверь'
     return true
@@ -40,19 +42,35 @@ export default class Door extends Tile {
     return this.isOpen ? this.close() : this.open()
   }
 
-  onClick(activeCharacter, isAdjacent) {
+  onClick(activeCharacter, isAdjacent, gameLoop) {
     if (!isAdjacent) return null
+
     const action = this.toggle()
+
     if (action) {
-      logger.info(LOG_MODULES.ACTION, `${activeCharacter.name} ${this.isOpen ? 'открыл' : 'закрыл'} дверь`)
+      const name = activeCharacter?.name || 'Кто-то'
+      if (this.isOpen) {
+        logger.info(LOG_MODULES.ACTION, `${name} открыл дверь`)
+      } else {
+        logger.info(LOG_MODULES.ACTION, `${name} закрыл дверь`)
+      }
+      if (gameLoop?.endPlayerTurn) {
+        gameLoop.endPlayerTurn()
+      }
+      return true
     }
-    return true
+
+    return false
   }
 
   getTooltipInfo() {
     let status = ''
-    if (this.isOpen) status = ' (открыта)'
-    else if (this.isLocked) status = ' (заперта)'
+    if (this.isOpen) {
+      status = ' (открыта)'
+    } else if (this.isLocked) {
+      status = ' (заперта)'
+    }
+
     return {
       name: this.name + status,
       type: 'door',
