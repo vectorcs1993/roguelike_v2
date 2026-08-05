@@ -28,6 +28,12 @@
           "max": 3,
           "chance": 0.3
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "crawler": {
@@ -59,6 +65,12 @@
           "max": 2,
           "chance": 0.2
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "mold": {
@@ -90,6 +102,12 @@
           "max": 4,
           "chance": 0.4
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "clawer": {
@@ -121,6 +139,12 @@
           "max": 5,
           "chance": 0.5
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "slime": {
@@ -152,6 +176,12 @@
           "max": 6,
           "chance": 0.3
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "runner": {
@@ -182,6 +212,12 @@
           "max": 3,
           "chance": 0.2
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "fatso": {
@@ -216,6 +252,12 @@
           "max": 10,
           "chance": 0.6
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "howler": {
@@ -247,6 +289,12 @@
           "max": 4,
           "chance": 0.3
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "sticker": {
@@ -278,6 +326,12 @@
           "max": 2,
           "chance": 0.2
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "mushroom": {
@@ -310,6 +364,12 @@
           "max": 5,
           "chance": 0.4
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "nonhuman": {
@@ -344,6 +404,12 @@
         "weapon": {
           "chance": 0.2
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "ratKing": {
@@ -376,6 +442,12 @@
           "max": 10,
           "chance": 0.7
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "zombie": {
@@ -406,6 +478,12 @@
           "max": 5,
           "chance": 0.4
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     },
     "ghost": {
@@ -436,6 +514,12 @@
           "max": 7,
           "chance": 0.5
         }
+      },
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
       }
     }
   },
@@ -454,7 +538,13 @@
       "effects": {
         "heal": 15
       },
-      "description": "Восстанавливает 15 HP"
+      "description": "Восстанавливает 15 HP",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
     },
     "mana": {
       "id": "mana",
@@ -470,7 +560,13 @@
       "effects": {
         "restoreMana": 10
       },
-      "description": "Восстанавливает 10 энергии"
+      "description": "Восстанавливает 10 энергии",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
     },
     "weapon": {
       "id": "weapon",
@@ -486,7 +582,13 @@
       "effects": {
         "damageBonus": 3
       },
-      "description": "Увеличивает урон на 3"
+      "description": "Увеличивает урон на 3",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
     },
     "armor": {
       "id": "armor",
@@ -502,7 +604,13 @@
       "effects": {
         "armorBonus": 2
       },
-      "description": "Увеличивает броню на 2"
+      "description": "Увеличивает броню на 2",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
     },
     "gold": {
       "id": "gold",
@@ -516,7 +624,13 @@
       "value": 1,
       "weight": 0.01,
       "effects": {},
-      "description": "Игровая валюта"
+      "description": "Игровая валюта",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
     },
     "potion": {
       "id": "potion",
@@ -533,7 +647,13 @@
         "buff": "strength",
         "duration": 3
       },
-      "description": "Увеличивает силу на 3 хода"
+      "description": "Увеличивает силу на 3 хода",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
     },
     "scroll": {
       "id": "scroll",
@@ -549,7 +669,13 @@
       "effects": {
         "teleport": true
       },
-      "description": "Телепортирует в случайное место"
+      "description": "Телепортирует в случайное место",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
     },
     "potion_heal": {
       "id": "potion_heal",
@@ -565,11 +691,17 @@
       "effects": {
         "heal": 10
       },
-      "description": "Восстанавливает 10 HP"
+      "description": "Восстанавливает 10 HP",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
     },
     "potion_strength": {
       "id": "potion_strength",
-      "name": "Зелье силы1",
+      "name": "Зелье силы",
       "char": "⚡",
       "color": "#ffaa00",
       "bgColor": "#2a1a00",
@@ -582,7 +714,13 @@
         "buff": "strength",
         "duration": 5
       },
-      "description": "Увеличивает силу на 5 ходов"
+      "description": "Увеличивает силу на 5 ходов",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
     },
     "generic": {
       "id": "generic",
@@ -596,7 +734,13 @@
       "value": 1,
       "weight": 0.5,
       "effects": {},
-      "description": "Обычный предмет"
+      "description": "Обычный предмет",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
     }
   },
   "biomes": {

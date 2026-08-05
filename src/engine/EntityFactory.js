@@ -13,6 +13,7 @@ import EnvironmentComponent from './components/EnvironmentComponent.js'
 import DoorComponent from './components/DoorComponent.js'
 import ItemComponent from './components/ItemComponent.js'
 import { GameConfig } from '../game/GameConfig.js'
+import { logger, LOG_MODULES } from '../game/Logger.js'
 
 export default class EntityFactory {
 
@@ -26,6 +27,8 @@ export default class EntityFactory {
       config.bgColor || playerData.bgColor || null
     )
     render.layer = playerData.layer || 4
+    render.visible = true
+    render.explored = true
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -46,7 +49,6 @@ export default class EntityFactory {
       .addComponent(new MovementComponent(config.speed || playerData.speed || 12))
       .addComponent(new InventoryComponent())
 
-    // Добавляем кастомные компоненты из конфига
     if (config.components) {
       this._addCustomComponents(entity, config.components)
     }
@@ -57,7 +59,7 @@ export default class EntityFactory {
   static createEnemy(x, y, type, enemyData) {
     const data = enemyData || GameConfig.getEnemy(type)
     if (!data) {
-      console.warn(`[EntityFactory] Неизвестный тип врага: ${type}`)
+      logger.warn(LOG_MODULES.SYSTEM, `[EntityFactory] Неизвестный тип врага: ${type}`)
       return null
     }
 
@@ -65,11 +67,16 @@ export default class EntityFactory {
     const color = data.color || '#ffffff'
     const bgColor = data.bgColor || null
     const layer = data.layer || 3
-    const speed = data.speed || 12 // Используем скорость из конфига
+    const speed = data.speed || 12
 
     const entity = new Entity('enemy')
     const render = new RenderComponent(char, color, bgColor)
     render.layer = layer
+
+    const visibilityConfig = GameConfig.getVisibilityConfig('enemy', type)
+    render.visible = visibilityConfig.visibleByDefault || false
+    render.explored = visibilityConfig.exploredByDefault || false
+    render._visibilityConfig = visibilityConfig
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -93,7 +100,6 @@ export default class EntityFactory {
     entity.enemyType = type
     entity.enemyData = data
 
-    // Добавляем кастомные компоненты из данных врага
     if (data.components) {
       this._addCustomComponents(entity, data.components)
     }
@@ -110,6 +116,11 @@ export default class EntityFactory {
       envData.bgColor
     )
     render.layer = envData.layer || 0
+
+    const visibilityConfig = GameConfig.getVisibilityConfig('environment', 'floor')
+    render.visible = visibilityConfig.visibleByDefault || false
+    render.explored = visibilityConfig.exploredByDefault || false
+    render._visibilityConfig = visibilityConfig
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -134,6 +145,11 @@ export default class EntityFactory {
       envData.bgColor
     )
     render.layer = envData.layer || 1
+
+    const visibilityConfig = GameConfig.getVisibilityConfig('environment', 'wall')
+    render.visible = visibilityConfig.visibleByDefault || false
+    render.explored = visibilityConfig.exploredByDefault || false
+    render._visibilityConfig = visibilityConfig
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -166,6 +182,11 @@ export default class EntityFactory {
 
     const render = new RenderComponent(closedChar, closedColor, closedBgColor)
     render.layer = layer
+
+    const visibilityConfig = GameConfig.getVisibilityConfig('environment', 'door')
+    render.visible = visibilityConfig.visibleByDefault || false
+    render.explored = visibilityConfig.exploredByDefault || false
+    render._visibilityConfig = visibilityConfig
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -202,6 +223,11 @@ export default class EntityFactory {
     )
     render.layer = envData.layer || 1
 
+    const visibilityConfig = GameConfig.getVisibilityConfig('environment', 'crate')
+    render.visible = visibilityConfig.visibleByDefault || false
+    render.explored = visibilityConfig.exploredByDefault || false
+    render._visibilityConfig = visibilityConfig
+
     entity
       .addComponent(new PositionComponent(x, y))
       .addComponent(render)
@@ -229,6 +255,11 @@ export default class EntityFactory {
     const render = new RenderComponent(char, color, bgColor)
     render.layer = layer
 
+    const visibilityConfig = GameConfig.getVisibilityConfig('item', itemType)
+    render.visible = visibilityConfig.visibleByDefault || false
+    render.explored = visibilityConfig.exploredByDefault || false
+    render._visibilityConfig = visibilityConfig
+
     entity
       .addComponent(new PositionComponent(x, y))
       .addComponent(render)
@@ -247,7 +278,6 @@ export default class EntityFactory {
     entity.itemData = itemData
     entity.itemType = itemType || 'generic'
 
-    // Добавляем эффекты предмета как данные
     if (itemData.effects) {
       entity.itemEffects = { ...itemData.effects }
     }
@@ -260,7 +290,6 @@ export default class EntityFactory {
   static _addCustomComponents(entity, components) {
     if (!components || typeof components !== 'object') return
 
-    // Импортируем все компоненты динамически
     const componentMap = {
       'PositionComponent': PositionComponent,
       'RenderComponent': RenderComponent,
@@ -278,7 +307,7 @@ export default class EntityFactory {
     for (const [name, data] of Object.entries(components)) {
       const ComponentClass = componentMap[name]
       if (!ComponentClass) {
-        console.warn(`[EntityFactory] Неизвестный компонент: ${name}`)
+        logger.warn(LOG_MODULES.SYSTEM, `[EntityFactory] Неизвестный компонент: ${name}`)
         continue
       }
 
@@ -286,19 +315,17 @@ export default class EntityFactory {
       if (data instanceof ComponentClass) {
         instance = data
       } else if (typeof data === 'object') {
-        // Создаем экземпляр с переданными данными
         try {
           instance = new ComponentClass(data)
         } catch (e) {
-          console.warn(`[EntityFactory] Не удалось создать компонент ${name}:`, e)
+          logger.warn(LOG_MODULES.SYSTEM, `[EntityFactory] Не удалось создать компонент ${name}:`, e)
           continue
         }
       } else {
-        // Простое значение - передаем как аргумент
         try {
           instance = new ComponentClass(data)
         } catch (e) {
-          console.warn(`[EntityFactory] Не удалось создать компонент ${name}:`, e)
+          logger.warn(LOG_MODULES.SYSTEM, `[EntityFactory] Не удалось создать компонент ${name}:`, e)
           continue
         }
       }
@@ -313,7 +340,6 @@ export default class EntityFactory {
     const party = []
     const positions = []
 
-    // Определяем позиции для группы
     const offsets = [
       [0, 0], [1, 0], [-1, 0], [0, 1], [0, -1],
       [1, 1], [-1, 1], [1, -1], [-1, -1]
@@ -344,7 +370,6 @@ export default class EntityFactory {
     const itemData = []
 
     for (let i = 0; i < count; i++) {
-      // Выбираем предмет из таблицы
       let totalWeight = 0
       for (const entry of lootTable) {
         totalWeight += entry.chance || 1

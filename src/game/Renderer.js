@@ -54,10 +54,12 @@ export default class Renderer {
     this.debugShowVisibleCells = debugConfig.showVisibleCells || false
   }
 
+  // Метод для обновления цветов
   setColors(colors) {
     this.colors = { ...this.colors, ...colors }
   }
 
+  // Метод для обновления конфига рендерера
   setConfig(config) {
     if (config.tileSize) {
       this.tileSize = Math.max(
@@ -160,20 +162,36 @@ export default class Renderer {
       const health = entity.getComponent(HealthComponent)
       const player = entity.getComponent(PlayerComponent)
       const ai = entity.getComponent(AIComponent)
+      // const env = entity.getComponent(EnvironmentComponent) // Убираем неиспользуемую переменную
 
       if (!pos || !render) continue
 
       const isPlayer = !!player
       const isEnemy = !!ai
       const isVisible = render.visible
+      const isExplored = render.explored
 
-      let shouldDraw
+      // Получаем настройки видимости
+      const visConfig = render._visibilityConfig || {
+        showWhenVisible: true,
+        showWhenExplored: false
+      }
+
+      let shouldDraw = false
+
       if (isPlayer) {
+        // Игрок всегда видим
         shouldDraw = true
       } else if (isEnemy) {
+        // Враги: показываем если visible = true (в FOV)
         shouldDraw = isVisible
       } else {
-        shouldDraw = isVisible || render.explored
+        // Для всех остальных (предметы, окружение)
+        if (visConfig.showWhenVisible && isVisible) {
+          shouldDraw = true
+        } else if (visConfig.showWhenExplored && isExplored) {
+          shouldDraw = true
+        }
       }
 
       if (!shouldDraw) continue
@@ -184,11 +202,20 @@ export default class Renderer {
       let color = render.color || '#ffffff'
       let bgColor = render.bgColor || null
 
-      if (!isPlayer && !isEnemy && !isVisible && render.explored) {
+      // Если объект не видим, но исследован - затемняем
+      if (!isVisible && isExplored && !isPlayer) {
         color = this.darkenColor(color, 0.3)
         if (bgColor) {
           bgColor = this.darkenColor(bgColor, 0.3)
         }
+      }
+
+      if (entity === this._activeEntity) {
+        color = isPlayer ? (this.colors.player || '#88ff88') : '#ff8844'
+      } else if (isPlayer) {
+        color = this.colors.player || '#5272b6'
+      } else if (isEnemy && isVisible) {
+        color = this.colors.enemy || '#d83232'
       }
 
       // Рисуем фон
@@ -201,32 +228,27 @@ export default class Renderer {
       let displayChar = render.char
       let displayColor = color
 
-      // Проверяем здоровье для игрока и врагов
+      // Проверяем здоровье для игрока и врагов (только если они видимы)
       if (health && health.isAlive && (isPlayer || (isEnemy && isVisible))) {
         const hpPercent = health.hp / health.maxHp
 
         if (hpPercent < 0.5) {
-          // Если здоровье меньше 50% - показываем цифру
-          // 0-9% -> 0, 10-19% -> 1, 20-29% -> 2, 30-39% -> 3, 40-49% -> 4
           const digit = Math.floor(hpPercent * 10)
           displayChar = String(Math.min(digit, 4))
 
-          // Цвет цифры в зависимости от здоровья
           if (hpPercent < 0.1) {
-            displayColor = '#ff0000' // красный - критично
+            displayColor = '#ff0000'
           } else if (hpPercent < 0.2) {
-            displayColor = '#ff4400' // оранжево-красный
+            displayColor = '#ff4400'
           } else if (hpPercent < 0.3) {
-            displayColor = '#ff8800' // оранжевый
+            displayColor = '#ff8800'
           } else if (hpPercent < 0.4) {
-            displayColor = '#ffcc00' // желто-оранжевый
+            displayColor = '#ffcc00'
           } else {
-            displayColor = '#ffdd44' // желтый
+            displayColor = '#ffdd44'
           }
         } else {
-          // Здоровье >= 50% - показываем обычный символ
           if (isPlayer) {
-            // Игрок - зеленый оттенок в зависимости от здоровья
             if (hpPercent > 0.8) {
               displayColor = this.colors.player || '#88ff88'
             } else if (hpPercent > 0.6) {
@@ -235,7 +257,6 @@ export default class Renderer {
               displayColor = '#44bb44'
             }
           } else if (isEnemy && hpPercent > 0.8) {
-            // Враги с высоким здоровьем - зеленоватый оттенок
             displayColor = this.colors.enemy || '#44ff44'
           } else if (isEnemy) {
             displayColor = this.colors.enemy || '#d83232'
@@ -243,7 +264,6 @@ export default class Renderer {
         }
       }
 
-      // Если активная сущность - подсвечиваем
       if (entity === this._activeEntity) {
         displayColor = isPlayer ? (this.colors.player || '#88ff88') : '#ff8844'
       }

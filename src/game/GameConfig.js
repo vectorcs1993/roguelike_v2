@@ -10,7 +10,7 @@ export const GAME_CONFIG = {
   // ===== ОСНОВНЫЕ НАСТРОЙКИ =====
   version: '1.0.0',
 
-  // ===== ДАННЫЕ ИГРОКА (унифицированная структура) =====
+  // ===== ДАННЫЕ ИГРОКА =====
   player: {
     id: 'player',
     name: 'Игрок',
@@ -41,7 +41,7 @@ export const GAME_CONFIG = {
   // ===== ДАННЫЕ ВРАГОВ (пусто, загружается из core.json) =====
   enemies: {},
 
-  // ===== ДАННЫЕ ЭЛЕМЕНТОВ ОКРУЖЕНИЯ (БАЗОВЫЕ, НЕ ПЕРЕЗАПИСЫВАЮТСЯ) =====
+  // ===== ДАННЫЕ ЭЛЕМЕНТОВ ОКРУЖЕНИЯ =====
   environment: {
     floor: {
       id: 'floor',
@@ -53,7 +53,14 @@ export const GAME_CONFIG = {
       blocksSight: false,
       isInteractive: false,
       isCollectible: false,
-      layer: 0
+      layer: 0,
+      // Настройки видимости
+      visibility: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: true
+      }
     },
     wall: {
       id: 'wall',
@@ -65,7 +72,13 @@ export const GAME_CONFIG = {
       blocksSight: true,
       isInteractive: false,
       isCollectible: false,
-      layer: 1
+      layer: 1,
+      visibility: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: true
+      }
     },
     door: {
       id: 'door',
@@ -78,6 +91,12 @@ export const GAME_CONFIG = {
       isInteractive: true,
       isCollectible: false,
       layer: 1,
+      visibility: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: true
+      },
       states: {
         open: {
           char: '/',
@@ -105,7 +124,13 @@ export const GAME_CONFIG = {
       blocksSight: false,
       isInteractive: true,
       isCollectible: false,
-      layer: 1
+      layer: 1,
+      visibility: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: true  // показывать когда исследован
+      }
     }
   },
 
@@ -126,7 +151,28 @@ export const GAME_CONFIG = {
     roomSpacing: 1,
     doorChance: 0.5,
     crateChance: 0.3,
-    doorSpawnChance: 0.5
+    doorSpawnChance: 0.5,
+    // Настройки видимости по умолчанию
+    visibility: {
+      items: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      },
+      enemies: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      },
+      environment: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: true
+      }
+    }
   },
 
   // ===== НАСТРОЙКИ БОЯ =====
@@ -384,6 +430,59 @@ export const GameConfig = {
     return { ...GAME_CONFIG.ui.colors }
   },
 
+  // ===== НАСТРОЙКИ ВИДИМОСТИ =====
+
+  getVisibilityConfig(entityType, entityId = null) {
+    // Сначала проверяем специфичную конфигурацию для entity
+    if (entityId) {
+      const entity = this.getEnemy(entityId) || this.getItem(entityId) || this.getEnvironment(entityId)
+      if (entity && entity.visibility) {
+        return { ...entity.visibility }
+      }
+    }
+
+    // Проверяем настройки мира
+    const worldVisibility = GAME_CONFIG.world.visibility || {}
+
+    if (entityType === 'item') {
+      return {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false,
+        ...worldVisibility.items
+      }
+    }
+
+    if (entityType === 'enemy') {
+      return {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false,
+        ...worldVisibility.enemies
+      }
+    }
+
+    if (entityType === 'environment') {
+      return {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: true,
+        ...worldVisibility.environment
+      }
+    }
+
+    // Настройки по умолчанию
+    return {
+      visibleByDefault: false,
+      exploredByDefault: false,
+      showWhenVisible: true,
+      showWhenExplored: false
+    }
+  },
+
   // ===== ДИНАМИЧЕСКАЯ РЕГИСТРАЦИЯ КОНТЕНТА =====
 
   registerEnemy(id, data) {
@@ -415,7 +514,6 @@ export const GameConfig = {
       log(0, 'SYSTEM', 'GameConfig.registerEnvironment: id and data are required')
       return this
     }
-    // Не перезаписываем базовое окружение
     if (GAME_CONFIG.environment[id]) {
       log(1, 'SYSTEM', `GameConfig.registerEnvironment: Environment "${id}" already exists, skipping`)
       return this
@@ -479,7 +577,6 @@ export const GameConfig = {
       log(1, 'SYSTEM', `GameConfig.overrideEnvironment: Environment "${id}" does not exist, registering new`)
       return this.registerEnvironment(id, data)
     }
-    // Не перезаписываем базовое окружение
     log(1, 'SYSTEM', `GameConfig.overrideEnvironment: Environment "${id}" is base, skipping`)
     return this
   },
@@ -519,6 +616,14 @@ export const GameConfig = {
 
   setWorldConfig(config) {
     GAME_CONFIG.world = { ...GAME_CONFIG.world, ...config }
+    return this
+  },
+
+  setVisibilityConfig(entityType, config) {
+    if (!GAME_CONFIG.world.visibility) {
+      GAME_CONFIG.world.visibility = {}
+    }
+    GAME_CONFIG.world.visibility[entityType] = { ...GAME_CONFIG.world.visibility[entityType], ...config }
     return this
   },
 
@@ -628,7 +733,6 @@ export const GameConfig = {
     const errors = []
     const warnings = []
 
-    // Проверка врагов
     for (const [id, data] of Object.entries(GAME_CONFIG.enemies)) {
       if (!data.char) errors.push(`Enemy "${id}" missing char`)
       if (!data.hp && data.hp !== 0) errors.push(`Enemy "${id}" missing hp`)
@@ -640,14 +744,12 @@ export const GameConfig = {
       }
     }
 
-    // Проверка предметов
     for (const [id, data] of Object.entries(GAME_CONFIG.items)) {
       if (!data.char) errors.push(`Item "${id}" missing char`)
       if (!data.name) warnings.push(`Item "${id}" missing name`)
       if (!data.type) warnings.push(`Item "${id}" missing type`)
     }
 
-    // Проверка биомов
     for (const [id, data] of Object.entries(GAME_CONFIG.biomes)) {
       if (!data.name) warnings.push(`Biome "${id}" missing name`)
 
@@ -674,7 +776,6 @@ export const GameConfig = {
       }
     }
 
-    // Проверка окружения
     for (const [id, data] of Object.entries(GAME_CONFIG.environment)) {
       if (!data.char) errors.push(`Environment "${id}" missing char`)
       if (data.solid === undefined) warnings.push(`Environment "${id}" missing solid property`)
@@ -691,7 +792,6 @@ export const GameConfig = {
     GAME_CONFIG.enemies = {}
     GAME_CONFIG.items = {}
     GAME_CONFIG.biomes = {}
-    // Не сбрасываем environment
     return this
   }
 }

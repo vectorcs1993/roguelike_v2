@@ -50,7 +50,6 @@ export default class Location {
 
     this.addFloorTiles()
 
-    this.revealAll()
     console.log(`[Location] Создана: ${this.name}, сущностей: ${this.engine.entities.length}`)
   }
 
@@ -60,14 +59,18 @@ export default class Location {
         const cell = this.grid[y][x]
         if (cell && cell.entity) {
           const render = cell.entity.getComponent(RenderComponent)
-          if (render) { render.visible = true; render.explored = true }
+          if (render) {
+            render.explored = true
+          }
         }
       }
     }
     const all = this.engine.getEntitiesWithComponents([RenderComponent])
     for (const e of all) {
       const r = e.getComponent(RenderComponent)
-      if (r) { r.visible = true; r.explored = true }
+      if (r) {
+        r.explored = true
+      }
     }
   }
 
@@ -305,7 +308,6 @@ export default class Location {
 
     const isFree = (x, y) => !wallSet.has(`${x},${y}`)
 
-    // Используем crateChance из конфига
     const crateChance = worldConfig.crateChance || 0.3
     const crateCount = Math.min(Math.floor(roomCells.length * crateChance), roomCells.length)
     const crates = roomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
@@ -393,18 +395,11 @@ export default class Location {
       itemEntity.engine = location.engine
       location.engine.addEntity(itemEntity)
 
-      // Заменяем пол на предмет
       const oldCell = location.grid[y][x]
       if (oldCell && oldCell.entity) {
         location.engine.removeEntity(oldCell.entity)
       }
       location.grid[y][x] = { type: 'item', entity: itemEntity }
-
-      const render = itemEntity.getComponent(RenderComponent)
-      if (render) {
-        render.visible = true
-        render.explored = true
-      }
     }
 
     // Добавляем двери
@@ -413,7 +408,26 @@ export default class Location {
       location.setDoors(doors)
     }
 
-    location.revealAll()
+    // Устанавливаем explored для базовых объектов (стены и пол)
+    // Это нужно чтобы showWhenExplored работало для них
+    for (let y = 0; y < location.rows; y++) {
+      for (let x = 0; x < location.cols; x++) {
+        const cell = location.grid[y][x]
+        if (cell && cell.entity) {
+          const render = cell.entity.getComponent(RenderComponent)
+          const env = cell.entity.getComponent(EnvironmentComponent)
+          if (render && env) {
+            // Стены и пол - всегда explored (базовый слой карты)
+            if (env.type === 'floor' || env.type === 'wall') {
+              render.explored = true
+              // visible остается false, пока FOV не покажет
+            }
+            // Для дверей, ящиков, предметов - explored определяется настройками
+            // и будет установлено при первом FOV или через настройки
+          }
+        }
+      }
+    }
 
     return location
   }
