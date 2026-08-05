@@ -14,8 +14,6 @@ export default class AISystem extends System {
     this.enabled = false
   }
 
-  // Основной метод, вызываемый из GameLoop для одного врага
-  // Добавлен параметр location
   performTurn(enemy, location) {
     if (!enemy || !enemy.active) return false
 
@@ -58,7 +56,6 @@ export default class AISystem extends System {
       return true
     }
 
-    // Если игрок в зоне видимости (по дальности)
     if (minDist <= ai.aggressionRange) {
       if (minDist <= combat.attackRange) {
         const combatSystem = this.engine.systems.find(s => s.name === 'CombatSystem')
@@ -67,6 +64,7 @@ export default class AISystem extends System {
           return true
         }
       } else {
+        // Двигаемся к игроку на 1 клетку за ход
         this.moveToPlayer(enemy, nearestPlayer, location)
         return true
       }
@@ -78,41 +76,49 @@ export default class AISystem extends System {
     return false
   }
 
-  // Добавлен параметр location
   moveToPlayer(enemy, player, location) {
     const pos = enemy.getComponent(PositionComponent)
     const playerPos = player.getComponent(PositionComponent)
     if (!pos || !playerPos) return
 
+    // Вычисляем направление к игроку
     const dx = Math.sign(playerPos.tileX - pos.tileX)
     const dy = Math.sign(playerPos.tileY - pos.tileY)
 
+    // Пробуем разные варианты движения: сначала диагональ, потом по осям
     const moves = []
     if (dx !== 0 && dy !== 0) {
       moves.push([dx, dy], [dx, 0], [0, dy])
     } else if (dx !== 0) {
-      moves.push([dx, 0], [0, dy])
+      moves.push([dx, 0])
+      if (dy !== 0) moves.push([0, dy])
     } else if (dy !== 0) {
-      moves.push([0, dy], [dx, 0])
+      moves.push([0, dy])
+      if (dx !== 0) moves.push([dx, 0])
     }
 
+    // Пробуем каждый вариант движения
     for (const [mx, my] of moves) {
       const nx = pos.tileX + mx
       const ny = pos.tileY + my
 
-      // ★★★ Ключевое исправление: проверяем проходимость тайла ★★★
+      // Проверяем проходимость
       if (!location.isTileWalkable(nx, ny)) continue
 
+      // Проверяем, не занято ли клетку другим существом
       if (!this.engine.isTileBlocked(nx, ny, enemy)) {
+        // Двигаемся на 1 клетку
         pos.moveTo(nx, ny)
         return
       }
     }
   }
 
-  // Добавлен параметр location
   wander(enemy, location) {
     const pos = enemy.getComponent(PositionComponent)
+    if (!pos) return
+
+    // Случайное направление
     const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]]
     for (let i = dirs.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1))
@@ -123,16 +129,14 @@ export default class AISystem extends System {
       const nx = pos.tileX + dx
       const ny = pos.tileY + dy
 
-      // ★★★ Проверяем проходимость тайла ★★★
       if (!location.isTileWalkable(nx, ny)) continue
-
       if (!this.engine.isTileBlocked(nx, ny, enemy)) {
+        // Двигаемся на 1 клетку
         pos.moveTo(nx, ny)
         return
       }
     }
   }
 
-  // Пустой update
   update() { }
 }

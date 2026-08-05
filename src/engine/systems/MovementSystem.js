@@ -20,14 +20,13 @@ export default class MovementSystem extends System {
       const pos = entity.getComponent(PositionComponent)
       const movement = entity.getComponent(MovementComponent)
 
-      // Обновляем текущее движение
+      // Обновляем анимацию движения
       pos.updateMovement(dt, movement.speed)
 
-      // Если есть путь - двигаемся по нему
-      if (movement.followingPath && !pos.moving) {
+      // Если есть путь - двигаемся
+      if (movement.hasPath() && !pos.moving) {
         const nextStep = movement.getNextStep()
         if (nextStep) {
-          // Проверяем, свободна ли клетка
           if (!this.engine.isTileBlocked(nextStep.x, nextStep.y, entity)) {
             pos.moveTo(nextStep.x, nextStep.y)
             movement.advancePath()

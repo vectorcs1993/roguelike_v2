@@ -12,18 +12,21 @@ export default class Engine {
     this.systems = []
     this.entityMap = new Map()
     this._nextId = 1
+    this.currentLocation = null
   }
 
   // ========== Управление сущностями ==========
 
   createEntity(tag = 'entity') {
     const entity = new Entity(tag)
+    entity.engine = this
     this.entities.push(entity)
     this.entityMap.set(entity.id, entity)
     return entity
   }
 
   addEntity(entity) {
+    entity.engine = this
     this.entities.push(entity)
     this.entityMap.set(entity.id, entity)
     return entity
@@ -103,7 +106,6 @@ export default class Engine {
     return entities.length > 0 ? entities[0] : null
   }
 
-  // Возвращает клетки, занятые живыми существами (игроки, враги)
   getBlockedCells(excludeEntity = null) {
     const blocked = []
     for (const entity of this.entities) {
@@ -112,7 +114,7 @@ export default class Engine {
       const pos = entity.getComponent(PositionComponent)
       if (pos) {
         const health = entity.getComponent(HealthComponent)
-        if (health) { // только существа с HP
+        if (health) {
           blocked.push({ x: pos.tileX, y: pos.tileY })
         }
       }
@@ -120,7 +122,6 @@ export default class Engine {
     return blocked
   }
 
-  // Проверяет, занята ли клетка живым существом
   isTileBlocked(tileX, tileY, excludeEntity = null) {
     for (const entity of this.entities) {
       if (!entity.active) continue

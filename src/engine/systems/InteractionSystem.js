@@ -63,7 +63,6 @@ export default class InteractionSystem extends System {
       const inv = actor.getComponent(InventoryComponent)
       if (!inv) return false
 
-      // Добавляем предмет (стакается автоматически)
       if (!inv.addItem(itemData)) {
         console.log('Не удалось добавить предмет в инвентарь')
         return false
@@ -82,7 +81,5 @@ export default class InteractionSystem extends System {
     return false
   }
 
-  update() {
-    // nothing
-  }
+  update() { }
 }

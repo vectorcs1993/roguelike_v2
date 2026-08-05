@@ -9,6 +9,8 @@ import EntityFactory from '../engine/EntityFactory.js'
 import MovementSystem from '../engine/systems/MovementSystem.js'
 import CombatSystem from '../engine/systems/CombatSystem.js'
 import HealthSystem from '../engine/systems/HealthSystem.js'
+import AISystem from '../engine/systems/AISystem.js'
+import InteractionSystem from '../engine/systems/InteractionSystem.js'
 import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
 import DoorComponent from '../engine/components/DoorComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
@@ -32,6 +34,8 @@ export default class Location {
     this.engine.addSystem(new MovementSystem())
     this.engine.addSystem(new CombatSystem())
     this.engine.addSystem(new HealthSystem())
+    this.engine.addSystem(new AISystem())
+    this.engine.addSystem(new InteractionSystem())
 
     for (const entity of entities) {
       this.engine.addEntity(entity)
@@ -43,7 +47,6 @@ export default class Location {
     this.fov = new Fov(this)
     this.pathfinder = new Pathfinder(this)
 
-    // Первоначальное раскрытие карты (для отладки)
     this.revealAll()
     console.log(`[Location] Создана: ${this.name}, сущностей: ${this.engine.entities.length}`)
   }
@@ -88,8 +91,6 @@ export default class Location {
     }
   }
 
-  // --- Проверка проходимости и обзора ---
-
   isTileWalkable(x, y) {
     if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return false
     const cell = this.grid[y][x]
@@ -100,7 +101,6 @@ export default class Location {
       return door ? door.isOpen : false
     }
     if (cell.type === 'crate') return false
-    // предметы и пустые клетки проходимы
     return true
   }
 
@@ -149,11 +149,15 @@ export default class Location {
     return result
   }
 
-  updateDoorState() {
-    // Синхронизация не требуется, но оставляем для совместимости
+  updateDoorState(x, y, isOpen) {
+    const cell = this.grid[y]?.[x]
+    if (cell && cell.type === 'door') {
+      const door = cell.entity.getComponent(DoorComponent)
+      if (door) {
+        door.isOpen = isOpen
+      }
+    }
   }
-
-  // --- FOV ---
 
   computeFov(originX, originY, radius, resetVisibility = true) {
     const engine = this.engine
@@ -184,18 +188,14 @@ export default class Location {
     }
   }
 
-  // --- Pathfinding ---
-
   findPath(fromX, fromY, toX, toY, activeEntity = null) {
     const blocked = this.getBlockedCells(activeEntity)
     return this.pathfinder.find(fromX, fromY, toX, toY, blocked)
   }
 
-
   getBlockedCells(excludeEntity = null) {
     const blocked = []
 
-    // 1) Непроходимые клетки (стены, закрытые двери, ящики)
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         if (!this.isTileWalkable(x, y)) {
@@ -208,7 +208,6 @@ export default class Location {
       }
     }
 
-    // 2) Клетки, занятые другими живыми существами (игроки, враги)
     const creatureBlocked = this.engine.getBlockedCells(excludeEntity)
     for (const cell of creatureBlocked) {
       if (!blocked.some(b => b.x === cell.x && b.y === cell.y)) {
@@ -221,8 +220,6 @@ export default class Location {
 
   setGameLoop(gameLoop) { this.#gameLoop = gameLoop }
   getGameLoop() { return this.#gameLoop }
-
-  // --- Статическая генерация ---
 
   static generateProcedural(config, biomeType = null) {
     const selectedBiome = biomeType || (() => {
@@ -318,7 +315,6 @@ export default class Location {
       biomeName
     )
 
-    // --- Ящики ---
     for (const [x, y] of crates) {
       const crateEntity = EntityFactory.createCrate(x, y)
       crateEntity.engine = location.engine
@@ -326,27 +322,19 @@ export default class Location {
       location.grid[y][x] = { type: 'crate', entity: crateEntity }
     }
 
-    // ★★★ РАЗМЕЩЕНИЕ ПРЕДМЕТОВ ★★★
     const itemTypes = ['health', 'gold', 'potion', 'scroll', 'weapon', 'armor', 'mana'];
-    const itemWeights = [30, 20, 15, 10, 10, 10, 5]; // сумма = 100
+    const itemWeights = [30, 20, 15, 10, 10, 10, 5];
 
-    // Клетки, занятые игроком и врагами
     const occupiedByEntities = new Set([`${playerStart.x},${playerStart.y}`, ...enemyPositions]);
-
-    // Свободные клетки (без ящиков и без существ)
     const freeCells = available.filter(c => !occupiedByEntities.has(c));
 
-    // Количество предметов (от 5 до 10, но не больше свободных клеток)
     const numItems = Math.min(Math.floor(Math.random() * 6) + 5, freeCells.length);
 
-    // Перемешиваем и выбираем
     for (let i = freeCells.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [freeCells[i], freeCells[j]] = [freeCells[j], freeCells[i]];
     }
     const selectedCells = freeCells.slice(0, numItems);
-
-    console.log(`[Location] Размещаем ${selectedCells.length} предметов`);
 
     for (const cell of selectedCells) {
       const [x, y] = cell.split(',').map(Number);
@@ -362,7 +350,6 @@ export default class Location {
         }
       }
 
-      // ★★★ УБИРАЕМ onCollect, т.к. добавление происходит в InteractionSystem ★★★
       const itemEntity = EntityFactory.createItem(x, y, type);
       itemEntity.engine = location.engine;
       location.engine.addEntity(itemEntity);
@@ -373,21 +360,15 @@ export default class Location {
         render.visible = true;
         render.explored = true;
       }
-
-      const env = itemEntity.getComponent(EnvironmentComponent);
-      console.log(`  -> Предмет ${env ? env.name : type} на (${x}, ${y})`);
     }
 
-    // --- Двери ---
     if (doorData?.length) {
       const doors = doorData.map(d => ({ x: d.x, y: d.y, locked: d.locked || false }))
       location.setDoors(doors)
     }
 
-    // Повторно раскрываем всю карту, чтобы предметы стали видимы
     location.revealAll();
 
-    console.log(`[Location] Генерация завершена: ${biomeName} ${width}x${height}, комнат:${rooms.length}, врагов:${enemyPositions.length}, предметов:${selectedCells.length}`)
     return location
   }
 

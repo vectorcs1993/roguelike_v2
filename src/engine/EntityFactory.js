@@ -32,7 +32,7 @@ export default class EntityFactory {
       }))
       .addComponent(new PlayerComponent())
       .addComponent(new MovementComponent(12))
-      .addComponent(new InventoryComponent()) // без лимита
+      .addComponent(new InventoryComponent())
     return entity
   }
 
@@ -156,7 +156,6 @@ export default class EntityFactory {
       }))
       .addComponent(new ItemComponent({
         itemType: type
-        // ★★★ УБИРАЕМ onCollect ★★★
       }))
     const render = entity.getComponent(RenderComponent)
     if (render) render.layer = 2

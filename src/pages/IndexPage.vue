@@ -52,8 +52,7 @@
           <q-separator dark />
           <q-card-section style="height: 200px; overflow-y: auto;" dark>
             <q-scroll-area v-if="entitiesList.length > 0" dark style="width: 100%; height: 100%;">
-              <q-item v-for="(ent, idx) in entitiesList" :key="ent.id" :active="ent.id === selectedEntityId" clickable dark
-                @click="switchToCharacter(idx)">
+              <q-item v-for="(ent) in entitiesList" :key="ent.id" :active="ent.id === selectedEntityId" clickable dark>
                 <q-item-section avatar dark>
                   <q-chip :style="{ backgroundColor: ent.teamColor, color: 'white' }">
                     {{ ent.char }}
@@ -364,7 +363,6 @@ function revealFullMap() {
 }
 
 function centerOnCharacter(entityId) { game?.centerOnCharacter(entityId) }
-function switchToCharacter(index) { game?.switchToCharacter(index) }
 
 function onCanvasClick(event) { game?.onClick?.(event) }
 function onMouseMove(event) { game?.onMouseMove?.(event) }

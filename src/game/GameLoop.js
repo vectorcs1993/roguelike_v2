@@ -99,6 +99,70 @@ export default class GameLoop {
       })
   }
 
+  processNextEnemy() {
+    if (this.isPlayerTurn) {
+      this.isProcessingEnemyTurn = false
+      return
+    }
+
+    this.updateEnemyList()
+    this.enemyList = this.enemyList.filter(e => {
+      const health = e.getComponent(HealthComponent)
+      return health && !health.isDead
+    })
+
+    if (this.enemyList.length === 0 || this.enemyTurnIndex >= this.enemyList.length) {
+      this.isProcessingEnemyTurn = false
+      this.endEnemyTurn()
+      return
+    }
+
+    const enemy = this.enemyList[this.enemyTurnIndex]
+
+    if (!enemy || !enemy.active) {
+      this.enemyTurnIndex++
+      this.processNextEnemy()
+      return
+    }
+
+    // Действие врага
+    const actionDone = this.aiSystem.performTurn(enemy, this.currentLocation)
+
+    if (actionDone) {
+      logger.debug(LOG_MODULES.AI, `${this.getEntityName(enemy)} сделал действие`)
+    }
+
+    this.enemyTurnIndex++
+
+    // Без setTimeout - просто рекурсивный вызов
+    // Но чтобы не было stack overflow, используем requestAnimationFrame
+    // или проверяем, не заблокирован ли цикл
+    if (this.enemyTurnIndex < this.enemyList.length) {
+      this.processNextEnemy()
+    } else {
+      this.isProcessingEnemyTurn = false
+      this.endEnemyTurn()
+    }
+  }
+
+  endEnemyTurn() {
+    logger.info(LOG_MODULES.TURN, 'Враги завершили ход')
+    this.isPlayerTurn = true
+    this.enemyTurnIndex = 0
+    this.isProcessingEnemyTurn = false
+
+    this.initializeFovForAllAllies()
+
+    const playerEntities = this.getPlayerEntities()
+    if (playerEntities.length === 0) {
+      logger.info(LOG_MODULES.SYSTEM, 'Игрок мёртв! Перезагрузка...')
+      this.reloadLocation()
+      return
+    }
+
+    logger.info(LOG_MODULES.TURN, `Ход игрока: ${this.getEntityName(this.selectedEntity)}`)
+  }
+
   initializeFovForAllAllies() {
     const engine = this.currentLocation.engine
     const allies = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
@@ -125,15 +189,6 @@ export default class GameLoop {
     this.initializeFovForAllAllies()
   }
 
-  switchToCharacter(index) {
-    const playerEntities = this.getPlayerEntities()
-    if (index < 0 || index >= playerEntities.length) return
-
-    this.selectedEntityIndex = index
-    const entity = playerEntities[index]
-    this.camera.follow(entity)
-    this.initializeFovForAllAllies()
-  }
 
   centerOnCharacter(entityId) {
     const engine = this.currentLocation.engine
@@ -170,6 +225,7 @@ export default class GameLoop {
     if (newX < 0 || newX >= this.currentLocation.cols ||
       newY < 0 || newY >= this.currentLocation.rows) return false
 
+    // Проверяем проходимость клетки
     if (!this.currentLocation.isTileWalkable(newX, newY)) {
       const targetEntity = this.currentLocation.getEntityAt(newX, newY)
       if (targetEntity) {
@@ -187,23 +243,29 @@ export default class GameLoop {
 
     const engine = this.currentLocation.engine
     const targetEntity = engine.getFirstEntityAt(newX, newY)
+
+    // Проверяем, есть ли враг на целевой клетке
     if (targetEntity && targetEntity.active) {
       const targetHealth = targetEntity.getComponent(HealthComponent)
       const targetAI = targetEntity.getComponent(AIComponent)
+
+      // Если это враг (есть AI и HP) и он жив - атакуем
       if (targetAI && targetHealth && !targetHealth.isDead) {
         const combatSystem = engine.systems.find(s => s.name === 'CombatSystem')
         if (combatSystem) {
           const success = combatSystem.attack(entity, targetEntity)
           if (success) {
             logger.info(LOG_MODULES.COMBAT, `${this.getEntityName(entity)} атаковал ${this.getEntityName(targetEntity)}!`)
-            this.endPlayerTurn()
-            return true
+          } else {
+            logger.info(LOG_MODULES.COMBAT, `${this.getEntityName(entity)} промахнулся!`)
           }
+          this.endPlayerTurn()
+          return true
         }
-        return false
       }
     }
 
+    // Проверяем, есть ли предмет на клетке
     const itemEntity = engine.getFirstEntityAt(newX, newY)
     if (itemEntity && itemEntity.active) {
       const env = itemEntity.getComponent(EnvironmentComponent)
@@ -215,10 +277,12 @@ export default class GameLoop {
       }
     }
 
+    // Двигаемся
     pos.moveTo(newX, newY)
     this.endPlayerTurn()
     return true
   }
+
   pickupItem() {
     if (!this.isPlayerTurn) return false
 
@@ -404,7 +468,6 @@ export default class GameLoop {
   }
 
   _createItemEntity(x, y, itemData) {
-    // Создаём предмет с сохранением всех параметров
     const itemEntity = EntityFactory.createItem(x, y, itemData.type || 'generic', {
       name: itemData.name,
       char: itemData.char,
@@ -412,7 +475,6 @@ export default class GameLoop {
       onCollect: null
     })
 
-    // Дополнительно убеждаемся, что все данные сохранены
     const render = itemEntity.getComponent(RenderComponent)
     if (render) {
       render.char = itemData.char || render.char
@@ -474,10 +536,11 @@ export default class GameLoop {
     const success = combatSystem.attack(entity, nearest)
     if (success) {
       logger.info(LOG_MODULES.COMBAT, `${this.getEntityName(entity)} атаковал ${this.getEntityName(nearest)}!`)
-      this.endPlayerTurn()
-      return true
+    } else {
+      logger.info(LOG_MODULES.COMBAT, `${this.getEntityName(entity)} промахнулся!`)
     }
-    return false
+    this.endPlayerTurn()
+    return true
   }
 
   interact() {
@@ -542,60 +605,6 @@ export default class GameLoop {
     this.processNextEnemy()
   }
 
-  processNextEnemy() {
-    if (this.isPlayerTurn) {
-      this.isProcessingEnemyTurn = false
-      return
-    }
-
-    this.updateEnemyList()
-    this.enemyList = this.enemyList.filter(e => {
-      const health = e.getComponent(HealthComponent)
-      return health && !health.isDead
-    })
-
-    if (this.enemyList.length === 0 || this.enemyTurnIndex >= this.enemyList.length) {
-      this.isProcessingEnemyTurn = false
-      this.endEnemyTurn()
-      return
-    }
-
-    const enemy = this.enemyList[this.enemyTurnIndex]
-
-    if (!enemy || !enemy.active) {
-      this.enemyTurnIndex++
-      this.processNextEnemy()
-      return
-    }
-
-    const actionDone = this.aiSystem.performTurn(enemy, this.currentLocation)
-
-    if (actionDone) {
-      logger.debug(LOG_MODULES.AI, `${this.getEntityName(enemy)} сделал действие`)
-    }
-
-    this.enemyTurnIndex++
-    this.processNextEnemy()
-  }
-
-  endEnemyTurn() {
-    logger.info(LOG_MODULES.TURN, 'Враги завершили ход')
-    this.isPlayerTurn = true
-    this.enemyTurnIndex = 0
-    this.isProcessingEnemyTurn = false
-
-    this.initializeFovForAllAllies()
-
-    const playerEntities = this.getPlayerEntities()
-    if (playerEntities.length === 0) {
-      logger.info(LOG_MODULES.SYSTEM, 'Игрок мёртв! Перезагрузка...')
-      this.reloadLocation()
-      return
-    }
-
-    logger.info(LOG_MODULES.TURN, `Ход игрока: ${this.getEntityName(this.selectedEntity)}`)
-  }
-
   update(dt) {
     const engine = this.currentLocation.engine
     engine.update(dt)
@@ -610,7 +619,7 @@ export default class GameLoop {
       this.initializeFovForAllAllies()
     }
 
-    this.camera.update(dt, this.input)
+    this.camera.update()
   }
 
   render() {
@@ -722,21 +731,22 @@ export default class GameLoop {
   onKeyDown(e) {
     this.input.handleKeyDown(e)
 
-    if (e.key === 'f' || e.key === 'F') {
+    // Отладочные клавиши - используем code (не зависит от раскладки)
+    if (e.code === 'KeyF') {
       if (this.renderer) {
         this.renderer.debugFov = !this.renderer.debugFov
         console.log('FOV Debug:', this.renderer.debugFov ? 'ON' : 'OFF')
         e.preventDefault()
       }
     }
-    if (e.key === 'r' || e.key === 'R') {
+    if (e.code === 'KeyR') {
       if (this.renderer) {
         this.renderer.debugShowRays = !this.renderer.debugShowRays
         console.log('Show Rays:', this.renderer.debugShowRays ? 'ON' : 'OFF')
         e.preventDefault()
       }
     }
-    if (e.key === 'v' || e.key === 'V') {
+    if (e.code === 'KeyV') {
       if (this.renderer) {
         this.renderer.debugShowVisibleCells = !this.renderer.debugShowVisibleCells
         console.log('Show Visible Cells:', this.renderer.debugShowVisibleCells ? 'ON' : 'OFF')
@@ -744,20 +754,21 @@ export default class GameLoop {
       }
     }
 
-    if (e.key >= '1' && e.key <= '9') {
-      this.switchToCharacter(parseInt(e.key) - 1)
-    }
 
-    if (e.key === 'e' || e.key === 'E') {
+
+    // Взаимодействие - используем code
+    if (e.code === 'KeyE') {
       this.interact()
       e.preventDefault()
     }
 
-    if (e.key === 'g' || e.key === 'G') {
+    // Подбор предмета - используем code
+    if (e.code === 'KeyG') {
       this.pickupItem()
       e.preventDefault()
     }
 
+    // Движение - обрабатывается через InputManager (стрелки и WASD)
     if (this.isPlayerTurn) {
       const dir = this.input.getDirection()
       if (dir) {
