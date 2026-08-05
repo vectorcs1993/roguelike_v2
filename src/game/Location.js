@@ -342,7 +342,7 @@ export default class Location {
 
     const available = roomCells.filter(c => !crateSet.has(c))
 
-    const playerStart = this.findStartInRoom(rooms, isFree)
+    const playerStart = this.findStartInRoom(rooms, isFree, crateSet)
 
     const entities = []
 
@@ -460,7 +460,7 @@ export default class Location {
     return location
   }
 
-  static findStartInRoom(rooms, isFree) {
+  static findStartInRoom(rooms, isFree, occupiedSet) {
     const shuffled = [...rooms]
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -471,7 +471,9 @@ export default class Location {
       const candidates = []
       for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
         for (let x = room.x + 1; x < room.x + room.w - 1; x++) {
-          if (isFree(x, y)) candidates.push({ x, y })
+          if (isFree(x, y) && !(occupiedSet && occupiedSet.has(`${x},${y}`))) {
+            candidates.push({ x, y })
+          }
         }
       }
       if (candidates.length) {
