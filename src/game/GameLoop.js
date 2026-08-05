@@ -26,10 +26,6 @@ export default class GameLoop {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
-    const uiConfig = GameConfig?.ui || {}
-    const cameraConfig = uiConfig.camera || {}
-    const cameraSpeed = cameraConfig.speed || 15
-
     this.currentLocation = initialLocation || Location.generateProcedural(biomeType)
     this.currentLocation.setGameLoop(this)
     this.currentLocation.engine.currentLocation = this.currentLocation
@@ -44,10 +40,10 @@ export default class GameLoop {
     const mainPlayer = playerEntities[0]
     if (mainPlayer) {
       const pos = mainPlayer.getComponent(PositionComponent)
-      this.camera = new Camera(pos.x, pos.y, cameraSpeed)
+      this.camera = new Camera(pos.x, pos.y)
       this.camera.follow(mainPlayer)
     } else {
-      this.camera = new Camera(0, 0, cameraSpeed)
+      this.camera = new Camera(0, 0)
     }
 
     this.input = new InputManager()
@@ -57,9 +53,6 @@ export default class GameLoop {
     this.lastTime = 0
     this.hoverTileX = null
     this.hoverTileY = null
-    this.frameInterval = 1000 / 60
-    this.lastFrameTime = 0
-    this._lastRenderTime = 0
 
     this.selectedEntityIndex = 0
 
@@ -196,21 +189,11 @@ export default class GameLoop {
   }
 
   gameLoop(now) {
-    if (this.lastFrameTime && (now - this.lastFrameTime) < this.frameInterval) {
-      this.animationId = requestAnimationFrame(t => this.gameLoop(t))
-      return
-    }
-    this.lastFrameTime = now
-
     const dt = this.lastTime ? Math.min((now - this.lastTime) * 0.001, 0.05) : 0.016
     this.lastTime = now
 
     this.update(dt)
-
-    if (now - this._lastRenderTime >= this.frameInterval) {
-      this.render()
-      this._lastRenderTime = now
-    }
+    this.render()
 
     this.animationId = requestAnimationFrame(t => this.gameLoop(t))
   }
@@ -240,8 +223,6 @@ export default class GameLoop {
 
   start() {
     this.lastTime = performance.now()
-    this.lastFrameTime = performance.now()
-    this._lastRenderTime = performance.now()
     this.gameLoop(this.lastTime)
   }
 

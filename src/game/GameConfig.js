@@ -172,10 +172,7 @@ export const GAME_CONFIG = {
       level: 2,
       enabledModules: ['enemy', 'combat', 'movement', 'action', 'ai', 'turn', 'pathfinding', 'generation', 'system']
     },
-    camera: {
-      speed: 15,
-      lerpFactor: 0.15
-    },
+    camera: {},
     renderer: {
       tileSize: 48,
       minTileSize: 12,

@@ -9,12 +9,6 @@ export default class PositionComponent extends Component {
     this.y = y
     this.vx = x
     this.vy = y
-    this.moving = false
-    this.fromX = x
-    this.fromY = y
-    this.toX = x
-    this.toY = y
-    this.progress = 0
   }
 
   set(x, y) {
@@ -24,32 +18,12 @@ export default class PositionComponent extends Component {
     this.vy = y
   }
 
+  // Мгновенное перемещение на клетку (без анимации)
   moveTo(x, y) {
-    this.fromX = this.vx
-    this.fromY = this.vy
-    this.toX = x
-    this.toY = y
     this.x = x
     this.y = y
-    this.moving = true
-    this.progress = 0
-  }
-
-  updateMovement(dt, speed) {
-    if (!this.moving) return
-    this.progress += speed * dt
-    if (this.progress >= 1) {
-      this.vx = this.toX
-      this.vy = this.toY
-      this.x = this.toX
-      this.y = this.toY
-      this.moving = false
-      this.progress = 0
-    } else {
-      const t = this.progress
-      this.vx = this.fromX + (this.toX - this.fromX) * t
-      this.vy = this.fromY + (this.toY - this.fromY) * t
-    }
+    this.vx = x
+    this.vy = y
   }
 
   get tileX() { return Math.floor(this.x) }

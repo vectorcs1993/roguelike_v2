@@ -10,7 +10,7 @@ export default class MovementSystem extends System {
     this.name = 'MovementSystem'
   }
 
-  update(dt) {
+  update() {
     const entities = this.engine.getEntitiesWithComponents([
       PositionComponent,
       MovementComponent
@@ -20,11 +20,8 @@ export default class MovementSystem extends System {
       const pos = entity.getComponent(PositionComponent)
       const movement = entity.getComponent(MovementComponent)
 
-      // Обновляем анимацию движения
-      pos.updateMovement(dt, movement.speed)
-
-      // Если есть путь - двигаемся
-      if (movement.hasPath() && !pos.moving) {
+      // Если есть путь - двигаемся (мгновенно, без анимации)
+      if (movement.hasPath()) {
         const nextStep = movement.getNextStep()
         if (nextStep) {
           if (!this.engine.isTileBlocked(nextStep.x, nextStep.y, entity)) {

@@ -9,7 +9,6 @@ export default class CombatSystem extends System {
   constructor() {
     super()
     this.name = 'CombatSystem'
-    this.attackQueue = []
   }
 
   attack(attacker, target) {
@@ -24,9 +23,6 @@ export default class CombatSystem extends System {
     const dist = pos.chebyshevDistanceTo(targetPos)
     if (dist > combat.attackRange) return false
 
-    // Запускаем анимацию
-    combat.startAttackAnimation(pos, targetPos)
-
     // Проверяем попадание
     if (!combat.rollHit()) {
       return false
@@ -37,25 +33,6 @@ export default class CombatSystem extends System {
     const actualDamage = health.takeDamage(damage, combat.damageType)
 
     return actualDamage > 0
-  }
-
-  update(dt) {
-    // Обновляем анимации атак
-    const entities = this.engine.getEntitiesWithComponents([
-      PositionComponent,
-      CombatComponent
-    ])
-
-    for (const entity of entities) {
-      const combat = entity.getComponent(CombatComponent)
-      const pos = entity.getComponent(PositionComponent)
-
-      const animPos = combat.updateAttackAnimation(dt)
-      if (animPos) {
-        pos.vx = animPos.x
-        pos.vy = animPos.y
-      }
-    }
   }
 
   getAttackers() {
