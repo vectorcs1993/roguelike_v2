@@ -13,6 +13,7 @@ import ItemComponent from '../engine/components/ItemComponent.js'
 import InventoryComponent from '../engine/components/InventoryComponent.js'
 import EntityFactory from '../engine/EntityFactory.js'
 import { logger, LOG_MODULES } from './Logger.js'
+import { applyItemEffects, isItemUsable } from './ItemEffects.js'
 
 export default class PlayerActions {
   constructor(gameLoop) {
@@ -166,13 +167,22 @@ export default class PlayerActions {
     const itemName = env.name || 'предмет'
 
     const render = itemEntity.getComponent(RenderComponent)
+
+    // Берём эффекты и флаг usable из конфига предмета (itemData сущности),
+    // чтобы предмет можно было использовать после подбора.
+    const sourceItemData = itemEntity.itemData || {}
+    const itemEffects = itemEntity.itemEffects || sourceItemData.effects || {}
+
     const itemData = {
       id: Date.now() + Math.random() * 1000,
       type: itemComp.itemType || 'generic',
       name: itemName,
       char: render ? render.char : '?',
       color: render ? render.color : '#ffffff',
-      bgColor: render ? render.bgColor : null
+      bgColor: render ? render.bgColor : null,
+      usable: sourceItemData.usable !== undefined ? sourceItemData.usable : (Object.keys(itemEffects).length > 0),
+      effects: { ...itemEffects },
+      description: sourceItemData.description || null
     }
 
     const inv = entity.getComponent(InventoryComponent)
@@ -314,6 +324,51 @@ export default class PlayerActions {
 
     logger.info(LOG_MODULES.ACTION, `Выброшено ${totalDropped} предметов`)
     return totalDropped > 0
+  }
+
+  /** Использует предмет из инвентаря выбранного персонажа. */
+  useItem(itemId) {
+    if (!this.turnManager.isPlayerTurn) return false
+
+    const entity = this.gameLoop.selectedEntity
+    if (!entity || !entity.active) return false
+
+    const inv = entity.getComponent(InventoryComponent)
+    if (!inv) return false
+
+    const itemData = inv.getItem(itemId)
+    if (!itemData) {
+      logger.info(LOG_MODULES.ACTION, 'Предмет не найден в инвентаре')
+      return false
+    }
+
+    if (!isItemUsable(itemData)) {
+      logger.info(LOG_MODULES.ACTION, `Предмет "${itemData.name}" нельзя использовать`)
+      return false
+    }
+
+    // Применяем эффекты предмета.
+    const result = applyItemEffects(entity, itemData, this.gameLoop)
+
+    if (!result.success) {
+      logger.info(LOG_MODULES.ACTION, `Не удалось использовать "${itemData.name}"`)
+      return false
+    }
+
+    // Логируем сообщения об эффектах.
+    for (const msg of result.messages) {
+      logger.info(LOG_MODULES.ACTION, msg)
+    }
+
+    // Расходуем один предмет.
+    inv.removeItem(itemId, 1)
+
+    const remaining = inv.getItemCount(itemId)
+    const countMsg = remaining > 0 ? ` (осталось ${remaining})` : ''
+    logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} использовал ${itemData.name}${countMsg}`)
+
+    this.turnManager.endPlayerTurn()
+    return true
   }
 
   /** Атакует ближайшего врага в пределах дальности атаки. */

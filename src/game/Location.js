@@ -20,7 +20,6 @@ export default class Location {
   #gameLoop = null
 
   constructor(config, walls, entities, biomeName = null) {
-    this.config = config
     this.biomeName = biomeName || 'Неизвестная локация'
     this.name = this.biomeName
 
@@ -269,7 +268,7 @@ export default class Location {
   setGameLoop(gameLoop) { this.#gameLoop = gameLoop }
   getGameLoop() { return this.#gameLoop }
 
-  static generateProcedural(config, biomeType = null) {
+  static generateProcedural(biomeType = null) {
     const biomeIds = GameConfig.getBiomeIds()
     const selectedBiomeId = biomeType || biomeIds[Math.floor(Math.random() * biomeIds.length)]
     const biome = GameConfig.getBiome(selectedBiomeId)
@@ -345,7 +344,7 @@ export default class Location {
     }
 
     const location = new Location(
-      { ...config, cols: width, rows: height },
+      { cols: width, rows: height },
       walls,
       entities,
       biomeName
@@ -456,7 +455,7 @@ export default class Location {
     return { x: 10, y: 10 }
   }
 
-  static createDefault(config) {
-    return Location.generateProcedural(config)
+  static createDefault() {
+    return Location.generateProcedural()
   }
 }

@@ -112,7 +112,10 @@
                   <q-item-label caption class="text-grey-6">Тип: {{ item.type }}</q-item-label>
                 </q-item-section>
                 <q-item-section side>
-                  <q-btn flat dense icon="delete" @click="dropItem(item.id)" />
+                  <div class="row q-gutter-xs">
+                    <q-btn v-if="item.usable" flat dense color="positive" icon="play_arrow" label="Использовать" @click="useItem(item.id)" />
+                    <q-btn flat dense icon="delete" @click="dropItem(item.id)" />
+                  </div>
                 </q-item-section>
               </q-item>
             </q-scroll-area>
@@ -168,8 +171,7 @@
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import GameLoop from 'src/game/GameLoop.js'
-import { ContentLoader, GameConfig, logger, LOG_LEVEL } from 'src/game/index.js'
-import config from 'src/game/config.json'
+import { ContentLoader, GameConfig, logger, LOG_LEVEL, isItemUsable } from 'src/game/index.js'
 
 import PositionComponent from 'src/engine/components/PositionComponent.js'
 import RenderComponent from 'src/engine/components/RenderComponent.js'
@@ -372,7 +374,8 @@ function updateEntitiesList() {
         char: item.char || '?',
         color: item.color || '#ffffff',
         type: item.type || 'generic',
-        count: item.count || 1
+        count: item.count || 1,
+        usable: isItemUsable(item)
       }))
     } else {
       inventoryItems.value = []
@@ -393,6 +396,12 @@ function attack() {
 
 function interact() { game?.interact() }
 function pickup() { game?.pickupItem() }
+
+function useItem(itemId) {
+  const result = game?.useItem(itemId)
+  if (result) addConsoleMessage('Предмет использован', 'success')
+  else addConsoleMessage('Не удалось использовать предмет', 'warning')
+}
 
 function dropItem(itemId) {
   const result = game?.dropItem(itemId)
@@ -432,7 +441,7 @@ async function initGame() {
   canvas.style.height = `${rect.height}px`
 
   try {
-    game = new GameLoop(canvas, config)
+    game = new GameLoop(canvas)
     game.initRenderer(rect.width, rect.height, dpr)
     game.start()
     addConsoleMessage('Игра запущена', 'success')

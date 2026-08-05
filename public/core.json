@@ -535,6 +535,7 @@
       "category": "healing",
       "value": 10,
       "weight": 0.5,
+      "usable": true,
       "effects": {
         "heal": 15
       },
@@ -557,6 +558,7 @@
       "category": "mana",
       "value": 8,
       "weight": 0.3,
+      "usable": true,
       "effects": {
         "restoreMana": 10
       },
@@ -579,6 +581,7 @@
       "category": "melee",
       "value": 15,
       "weight": 2,
+      "usable": true,
       "effects": {
         "damageBonus": 3
       },
@@ -601,6 +604,7 @@
       "category": "body",
       "value": 12,
       "weight": 3,
+      "usable": true,
       "effects": {
         "armorBonus": 2
       },
@@ -623,6 +627,7 @@
       "category": "gold",
       "value": 1,
       "weight": 0.01,
+      "usable": false,
       "effects": {},
       "description": "Игровая валюта",
       "visibility": {
@@ -643,6 +648,7 @@
       "category": "buff",
       "value": 6,
       "weight": 0.3,
+      "usable": true,
       "effects": {
         "buff": "strength",
         "duration": 3
@@ -666,6 +672,7 @@
       "category": "scroll",
       "value": 20,
       "weight": 0.1,
+      "usable": true,
       "effects": {
         "teleport": true
       },
@@ -688,6 +695,7 @@
       "category": "healing",
       "value": 8,
       "weight": 0.3,
+      "usable": true,
       "effects": {
         "heal": 10
       },
@@ -710,6 +718,7 @@
       "category": "buff",
       "value": 12,
       "weight": 0.3,
+      "usable": true,
       "effects": {
         "buff": "strength",
         "duration": 5
@@ -733,6 +742,7 @@
       "category": "other",
       "value": 1,
       "weight": 0.5,
+      "usable": false,
       "effects": {},
       "description": "Обычный предмет",
       "visibility": {

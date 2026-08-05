@@ -22,16 +22,15 @@ import AISystem from '../engine/systems/AISystem.js'
 import InteractionSystem from '../engine/systems/InteractionSystem.js'
 
 export default class GameLoop {
-  constructor(canvas, config, initialLocation = null, biomeType = null) {
-    this.config = config
+  constructor(canvas, initialLocation = null, biomeType = null) {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
     const uiConfig = GameConfig?.ui || {}
     const cameraConfig = uiConfig.camera || {}
-    const cameraSpeed = cameraConfig.speed || config.cameraSpeed || 15
+    const cameraSpeed = cameraConfig.speed || 15
 
-    this.currentLocation = initialLocation || Location.generateProcedural(config, biomeType)
+    this.currentLocation = initialLocation || Location.generateProcedural(biomeType)
     this.currentLocation.setGameLoop(this)
     this.currentLocation.engine.currentLocation = this.currentLocation
 
@@ -51,7 +50,7 @@ export default class GameLoop {
       this.camera = new Camera(0, 0, cameraSpeed)
     }
 
-    this.input = new InputManager(config.swipeThreshold)
+    this.input = new InputManager()
     this.renderer = null
 
     this.animationId = null
@@ -154,6 +153,7 @@ export default class GameLoop {
   pickupItem() { return this.playerActions.pickupItem() }
   dropItem(itemId) { return this.playerActions.dropItem(itemId) }
   dropAllItems() { return this.playerActions.dropAllItems() }
+  useItem(itemId) { return this.playerActions.useItem(itemId) }
   attackNearestEnemy() { return this.playerActions.attackNearestEnemy() }
   interact() { return this.playerActions.interact() }
 
@@ -216,7 +216,7 @@ export default class GameLoop {
   }
 
   initRenderer(canvasWidth, canvasHeight, dpr) {
-    this.renderer = new Renderer(this.ctx, this.config)
+    this.renderer = new Renderer(this.ctx)
     this.renderer.dpr = dpr || window.devicePixelRatio || 1
     this.renderer.resize(canvasWidth, canvasHeight, this.renderer.dpr)
     this._syncCameraViewport(canvasWidth, canvasHeight)
@@ -255,11 +255,11 @@ export default class GameLoop {
   // ===== Перезагрузка локации =====
 
   reloadLocation() {
-    this._setupLocation(Location.generateProcedural(this.config))
+    this._setupLocation(Location.generateProcedural())
   }
 
   reloadWithBiome(biomeType) {
-    this._setupLocation(Location.generateProcedural(this.config, biomeType))
+    this._setupLocation(Location.generateProcedural(biomeType))
     logger.info(LOG_MODULES.SYSTEM, `Локация перезагружена с биомом: ${biomeType || 'случайный'}`)
   }
 

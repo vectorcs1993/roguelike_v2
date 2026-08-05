@@ -12,9 +12,8 @@ export default class Renderer {
   static MIN_TILE_SIZE = 12
   static DEFAULT_FONT_FAMILY = 'Lucida Console, monospace'
 
-  constructor(ctx, config) {
+  constructor(ctx) {
     this.ctx = ctx
-    this.config = config
 
     const uiConfig = GameConfig?.ui || {}
     const rendererConfig = uiConfig.renderer || {}

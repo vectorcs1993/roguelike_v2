@@ -1,5 +1,5 @@
 export default class InputManager {
-  constructor(swipeThreshold) {
+  constructor(swipeThreshold = 10) {
     this.keys = {}
     this.swipeThreshold = swipeThreshold
     this.touchStartX = 0

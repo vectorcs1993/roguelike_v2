@@ -7,9 +7,6 @@
  */
 
 export const GAME_CONFIG = {
-  // ===== ОСНОВНЫЕ НАСТРОЙКИ =====
-  version: '1.0.0',
-
   // ===== ДАННЫЕ ИГРОКА =====
   player: {
     id: 'player',
@@ -20,22 +17,14 @@ export const GAME_CONFIG = {
     layer: 4,
     hp: 55,
     maxHp: 55,
-    armor: 0,
     damageMin: 3,
     damageMax: 6,
     damageType: 'physical',
     range: 1,
     initiative: 6,
     accuracy: 0.75,
-    fovRadius: 12,
-    speed: 12,
-    xpPerLevel: 20,
-    maxLevel: 20,
-    levelBonuses: {
-      hp: 5,
-      damage: 1,
-      accuracy: 0.01
-    }
+    fovRadius: 3,
+    speed: 12
   },
 
   // ===== ДАННЫЕ ВРАГОВ (пусто, загружается из core.json) =====
@@ -151,7 +140,6 @@ export const GAME_CONFIG = {
     roomSpacing: 1,
     doorChance: 0.5,
     crateChance: 0.3,
-    doorSpawnChance: 0.5,
     // Настройки видимости по умолчанию
     visibility: {
       items: {
@@ -176,30 +164,13 @@ export const GAME_CONFIG = {
   },
 
   // ===== НАСТРОЙКИ БОЯ =====
-  combat: {
-    baseAccuracy: 0.7,
-    modifiers: {
-      flanking: 0.1,
-      highGround: 0.15,
-      cover: -0.2,
-      range: {
-        melee: 0,
-        short: -0.1,
-        medium: -0.3,
-        long: -0.5
-      }
-    }
-  },
+  combat: {},
 
   // ===== КОНФИГУРАЦИЯ ИНТЕРФЕЙСА =====
   ui: {
     logger: {
       level: 2,
       enabledModules: ['enemy', 'combat', 'movement', 'action', 'ai', 'turn', 'pathfinding', 'generation', 'system']
-    },
-    console: {
-      maxMessages: 500,
-      autoScroll: true
     },
     camera: {
       speed: 15,
@@ -222,12 +193,9 @@ export const GAME_CONFIG = {
 
   // ===== ДЕБАГ =====
   debug: {
-    enabled: false,
     showFov: false,
     showRays: false,
-    showVisibleCells: false,
-    showPathfinding: false,
-    logActions: true
+    showVisibleCells: false
   }
 }
 
@@ -271,10 +239,7 @@ export const GameConfig = {
       accuracy: player.accuracy,
       initiative: player.initiative,
       speed: player.speed,
-      fovRadius: player.fovRadius,
-      xpPerLevel: player.xpPerLevel,
-      maxLevel: player.maxLevel,
-      levelBonuses: player.levelBonuses
+      fovRadius: player.fovRadius
     }
   },
 
@@ -748,6 +713,12 @@ export const GameConfig = {
       if (!data.char) errors.push(`Item "${id}" missing char`)
       if (!data.name) warnings.push(`Item "${id}" missing name`)
       if (!data.type) warnings.push(`Item "${id}" missing type`)
+      if (data.usable === true && (!data.effects || Object.keys(data.effects).length === 0)) {
+        warnings.push(`Item "${id}" marked as usable but has no effects`)
+      }
+      if (data.effects && typeof data.effects !== 'object') {
+        errors.push(`Item "${id}" effects must be an object`)
+      }
     }
 
     for (const [id, data] of Object.entries(GAME_CONFIG.biomes)) {
