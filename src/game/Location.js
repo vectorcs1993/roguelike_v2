@@ -43,7 +43,8 @@ export default class Location {
     this.fov = new Fov(this)
     this.pathfinder = new Pathfinder(this)
 
-    // this.revealAll()
+    // Первоначальное раскрытие карты (для отладки)
+    this.revealAll()
     console.log(`[Location] Создана: ${this.name}, сущностей: ${this.engine.entities.length}`)
   }
 
@@ -99,6 +100,7 @@ export default class Location {
       return door ? door.isOpen : false
     }
     if (cell.type === 'crate') return false
+    // предметы и пустые клетки проходимы
     return true
   }
 
@@ -197,7 +199,6 @@ export default class Location {
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         if (!this.isTileWalkable(x, y)) {
-          // Если исключаемая сущность стоит на этой клетке – пропускаем (чтобы не блокировать самого себя)
           if (excludeEntity) {
             const pos = excludeEntity.getComponent(PositionComponent)
             if (pos && pos.tileX === x && pos.tileY === y) continue
@@ -210,7 +211,6 @@ export default class Location {
     // 2) Клетки, занятые другими живыми существами (игроки, враги)
     const creatureBlocked = this.engine.getBlockedCells(excludeEntity)
     for (const cell of creatureBlocked) {
-      // Избегаем дублирования
       if (!blocked.some(b => b.x === cell.x && b.y === cell.y)) {
         blocked.push(cell)
       }
@@ -318,6 +318,7 @@ export default class Location {
       biomeName
     )
 
+    // --- Ящики ---
     for (const [x, y] of crates) {
       const crateEntity = EntityFactory.createCrate(x, y)
       crateEntity.engine = location.engine
@@ -325,12 +326,68 @@ export default class Location {
       location.grid[y][x] = { type: 'crate', entity: crateEntity }
     }
 
+    // ★★★ РАЗМЕЩЕНИЕ ПРЕДМЕТОВ ★★★
+    const itemTypes = ['health', 'gold', 'potion', 'scroll', 'weapon', 'armor', 'mana'];
+    const itemWeights = [30, 20, 15, 10, 10, 10, 5]; // сумма = 100
+
+    // Клетки, занятые игроком и врагами
+    const occupiedByEntities = new Set([`${playerStart.x},${playerStart.y}`, ...enemyPositions]);
+
+    // Свободные клетки (без ящиков и без существ)
+    const freeCells = available.filter(c => !occupiedByEntities.has(c));
+
+    // Количество предметов (от 5 до 10, но не больше свободных клеток)
+    const numItems = Math.min(Math.floor(Math.random() * 6) + 5, freeCells.length);
+
+    // Перемешиваем и выбираем
+    for (let i = freeCells.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [freeCells[i], freeCells[j]] = [freeCells[j], freeCells[i]];
+    }
+    const selectedCells = freeCells.slice(0, numItems);
+
+    console.log(`[Location] Размещаем ${selectedCells.length} предметов`);
+
+    for (const cell of selectedCells) {
+      const [x, y] = cell.split(',').map(Number);
+
+      let r = Math.random() * 100;
+      let type = 'gold';
+      let cumulative = 0;
+      for (let i = 0; i < itemTypes.length; i++) {
+        cumulative += itemWeights[i];
+        if (r <= cumulative) {
+          type = itemTypes[i];
+          break;
+        }
+      }
+
+      // ★★★ УБИРАЕМ onCollect, т.к. добавление происходит в InteractionSystem ★★★
+      const itemEntity = EntityFactory.createItem(x, y, type);
+      itemEntity.engine = location.engine;
+      location.engine.addEntity(itemEntity);
+      location.grid[y][x] = { type: 'item', entity: itemEntity };
+
+      const render = itemEntity.getComponent(RenderComponent);
+      if (render) {
+        render.visible = true;
+        render.explored = true;
+      }
+
+      const env = itemEntity.getComponent(EnvironmentComponent);
+      console.log(`  -> Предмет ${env ? env.name : type} на (${x}, ${y})`);
+    }
+
+    // --- Двери ---
     if (doorData?.length) {
       const doors = doorData.map(d => ({ x: d.x, y: d.y, locked: d.locked || false }))
       location.setDoors(doors)
     }
 
-    console.log(`[Location] Генерация: ${biomeName} ${width}x${height}, комнат:${rooms.length}, врагов:${enemyPositions.length}`)
+    // Повторно раскрываем всю карту, чтобы предметы стали видимы
+    location.revealAll();
+
+    console.log(`[Location] Генерация завершена: ${biomeName} ${width}x${height}, комнат:${rooms.length}, врагов:${enemyPositions.length}, предметов:${selectedCells.length}`)
     return location
   }
 

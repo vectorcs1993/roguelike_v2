@@ -15,7 +15,7 @@ import ItemComponent from './components/ItemComponent.js'
 import { GAME_DATA } from '../game/GameData.js'
 
 export default class EntityFactory {
-  // --- Игрок ---
+
   static createPlayer(x, y, config = {}) {
     const entity = new Entity('player')
     entity
@@ -32,11 +32,10 @@ export default class EntityFactory {
       }))
       .addComponent(new PlayerComponent())
       .addComponent(new MovementComponent(12))
-      .addComponent(new InventoryComponent(20))
+      .addComponent(new InventoryComponent()) // без лимита
     return entity
   }
 
-  // --- Враг ---
   static createEnemy(x, y, type, enemyData) {
     const entity = new Entity('enemy')
     const char = GAME_DATA.symbols.enemies[type] || '?'
@@ -62,7 +61,6 @@ export default class EntityFactory {
     return entity
   }
 
-  // --- Стена ---
   static createWall(x, y) {
     const entity = new Entity('wall')
     entity
@@ -79,7 +77,6 @@ export default class EntityFactory {
     return entity
   }
 
-  // --- Дверь ---
   static createDoor(x, y, locked = false, options = {}) {
     const entity = new Entity('door')
     const closedChar = options.closedChar || GAME_DATA.symbols.door.closed
@@ -109,7 +106,6 @@ export default class EntityFactory {
     return entity
   }
 
-  // --- Ящик ---
   static createCrate(x, y) {
     const entity = new Entity('crate')
     entity
@@ -127,7 +123,6 @@ export default class EntityFactory {
     return entity
   }
 
-  // --- Предмет ---
   static createItem(x, y, itemType, config = {}) {
     const entity = new Entity('item')
     const charMap = GAME_DATA.symbols.items
@@ -139,23 +134,30 @@ export default class EntityFactory {
       armor: '🛡️ Броня',
       gold: '💰 Золото',
       potion: '🧪 Зелье',
-      scroll: '📜 Свиток'
+      scroll: '📜 Свиток',
+      generic: '📦 Предмет'
     }
+
+    const type = itemType || 'generic'
+    const char = config.char || charMap[type] || '?'
+    const color = config.color || colorMap[type] || '#ffffff'
+    const name = config.name || nameMap[type] || 'Предмет'
 
     entity
       .addComponent(new PositionComponent(x, y))
-      .addComponent(new RenderComponent(
-        charMap[itemType] || '•',
-        colorMap[itemType] || '#aaaaaa'
-      ))
+      .addComponent(new RenderComponent(char, color))
       .addComponent(new EnvironmentComponent({
         type: 'item',
         solid: false,
         blocksSight: false,
         isCollectible: true,
-        name: config.name || nameMap[itemType] || 'Предмет'
+        isInteractive: true,
+        name: name
       }))
-      .addComponent(new ItemComponent({ itemType, onCollect: config.onCollect || null }))
+      .addComponent(new ItemComponent({
+        itemType: type
+        // ★★★ УБИРАЕМ onCollect ★★★
+      }))
     const render = entity.getComponent(RenderComponent)
     if (render) render.layer = 2
     return entity

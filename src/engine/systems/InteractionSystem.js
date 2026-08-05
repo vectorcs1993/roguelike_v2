@@ -6,6 +6,8 @@ import EnvironmentComponent from '../components/EnvironmentComponent.js'
 import DoorComponent from '../components/DoorComponent.js'
 import ItemComponent from '../components/ItemComponent.js'
 import HealthComponent from '../components/HealthComponent.js'
+import InventoryComponent from '../components/InventoryComponent.js'
+import RenderComponent from '../components/RenderComponent.js'
 
 export default class InteractionSystem extends System {
   constructor() {
@@ -13,14 +15,6 @@ export default class InteractionSystem extends System {
     this.name = 'InteractionSystem'
   }
 
-  /**
-   * Взаимодействие с сущностью (дверь, ящик, предмет)
-   * @param {Entity} actor - кто взаимодействует
-   * @param {Entity} target - объект взаимодействия
-   * @param {number} x - координата клетки
-   * @param {number} y - координата клетки
-   * @returns {boolean} успешно ли выполнено действие
-   */
   interact(actor, target, x, y) {
     if (!target || !target.active) return false
 
@@ -30,18 +24,15 @@ export default class InteractionSystem extends System {
     const env = target.getComponent(EnvironmentComponent)
     if (!env || !env.isInteractive) return false
 
-    // Проверяем расстояние (должны быть рядом)
     const actorPos = actor.getComponent(PositionComponent)
     const targetPos = target.getComponent(PositionComponent)
     if (!actorPos || !targetPos) return false
     if (actorPos.chebyshevDistanceTo(targetPos) > 1) return false
 
-    // --- Дверь ---
     const door = target.getComponent(DoorComponent)
     if (door) {
       const success = door.toggle()
       if (success) {
-        // Логируем
         console.log(`Дверь ${door.isOpen ? 'открыта' : 'закрыта'}`)
         return true
       } else {
@@ -50,34 +41,48 @@ export default class InteractionSystem extends System {
       }
     }
 
-    // --- Ящик ---
     if (env.type === 'crate') {
       console.log('Ящик открыт!')
-      // Можно добавить выпадение предмета
       return true
     }
 
-    // --- Предмет (сбор) ---
     if (env.isCollectible) {
       const item = target.getComponent(ItemComponent)
       if (!item || item.collected) return false
-      const success = item.collect(actor)
-      if (success) {
-        // Удаляем с карты
-        const loc = this.engine.currentLocation
-        if (loc && loc.grid && loc.grid[y]) {
-          loc.grid[y][x] = null
-        }
-        this.engine.removeEntity(target)
-        console.log('Предмет подобран')
-        return true
+
+      const render = target.getComponent(RenderComponent)
+
+      const itemData = {
+        id: Date.now() + Math.random() * 1000,
+        type: item.itemType || 'generic',
+        name: env.name || 'Предмет',
+        char: render ? render.char : '?',
+        color: render ? render.color : '#ffffff',
       }
+
+      const inv = actor.getComponent(InventoryComponent)
+      if (!inv) return false
+
+      // Добавляем предмет (стакается автоматически)
+      if (!inv.addItem(itemData)) {
+        console.log('Не удалось добавить предмет в инвентарь')
+        return false
+      }
+
+      item.collected = true
+      const loc = this.engine.currentLocation
+      if (loc && loc.grid && loc.grid[y]) {
+        loc.grid[y][x] = null
+      }
+
+      this.engine.removeEntity(target)
+      return true
     }
 
     return false
   }
 
   update() {
-    // Система не требует постоянного обновления
+    // nothing
   }
 }

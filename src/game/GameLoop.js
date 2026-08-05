@@ -6,7 +6,6 @@ import Renderer from './Renderer.js'
 import Location from './Location.js'
 import { logger, LOG_MODULES } from './Logger.js'
 
-// ECS импорты
 import PositionComponent from '../engine/components/PositionComponent.js'
 import PlayerComponent from '../engine/components/PlayerComponent.js'
 import HealthComponent from '../engine/components/HealthComponent.js'
@@ -14,10 +13,12 @@ import CombatComponent from '../engine/components/CombatComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
 import RenderComponent from '../engine/components/RenderComponent.js'
 import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
+import ItemComponent from '../engine/components/ItemComponent.js'
+import InventoryComponent from '../engine/components/InventoryComponent.js'
 
-// Системы
 import AISystem from '../engine/systems/AISystem.js'
 import InteractionSystem from '../engine/systems/InteractionSystem.js'
+import EntityFactory from '../engine/EntityFactory.js'
 
 export default class GameLoop {
   constructor(canvas, config, initialLocation = null, biomeType = null) {
@@ -27,17 +28,15 @@ export default class GameLoop {
 
     this.currentLocation = initialLocation || Location.generateProcedural(config, biomeType)
     this.currentLocation.setGameLoop(this)
+    this.currentLocation.engine.currentLocation = this.currentLocation
 
-    // Получаем сущности из ECS
     const engine = this.currentLocation.engine
     const playerEntities = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
 
-    // Активируем игроков
     for (const entity of playerEntities) {
       entity.active = true
     }
 
-    // Настраиваем камеру на первого игрока
     const mainPlayer = playerEntities[0]
     if (mainPlayer) {
       const pos = mainPlayer.getComponent(PositionComponent)
@@ -64,20 +63,16 @@ export default class GameLoop {
     this.enemyList = []
     this.isProcessingEnemyTurn = false
 
-    // Создаём системы
     this.aiSystem = new AISystem()
     this.aiSystem.engine = this.currentLocation.engine
 
     this.interactionSystem = new InteractionSystem()
     this.interactionSystem.engine = this.currentLocation.engine
-    // Добавляем InteractionSystem в engine (хотя он не требует update)
     this.currentLocation.engine.addSystem(this.interactionSystem)
 
     this.initializeFovForAllAllies()
     this.updateEnemyList()
   }
-
-  // ========== ГЕТТЕРЫ ==========
 
   get selectedEntity() {
     const playerEntities = this.getPlayerEntities()
@@ -104,8 +99,6 @@ export default class GameLoop {
       })
   }
 
-  // ========== FOV ==========
-
   initializeFovForAllAllies() {
     const engine = this.currentLocation.engine
     const allies = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
@@ -121,8 +114,6 @@ export default class GameLoop {
       first = false
     }
   }
-
-  // ========== УПРАВЛЕНИЕ ПЕРСОНАЖАМИ ==========
 
   switchToNextCharacter() {
     const playerEntities = this.getPlayerEntities()
@@ -156,15 +147,12 @@ export default class GameLoop {
     }
   }
 
-  // ========== ДЕЙСТВИЯ ИГРОКА ==========
-
   getEntityName(entity) {
     const render = entity.getComponent(RenderComponent)
     const name = entity.tag || 'Сущность'
     return render ? `${render.char} ${name}` : name
   }
 
-  // ---- НОВАЯ ВЕРСИЯ moveCharacter с поддержкой InteractionSystem ----
   moveCharacter(dx, dy) {
     if (!this.isPlayerTurn) return false
 
@@ -182,9 +170,7 @@ export default class GameLoop {
     if (newX < 0 || newX >= this.currentLocation.cols ||
       newY < 0 || newY >= this.currentLocation.rows) return false
 
-    // Проверяем проходимость
     if (!this.currentLocation.isTileWalkable(newX, newY)) {
-      // Если клетка непроходима, ищем интерактивный объект
       const targetEntity = this.currentLocation.getEntityAt(newX, newY)
       if (targetEntity) {
         const env = targetEntity.getComponent(EnvironmentComponent)
@@ -199,9 +185,7 @@ export default class GameLoop {
       return false
     }
 
-    // Проверяем, есть ли враг на клетке
     const engine = this.currentLocation.engine
-    // Проверяем, есть ли враг на клетке для атаки
     const targetEntity = engine.getFirstEntityAt(newX, newY)
     if (targetEntity && targetEntity.active) {
       const targetHealth = targetEntity.getComponent(HealthComponent)
@@ -216,14 +200,240 @@ export default class GameLoop {
             return true
           }
         }
-        return false   // атака не удалась
+        return false
       }
-      // Если это не враг (дверь, предмет, ящик) — просто игнорируем, движение разрешено
     }
-    // Движение
+
+    const itemEntity = engine.getFirstEntityAt(newX, newY)
+    if (itemEntity && itemEntity.active) {
+      const env = itemEntity.getComponent(EnvironmentComponent)
+      if (env && env.isCollectible) {
+        const itemComp = itemEntity.getComponent(ItemComponent)
+        if (itemComp && !itemComp.collected) {
+          logger.info(LOG_MODULES.ACTION, `На земле лежит ${env.name || 'предмет'}`)
+        }
+      }
+    }
+
     pos.moveTo(newX, newY)
     this.endPlayerTurn()
     return true
+  }
+  pickupItem() {
+    if (!this.isPlayerTurn) return false
+
+    const entity = this.selectedEntity
+    if (!entity || !entity.active) return false
+
+    const pos = entity.getComponent(PositionComponent)
+    if (!pos) return false
+
+    const cx = pos.tileX
+    const cy = pos.tileY
+    const engine = this.currentLocation.engine
+
+    let itemEntity = null
+
+    const entitiesAt = engine.getEntitiesAt(cx, cy)
+    for (const e of entitiesAt) {
+      const itemComp = e.getComponent(ItemComponent)
+      if (itemComp && !itemComp.collected) {
+        itemEntity = e
+        break
+      }
+    }
+
+    if (!itemEntity) {
+      itemEntity = this.currentLocation.getEntityAt(cx, cy)
+      if (itemEntity) {
+        const itemComp = itemEntity.getComponent(ItemComponent)
+        if (!itemComp || itemComp.collected) itemEntity = null
+      }
+    }
+
+    if (!itemEntity || !itemEntity.active) {
+      logger.info(LOG_MODULES.ACTION, 'Здесь нет предметов для подбора')
+      return false
+    }
+
+    const env = itemEntity.getComponent(EnvironmentComponent)
+    if (!env || !env.isCollectible) {
+      logger.info(LOG_MODULES.ACTION, 'Здесь нет предметов для подбора')
+      return false
+    }
+
+    const itemComp = itemEntity.getComponent(ItemComponent)
+    if (!itemComp || itemComp.collected) {
+      logger.info(LOG_MODULES.ACTION, 'Этот предмет уже собран')
+      return false
+    }
+
+    const itemName = env.name || 'предмет'
+
+    const render = itemEntity.getComponent(RenderComponent)
+    const itemData = {
+      id: Date.now() + Math.random() * 1000,
+      type: itemComp.itemType || 'generic',
+      name: itemName,
+      char: render ? render.char : '?',
+      color: render ? render.color : '#ffffff',
+    }
+
+    const inv = entity.getComponent(InventoryComponent)
+    if (!inv) return false
+
+    if (!inv.addItem(itemData)) {
+      logger.info(LOG_MODULES.ACTION, 'Не удалось добавить предмет в инвентарь')
+      return false
+    }
+
+    itemComp.collected = true
+    const loc = this.currentLocation
+    if (loc && loc.grid && loc.grid[cy]) {
+      loc.grid[cy][cx] = null
+    }
+
+    this.currentLocation.engine.removeEntity(itemEntity)
+    logger.info(LOG_MODULES.ACTION, `${this.getEntityName(entity)} подобрал ${itemName}`)
+    this.endPlayerTurn()
+    return true
+  }
+
+  dropItem(itemId) {
+    const entity = this.selectedEntity
+    if (!entity) return false
+
+    const inv = entity.getComponent(InventoryComponent)
+    if (!inv) return false
+
+    const count = inv.getItemCount(itemId)
+    if (count <= 0) {
+      logger.info(LOG_MODULES.ACTION, 'Предмет не найден в инвентаре')
+      return false
+    }
+
+    const itemData = inv.removeItem(itemId, 1)
+    if (!itemData) {
+      logger.info(LOG_MODULES.ACTION, 'Не удалось удалить предмет')
+      return false
+    }
+
+    const pos = entity.getComponent(PositionComponent)
+    if (!pos) return false
+
+    const x = pos.tileX
+    const y = pos.tileY
+
+    if (!this.currentLocation.isTileWalkable(x, y)) {
+      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+      let placed = false
+      for (const [dx, dy] of dirs) {
+        const nx = x + dx, ny = y + dy
+        if (nx >= 0 && nx < this.currentLocation.cols &&
+          ny >= 0 && ny < this.currentLocation.rows &&
+          this.currentLocation.isTileWalkable(nx, ny)) {
+          this._createItemEntity(nx, ny, itemData)
+          placed = true
+          break
+        }
+      }
+      if (!placed) {
+        inv.addItem(itemData)
+        logger.info(LOG_MODULES.ACTION, 'Нет места для выброса предмета')
+        return false
+      }
+    } else {
+      this._createItemEntity(x, y, itemData)
+    }
+
+    const remaining = inv.getItemCount(itemId)
+    const countMsg = remaining > 0 ? ` (осталось ${remaining})` : ''
+    logger.info(LOG_MODULES.ACTION, `${this.getEntityName(entity)} выбросил ${itemData.name}${countMsg}`)
+    return true
+  }
+
+  dropAllItems() {
+    const entity = this.selectedEntity
+    if (!entity) return false
+
+    const inv = entity.getComponent(InventoryComponent)
+    if (!inv) return false
+
+    const items = [...inv.items]
+    if (items.length === 0) {
+      logger.info(LOG_MODULES.ACTION, 'Инвентарь пуст')
+      return false
+    }
+
+    let totalDropped = 0
+    for (const entry of items) {
+      const itemData = entry.itemData
+      const count = entry.count
+      for (let i = 0; i < count; i++) {
+        const pos = entity.getComponent(PositionComponent)
+        if (!pos) break
+
+        const x = pos.tileX
+        const y = pos.tileY
+
+        let placed = false
+        const dirs = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]
+        for (const [dx, dy] of dirs) {
+          const nx = x + dx, ny = y + dy
+          if (nx >= 0 && nx < this.currentLocation.cols &&
+            ny >= 0 && ny < this.currentLocation.rows &&
+            this.currentLocation.isTileWalkable(nx, ny)) {
+            const existing = this.currentLocation.getEntityAt(nx, ny)
+            if (!existing || !existing.getComponent(ItemComponent)) {
+              this._createItemEntity(nx, ny, itemData)
+              placed = true
+              break
+            }
+          }
+        }
+
+        if (placed) {
+          totalDropped++
+          inv.removeItem(itemData.id, 1)
+        }
+      }
+    }
+
+    logger.info(LOG_MODULES.ACTION, `Выброшено ${totalDropped} предметов`)
+    return totalDropped > 0
+  }
+
+  _createItemEntity(x, y, itemData) {
+    // Создаём предмет с сохранением всех параметров
+    const itemEntity = EntityFactory.createItem(x, y, itemData.type || 'generic', {
+      name: itemData.name,
+      char: itemData.char,
+      color: itemData.color,
+      onCollect: null
+    })
+
+    // Дополнительно убеждаемся, что все данные сохранены
+    const render = itemEntity.getComponent(RenderComponent)
+    if (render) {
+      render.char = itemData.char || render.char
+      render.color = itemData.color || render.color
+      render.visible = true
+      render.explored = true
+    }
+
+    const env = itemEntity.getComponent(EnvironmentComponent)
+    if (env) {
+      env.name = itemData.name || env.name
+    }
+
+    const itemComp = itemEntity.getComponent(ItemComponent)
+    if (itemComp) {
+      itemComp.itemType = itemData.type || 'generic'
+    }
+
+    itemEntity.engine = this.currentLocation.engine
+    this.currentLocation.engine.addEntity(itemEntity)
+    this.currentLocation.grid[y][x] = { type: 'item', entity: itemEntity }
   }
 
   attackNearestEnemy() {
@@ -270,7 +480,6 @@ export default class GameLoop {
     return false
   }
 
-  // ---- НОВАЯ ВЕРСИЯ interact с поддержкой InteractionSystem ----
   interact() {
     if (!this.isPlayerTurn) return false
 
@@ -304,15 +513,11 @@ export default class GameLoop {
     return false
   }
 
-  // ========== УПРАВЛЕНИЕ ХОДАМИ ==========
-
   endPlayerTurn() {
     if (!this.isPlayerTurn) return
-
     logger.info(LOG_MODULES.TURN, 'Игрок завершил ход')
     this.isPlayerTurn = false
     this.enemyTurnIndex = 0
-
     this.updateEnemyList()
     this.startEnemyTurn()
   }
@@ -334,7 +539,6 @@ export default class GameLoop {
     logger.info(LOG_MODULES.TURN, `Ход врагов (${this.enemyList.length})`)
     this.isProcessingEnemyTurn = true
     this.enemyTurnIndex = 0
-
     this.processNextEnemy()
   }
 
@@ -392,11 +596,8 @@ export default class GameLoop {
     logger.info(LOG_MODULES.TURN, `Ход игрока: ${this.getEntityName(this.selectedEntity)}`)
   }
 
-  // ========== ОБНОВЛЕНИЕ ==========
-
   update(dt) {
     const engine = this.currentLocation.engine
-
     engine.update(dt)
 
     const playerEntities = this.getPlayerEntities()
@@ -451,8 +652,6 @@ export default class GameLoop {
     this.animationId = requestAnimationFrame(t => this.gameLoop(t))
   }
 
-  // ========== РЕНДЕРЕР ==========
-
   initRenderer(canvasWidth, canvasHeight, dpr) {
     this.renderer = new Renderer(this.ctx, this.config)
     this.renderer.dpr = dpr || window.devicePixelRatio || 1
@@ -489,6 +688,7 @@ export default class GameLoop {
   reloadLocation() {
     this.currentLocation = Location.generateProcedural(this.config)
     this.currentLocation.setGameLoop(this)
+    this.currentLocation.engine.currentLocation = this.currentLocation
 
     const engine = this.currentLocation.engine
     const playerEntities = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
@@ -504,7 +704,6 @@ export default class GameLoop {
       this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, this.renderer.tileSize)
     }
 
-    // Обновляем ссылки на engine в системах
     this.aiSystem.engine = this.currentLocation.engine
     this.interactionSystem.engine = this.currentLocation.engine
 
@@ -514,8 +713,6 @@ export default class GameLoop {
     this.isProcessingEnemyTurn = false
     this.updateEnemyList()
   }
-
-  // ========== ОБРАБОТЧИКИ ==========
 
   onTouchStart(e) { this.input.handleTouchStart(e) }
   onTouchMove(e) { this.input.handleTouchMove(e) }
@@ -551,9 +748,13 @@ export default class GameLoop {
       this.switchToCharacter(parseInt(e.key) - 1)
     }
 
-    // Добавляем обработку клавиши E для взаимодействия
     if (e.key === 'e' || e.key === 'E') {
       this.interact()
+      e.preventDefault()
+    }
+
+    if (e.key === 'g' || e.key === 'G') {
+      this.pickupItem()
       e.preventDefault()
     }
 

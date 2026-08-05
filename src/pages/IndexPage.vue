@@ -1,3 +1,5 @@
+<!-- src/pages/IndexPage.vue -->
+
 <template>
   <q-page class="q-pa-md" style="background: #121212; height: 100vh; display: flex; flex-direction: column;" ref="pageRef">
 
@@ -28,7 +30,8 @@
                 <q-btn label="⬅" dense @click="move(-1, 0)" />
                 <q-btn label="➡" dense @click="move(1, 0)" />
                 <q-btn label="⚔️ Атака" icon="swords" dense @click="attack" />
-                <q-btn label="E (Взаимодействие)" icon="hand" dense @click="interact" />
+                <q-btn label="E" icon="hand" dense @click="interact" />
+                <q-btn label="G" icon="inbox" dense @click="pickup" />
               </div>
             </q-card-section>
           </div>
@@ -37,11 +40,12 @@
 
       <!-- Правая панель -->
       <div class="col-4" style="display: flex; flex-direction: column; gap: 16px; min-height: 0;">
+        <!-- Сущности -->
         <q-card flat square bordered dark style="flex-shrink: 0;">
           <q-card-section class="bg-grey-9">
             <div class="text-h6 flex items-center">
               <q-icon name="groups" class="q-mr-sm" />
-              Отряд
+              Сущности
               <q-badge color="grey-7" :label="entitiesList.length" class="q-ml-sm" />
             </div>
           </q-card-section>
@@ -68,6 +72,44 @@
           </q-card-section>
         </q-card>
 
+        <!-- Инвентарь -->
+        <q-card flat square bordered dark style="flex-shrink: 0;">
+          <q-card-section class="bg-grey-9">
+            <div class="text-h6 flex items-center">
+              <q-icon name="inventory" class="q-mr-sm" />
+              Инвентарь
+              <q-badge color="grey-7" :label="totalItems" class="q-ml-sm" />
+              <q-space />
+              <q-btn flat dense icon="delete_sweep" @click="dropAllItems" label="Выбросить всё" />
+            </div>
+          </q-card-section>
+          <q-separator dark />
+
+          <q-card-section style="height: 150px; overflow-y: auto;" dark>
+            <q-scroll-area v-if="inventoryItems.length > 0" dark style="width: 100%; height: 100%;">
+              <q-item v-for="item in inventoryItems" :key="item.id" dark>
+                <q-item-section avatar>
+                  <q-chip :style="{ backgroundColor: item.color, color: 'white' }">
+                    {{ item.char }}
+                  </q-chip>
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>
+                    {{ item.name }}
+                    <span v-if="item.count > 1" class="text-grey-6">({{ item.count }})</span>
+                  </q-item-label>
+                  <q-item-label caption class="text-grey-6">Тип: {{ item.type }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn flat dense icon="delete" @click="dropItem(item.id)" />
+                </q-item-section>
+              </q-item>
+            </q-scroll-area>
+            <div v-else class="text-center text-grey-5 q-py-md">Инвентарь пуст</div>
+          </q-card-section>
+        </q-card>
+
+        <!-- Лог игры -->
         <q-card flat square bordered dark style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
           <q-card-section class="bg-grey-9">
             <div class="text-h6 flex items-center">
@@ -94,17 +136,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import GameLoop from 'src/game/GameLoop.js'
 import config from 'src/game/config.json'
 import { logger, LOG_LEVEL } from 'src/game/Logger.js'
 
-// ECS
 import PositionComponent from 'src/engine/components/PositionComponent.js'
 import RenderComponent from 'src/engine/components/RenderComponent.js'
 import HealthComponent from 'src/engine/components/HealthComponent.js'
 import PlayerComponent from 'src/engine/components/PlayerComponent.js'
 import AIComponent from 'src/engine/components/AIComponent.js'
+import InventoryComponent from 'src/engine/components/InventoryComponent.js'
 
 const canvasRef = ref(null)
 const consoleScrollAreaRef = ref(null)
@@ -115,10 +157,15 @@ let updateInterval = null
 
 const consoleLogs = ref([])
 const entitiesList = ref([])
+const inventoryItems = ref([])
 const locationName = ref('')
 const selectedEntityId = ref(null)
 
-// ========== ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ КЛАВИАТУРЫ ==========
+const totalItems = computed(() => {
+  if (!game?.selectedEntity) return 0
+  const inv = game.selectedEntity.getComponent(InventoryComponent)
+  return inv ? inv.count : 0
+})
 
 function onGlobalKeyDown(event) {
   if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return
@@ -137,8 +184,6 @@ function onGlobalKeyUp(event) {
     game.onKeyUp(event)
   }
 }
-
-// ========== ЛОГ ==========
 
 function addConsoleMessage(text, type = 'info') {
   const now = new Date()
@@ -174,18 +219,16 @@ function loggerCallback(level, module, message) {
 logger.addCallback(loggerCallback)
 onUnmounted(() => logger.removeCallback(loggerCallback))
 
-// ========== ОБНОВЛЕНИЕ СПИСКА СУЩНОСТЕЙ ==========
-
 function updateEntitiesList() {
   if (!game?.currentLocation) {
     entitiesList.value = []
+    inventoryItems.value = []
     return
   }
 
   const engine = game.currentLocation.engine
   locationName.value = game.currentLocation.name
 
-  // Получаем все сущности с позицией и рендером
   const entities = engine.getEntitiesWithComponents([
     PositionComponent,
     RenderComponent,
@@ -201,7 +244,6 @@ function updateEntitiesList() {
 
     if (!render || !health) continue
 
-    // Определяем команду
     let teamColor = '#666666'
     let teamName = 'Нейтральный'
 
@@ -228,10 +270,27 @@ function updateEntitiesList() {
   entitiesList.value = list
 
   const selected = game.selectedEntity
-  if (selected) selectedEntityId.value = selected.id
+  if (selected) {
+    selectedEntityId.value = selected.id
+    const inv = selected.getComponent(InventoryComponent)
+    if (inv) {
+      const displayItems = inv.getDisplayItems()
+      inventoryItems.value = displayItems.map(item => ({
+        id: item.id,
+        name: item.name || 'Предмет',
+        char: item.char || '?',
+        color: item.color || '#ffffff',
+        type: item.type || 'generic',
+        count: item.count || 1
+      }))
+    } else {
+      inventoryItems.value = []
+    }
+  } else {
+    selectedEntityId.value = null
+    inventoryItems.value = []
+  }
 }
-
-// ========== ДЕЙСТВИЯ ==========
 
 function move(dx, dy) { game?.moveCharacter(dx, dy) }
 
@@ -242,6 +301,19 @@ function attack() {
 }
 
 function interact() { game?.interact() }
+function pickup() { game?.pickupItem() }
+
+function dropItem(itemId) {
+  const result = game?.dropItem(itemId)
+  if (result) addConsoleMessage('Предмет выброшен', 'success')
+  else addConsoleMessage('Не удалось выбросить предмет', 'warning')
+}
+
+function dropAllItems() {
+  const result = game?.dropAllItems()
+  if (result) addConsoleMessage('Все предметы выброшены', 'success')
+  else addConsoleMessage('Не удалось выбросить предметы', 'warning')
+}
 
 function initGame() {
   if (!canvasRef.value) return
@@ -294,16 +366,12 @@ function revealFullMap() {
 function centerOnCharacter(entityId) { game?.centerOnCharacter(entityId) }
 function switchToCharacter(index) { game?.switchToCharacter(index) }
 
-// ========== ОБРАБОТЧИКИ CANVAS ==========
-
 function onCanvasClick(event) { game?.onClick?.(event) }
 function onMouseMove(event) { game?.onMouseMove?.(event) }
 function onMouseLeave(event) { game?.onMouseLeave?.(event) }
 function onTouchStart(event) { game?.onTouchStart?.(event) }
 function onTouchMove(event) { game?.onTouchMove?.(event) }
 function onTouchEnd(event) { game?.onTouchEnd?.(event) }
-
-// ========== ЖИЗНЕННЫЙ ЦИКЛ ==========
 
 onMounted(() => {
   nextTick(initGame)

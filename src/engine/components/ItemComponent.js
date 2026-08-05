@@ -1,4 +1,5 @@
 // src/engine/components/ItemComponent.js
+
 import Component from './Component.js'
 
 export default class ItemComponent extends Component {
@@ -6,7 +7,7 @@ export default class ItemComponent extends Component {
     super()
     this.itemType = config.itemType || 'generic'
     this.collected = false
-    this.onCollect = config.onCollect || null // функция-колбэк
+    this.onCollect = config.onCollect || null
   }
 
   collect(collector) {
