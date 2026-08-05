@@ -1,5 +1,6 @@
 // src/game/Logger.js
-// Централизованная система логирования для отладки и тестирования
+
+import { GameConfig } from './GameConfig.js'
 
 export const LOG_LEVEL = {
   ERROR: 0,
@@ -21,10 +22,13 @@ export const LOG_MODULES = {
   SYSTEM: 'system'
 }
 
-// Конфигурация по умолчанию - INFO уровень
+// Конфигурация из GameConfig с безопасным доступом
+const loggerConfig = GameConfig?.ui?.logger || {}
+const defaultModules = Object.values(LOG_MODULES)
+
 const DEFAULT_CONFIG = {
-  level: LOG_LEVEL.INFO,
-  enabledModules: new Set(Object.values(LOG_MODULES)),
+  level: loggerConfig.level !== undefined ? loggerConfig.level : LOG_LEVEL.INFO,
+  enabledModules: new Set(loggerConfig.enabledModules || defaultModules),
   showTimestamp: false,
   showModule: true,
   showLevel: true,
@@ -163,9 +167,5 @@ if (typeof window !== 'undefined' && window.LOGGER_CONFIG) {
 }
 
 export const logger = new Logger(globalConfig)
-
-// Для отладки - можно включить TRACE уровень в консоли
-// window.logger = logger
-// logger.setLevel(LOG_LEVEL.TRACE)
 
 export default Logger

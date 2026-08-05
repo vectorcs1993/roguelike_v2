@@ -12,52 +12,69 @@ import InventoryComponent from './components/InventoryComponent.js'
 import EnvironmentComponent from './components/EnvironmentComponent.js'
 import DoorComponent from './components/DoorComponent.js'
 import ItemComponent from './components/ItemComponent.js'
-import { GAME_DATA } from '../game/GameData.js'
+import { GameConfig } from '../game/GameConfig.js'
 
 export default class EntityFactory {
 
   static createPlayer(x, y, config = {}) {
+    const playerConfig = GameConfig.getPlayerConfig()
+
     const entity = new Entity('player')
     entity
       .addComponent(new PositionComponent(x, y))
-      .addComponent(new RenderComponent(GAME_DATA.symbols.player, GAME_DATA.colors.player))
-      .addComponent(new HealthComponent(config.hp || 25, config.maxHp || 25))
+      .addComponent(new RenderComponent(
+        GameConfig.getSymbol('player'),
+        GameConfig.getColor('player')
+      ))
+      .addComponent(new HealthComponent(
+        config.hp || playerConfig.startHp,
+        config.maxHp || playerConfig.startMaxHp
+      ))
       .addComponent(new CombatComponent({
-        damageMin: config.damageMin || 3,
-        damageMax: config.damageMax || 6,
+        damageMin: config.damageMin || playerConfig.damageMin,
+        damageMax: config.damageMax || playerConfig.damageMax,
         damageType: 'physical',
-        attackRange: 1,
-        accuracy: 0.75,
-        initiative: 6
+        attackRange: playerConfig.attackRange,
+        accuracy: playerConfig.accuracy,
+        initiative: playerConfig.initiative
       }))
       .addComponent(new PlayerComponent())
-      .addComponent(new MovementComponent(12))
+      .addComponent(new MovementComponent(playerConfig.speed))
       .addComponent(new InventoryComponent())
     return entity
   }
 
   static createEnemy(x, y, type, enemyData) {
-    const entity = new Entity('enemy')
-    const char = GAME_DATA.symbols.enemies[type] || '?'
-    const color = GAME_DATA.colors.enemies[type] || '#ffffff'
+    const data = enemyData || GameConfig.getEnemy(type)
+    if (!data) {
+      console.warn(`[EntityFactory] Неизвестный тип врага: ${type}`)
+      return null
+    }
 
+    const char = data.char || GameConfig.getSymbol('enemies', type) || '?'
+    const color = data.color || GameConfig.getColor('enemies', type) || '#ffffff'
+
+    const entity = new Entity('enemy')
     entity
       .addComponent(new PositionComponent(x, y))
       .addComponent(new RenderComponent(char, color))
-      .addComponent(new HealthComponent(enemyData.hp, enemyData.hp))
+      .addComponent(new HealthComponent(data.hp, data.hp))
       .addComponent(new CombatComponent({
-        damageMin: enemyData.damageMin,
-        damageMax: enemyData.damageMax,
-        damageType: enemyData.damageType || 'physical',
-        attackRange: enemyData.range || 1,
-        accuracy: enemyData.accuracy || 0.7,
-        initiative: enemyData.initiative || 5
+        damageMin: data.damageMin,
+        damageMax: data.damageMax,
+        damageType: data.damageType || 'physical',
+        attackRange: data.range || 1,
+        accuracy: data.accuracy || 0.7,
+        initiative: data.initiative || 5
       }))
       .addComponent(new AIComponent({
         type: 'aggressive',
-        fovRadius: enemyData.fovRadius || 8
+        fovRadius: data.fovRadius || 8
       }))
       .addComponent(new MovementComponent(12))
+
+    entity.enemyType = type
+    entity.enemyData = data
     return entity
   }
 
@@ -65,7 +82,10 @@ export default class EntityFactory {
     const entity = new Entity('wall')
     entity
       .addComponent(new PositionComponent(x, y))
-      .addComponent(new RenderComponent(GAME_DATA.symbols.wall, GAME_DATA.colors.wall))
+      .addComponent(new RenderComponent(
+        GameConfig.getSymbol('wall'),
+        GameConfig.getColor('wall')
+      ))
       .addComponent(new EnvironmentComponent({
         type: 'wall',
         solid: true,
@@ -79,10 +99,11 @@ export default class EntityFactory {
 
   static createDoor(x, y, locked = false, options = {}) {
     const entity = new Entity('door')
-    const closedChar = options.closedChar || GAME_DATA.symbols.door.closed
-    const openChar = options.openChar || GAME_DATA.symbols.door.open
-    const closedColor = options.closedColor || GAME_DATA.colors.door.closed
-    const openColor = options.openColor || GAME_DATA.colors.door.open
+
+    const closedChar = options.closedChar || GameConfig.getSymbol('door', 'closed')
+    const openChar = options.openChar || GameConfig.getSymbol('door', 'open')
+    const closedColor = options.closedColor || GameConfig.getColor('door', 'closed')
+    const openColor = options.openColor || GameConfig.getColor('door', 'open')
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -110,7 +131,10 @@ export default class EntityFactory {
     const entity = new Entity('crate')
     entity
       .addComponent(new PositionComponent(x, y))
-      .addComponent(new RenderComponent(GAME_DATA.symbols.crate, GAME_DATA.colors.crate))
+      .addComponent(new RenderComponent(
+        GameConfig.getSymbol('crate'),
+        GameConfig.getColor('crate')
+      ))
       .addComponent(new EnvironmentComponent({
         type: 'crate',
         solid: true,
@@ -124,25 +148,13 @@ export default class EntityFactory {
   }
 
   static createItem(x, y, itemType, config = {}) {
+    const itemData = GameConfig.getItem(itemType) || GameConfig.getItem('generic')
+
+    const char = config.char || itemData.char || '?'
+    const color = config.color || itemData.color || '#ffffff'
+    const name = config.name || itemData.name || 'Предмет'
+
     const entity = new Entity('item')
-    const charMap = GAME_DATA.symbols.items
-    const colorMap = GAME_DATA.colors.items
-    const nameMap = {
-      health: '💊 Аптечка',
-      mana: '⚡ Батарея',
-      weapon: '🔫 Оружие',
-      armor: '🛡️ Броня',
-      gold: '💰 Золото',
-      potion: '🧪 Зелье',
-      scroll: '📜 Свиток',
-      generic: '📦 Предмет'
-    }
-
-    const type = itemType || 'generic'
-    const char = config.char || charMap[type] || '?'
-    const color = config.color || colorMap[type] || '#ffffff'
-    const name = config.name || nameMap[type] || 'Предмет'
-
     entity
       .addComponent(new PositionComponent(x, y))
       .addComponent(new RenderComponent(char, color))
@@ -155,8 +167,12 @@ export default class EntityFactory {
         name: name
       }))
       .addComponent(new ItemComponent({
-        itemType: type
+        itemType: itemType || 'generic'
       }))
+
+    entity.itemData = itemData
+    entity.itemType = itemType || 'generic'
+
     const render = entity.getComponent(RenderComponent)
     if (render) render.layer = 2
     return entity

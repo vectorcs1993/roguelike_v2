@@ -5,16 +5,23 @@ import RenderComponent from '../engine/components/RenderComponent.js'
 import HealthComponent from '../engine/components/HealthComponent.js'
 import PlayerComponent from '../engine/components/PlayerComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
+import { GameConfig } from './GameConfig.js'
 
 export default class Renderer {
+  // Используем значения по умолчанию, а не из GameConfig при статической инициализации
   static DEFAULT_TILE_SIZE = 48
   static MIN_TILE_SIZE = 12
-  static DEFAULT_FONT_FAMILY = "Lucida Console, monospace"
+  static DEFAULT_FONT_FAMILY = 'Lucida Console, monospace'
 
   constructor(ctx, config) {
     this.ctx = ctx
     this.config = config
-    this.tileSize = Renderer.DEFAULT_TILE_SIZE
+
+    // Получаем настройки из GameConfig или используем значения по умолчанию
+    const uiConfig = GameConfig?.ui || {}
+    const rendererConfig = uiConfig.renderer || {}
+
+    this.tileSize = rendererConfig.tileSize || Renderer.DEFAULT_TILE_SIZE
     this.canvasW = 0
     this.canvasH = 0
     this.halfW = 0
@@ -26,7 +33,7 @@ export default class Renderer {
     this._location = null
     this._activeEntity = null
     this.dpr = window.devicePixelRatio || 1
-    this.fontFamily = Renderer.DEFAULT_FONT_FAMILY
+    this.fontFamily = rendererConfig.fontFamily || Renderer.DEFAULT_FONT_FAMILY
 
     this._lastCameraX = null
     this._lastCameraY = null
@@ -34,9 +41,10 @@ export default class Renderer {
     this._visibleBoundsCache = null
 
     // Отладка FOV
-    this.debugFov = false
-    this.debugShowRays = false
-    this.debugShowVisibleCells = false
+    const debugConfig = GameConfig?.debug || {}
+    this.debugFov = debugConfig.showFov || false
+    this.debugShowRays = debugConfig.showRays || false
+    this.debugShowVisibleCells = debugConfig.showVisibleCells || false
   }
 
   resize(canvasW, canvasH, dpr = this.dpr) {
@@ -60,7 +68,7 @@ export default class Renderer {
 
     this.tileSize = Math.max(
       Renderer.MIN_TILE_SIZE,
-      Math.min(Renderer.DEFAULT_TILE_SIZE, Math.floor(Math.min(canvasW, canvasH) / 15))
+      Math.min(this.tileSize || Renderer.DEFAULT_TILE_SIZE, Math.floor(Math.min(canvasW, canvasH) / 15))
     )
 
     this.ctx.font = `${this.tileSize}px ${this.fontFamily}`
@@ -92,7 +100,8 @@ export default class Renderer {
 
     const { startX, startY, endX, endY } = this._visibleBoundsCache
 
-    ctx.fillStyle = '#000000'
+    const uiColors = GameConfig?.colors?.ui || { background: '#0a0a0a' }
+    ctx.fillStyle = uiColors.background || '#000000'
     ctx.fillRect(0, 0, this.canvasW, this.canvasH)
 
     ctx.font = `${ts}px ${this.fontFamily}`
@@ -136,9 +145,9 @@ export default class Renderer {
       if (isPlayer) {
         shouldDraw = true
       } else if (isEnemy) {
-        shouldDraw = isVisible // враги только если видны
+        shouldDraw = isVisible
       } else {
-        shouldDraw = isVisible || render.explored // остальные если видны или исследованы
+        shouldDraw = isVisible || render.explored
       }
 
       if (!shouldDraw) continue
@@ -148,17 +157,16 @@ export default class Renderer {
 
       let color = render.color || '#ffffff'
 
-      // Затемнение для explored, но не visible (кроме игроков и врагов)
       if (!isPlayer && !isEnemy && !isVisible && render.explored) {
         color = this.darkenColor(color, 0.3)
       }
 
       if (entity === this._activeEntity) {
-        color = isPlayer ? '#88ff88' : '#ff8844'
+        color = isPlayer ? (uiColors.player || '#88ff88') : '#ff8844'
       } else if (isPlayer) {
-        color = '#5272b6'
+        color = uiColors.player || '#5272b6'
       } else if (isEnemy && isVisible) {
-        color = '#d83232'
+        color = uiColors.enemy || '#d83232'
       }
 
       ctx.fillStyle = color
@@ -174,7 +182,8 @@ export default class Renderer {
         ctx.fillRect(hpX, hpY, hpWidth, hpHeight)
 
         const hpPercent = health.hp / health.maxHp
-        const hpColor = hpPercent > 0.6 ? '#44ff44' : hpPercent > 0.3 ? '#ffaa44' : '#ff4444'
+        const hpColor = hpPercent > 0.6 ? (uiColors.healthBar || '#44ff44') :
+          hpPercent > 0.3 ? (uiColors.healthBarLow || '#ffaa44') : (uiColors.healthBarCritical || '#ff4444')
         ctx.fillStyle = hpColor
         ctx.fillRect(hpX, hpY, hpWidth * hpPercent, hpHeight)
       }
@@ -186,7 +195,6 @@ export default class Renderer {
       const x = this.hoverTileX * ts + ox
       const y = this.hoverTileY * ts + oy
 
-      // Проверяем, видна ли клетка (берём первую сущность)
       let isVisible = false
       const entitiesAt = map.getEntitiesAt?.(this.hoverTileX, this.hoverTileY) || []
       for (const e of entitiesAt) {
@@ -194,7 +202,6 @@ export default class Renderer {
         if (r && r.visible) { isVisible = true; break }
       }
       if (!isVisible) {
-        // если нет сущностей, проверяем grid
         const cell = map.grid[this.hoverTileY]?.[this.hoverTileX]
         if (cell && cell.entity) {
           const r = cell.entity.getComponent(RenderComponent)

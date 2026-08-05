@@ -3,7 +3,7 @@
 import Fov from './Fov.js'
 import Pathfinder from './Pathfinder.js'
 import BiomeGenerator from './BiomeGenerator.js'
-import { GAME_DATA } from './GameData.js'
+import { GameConfig } from './GameConfig.js'
 import Engine from '../engine/Engine.js'
 import EntityFactory from '../engine/EntityFactory.js'
 import MovementSystem from '../engine/systems/MovementSystem.js'
@@ -24,8 +24,8 @@ export default class Location {
     this.biomeName = biomeName || 'Неизвестная локация'
     this.name = this.biomeName
 
-    this.cols = config.cols
-    this.rows = config.rows
+    this.cols = config.cols || GameConfig.getWorldConfig().width
+    this.rows = config.rows || GameConfig.getWorldConfig().height
     this.grid = Array.from({ length: this.rows }, () =>
       Array.from({ length: this.cols }, () => null)
     )
@@ -222,38 +222,25 @@ export default class Location {
   getGameLoop() { return this.#gameLoop }
 
   static generateProcedural(config, biomeType = null) {
-    const selectedBiome = biomeType || (() => {
-      const biomes = ['residential', 'factory', 'technical']
-      return biomes[Math.floor(Math.random() * biomes.length)]
-    })()
+    const biomeIds = GameConfig.getBiomeIds()
+    const selectedBiomeId = biomeType || biomeIds[Math.floor(Math.random() * biomeIds.length)]
+    const biome = GameConfig.getBiome(selectedBiomeId)
 
-    let generatorConfig = {
-      width: 60, height: 40,
-      minRoomSize: 4, maxRoomSize: 8,
-      maxRooms: 20, roomSpacing: 1, doorChance: 0.5
-    }
+    const genConfig = GameConfig.getBiomeGenerationConfig(selectedBiomeId)
+    const biomeName = biome ? biome.name : 'Зараженная зона'
+    const worldConfig = GameConfig.getWorldConfig()
 
-    const biomeNames = {
-      residential: 'Жилой этаж',
-      factory: 'Фабрика',
-      technical: 'Технический этаж'
-    }
-    const biomeName = biomeNames[selectedBiome] || 'Зараженная зона'
+    const generator = new BiomeGenerator({
+      width: worldConfig.width,
+      height: worldConfig.height,
+      minRoomSize: genConfig.minRoomSize,
+      maxRoomSize: genConfig.maxRoomSize,
+      maxRooms: genConfig.maxRooms,
+      roomSpacing: genConfig.roomSpacing || 1,
+      doorChance: genConfig.doorChance || 0.5,
+      padding: worldConfig.padding
+    })
 
-    if (selectedBiome === 'residential') {
-      generatorConfig.maxRooms = 22
-      generatorConfig.minRoomSize = 4
-      generatorConfig.maxRoomSize = 7
-      generatorConfig.doorChance = 0.6
-    } else if (selectedBiome === 'factory') {
-      generatorConfig.maxRooms = 12
-      generatorConfig.minRoomSize = 6
-      generatorConfig.maxRoomSize = 10
-      generatorConfig.roomSpacing = 2
-      generatorConfig.doorChance = 0.4
-    }
-
-    const generator = new BiomeGenerator(generatorConfig)
     const { walls, width, height, rooms, doors: doorData } = generator.generate()
 
     const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
@@ -281,30 +268,31 @@ export default class Location {
 
     const playerStart = this.findStartInRoom(rooms, isFree)
 
-    const enemyTypes = ['groaner', 'crawler', 'runner', 'mold', 'sticker']
+    const entities = []
+
+    const player = EntityFactory.createPlayer(playerStart.x, playerStart.y)
+    entities.push(player)
+
+    // Создаем врагов из пула биома
+    const enemyPool = biome ? biome.enemyPool : ['groaner', 'crawler', 'runner']
+    const enemyCount = biome ?
+      Math.floor(Math.random() * (biome.enemyCount.max - biome.enemyCount.min + 1)) + biome.enemyCount.min :
+      8
+
     const enemyPositions = available
       .filter(c => {
         const [x, y] = c.split(',').map(Number)
         return Math.abs(x - playerStart.x) + Math.abs(y - playerStart.y) > 5
       })
-      .slice(0, 10)
-
-    const entities = []
-
-    const player = EntityFactory.createPlayer(playerStart.x, playerStart.y, {
-      hp: 25,
-      damageMin: 3,
-      damageMax: 6
-    })
-    entities.push(player)
+      .slice(0, enemyCount)
 
     for (const pos of enemyPositions) {
       const [x, y] = pos.split(',').map(Number)
-      const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)]
-      const data = GAME_DATA.enemyData[type]
-      if (data) {
-        const enemy = EntityFactory.createEnemy(x, y, type, data)
-        entities.push(enemy)
+      const type = enemyPool[Math.floor(Math.random() * enemyPool.length)]
+      const enemyData = GameConfig.getEnemy(type)
+      if (enemyData) {
+        const enemy = EntityFactory.createEnemy(x, y, type, enemyData)
+        if (enemy) entities.push(enemy)
       }
     }
 
@@ -322,43 +310,47 @@ export default class Location {
       location.grid[y][x] = { type: 'crate', entity: crateEntity }
     }
 
-    const itemTypes = ['health', 'gold', 'potion', 'scroll', 'weapon', 'armor', 'mana'];
-    const itemWeights = [30, 20, 15, 10, 10, 10, 5];
+    // Создаем предметы из пула биома
+    const itemPool = biome ? biome.itemPool : ['health', 'gold', 'potion']
+    const itemWeights = biome ? biome.itemWeights : [30, 20, 15]
+    const itemCount = biome ?
+      Math.floor(Math.random() * (biome.itemCount.max - biome.itemCount.min + 1)) + biome.itemCount.min :
+      6
 
-    const occupiedByEntities = new Set([`${playerStart.x},${playerStart.y}`, ...enemyPositions]);
-    const freeCells = available.filter(c => !occupiedByEntities.has(c));
+    const occupiedByEntities = new Set([`${playerStart.x},${playerStart.y}`, ...enemyPositions])
+    const freeCells = available.filter(c => !occupiedByEntities.has(c))
 
-    const numItems = Math.min(Math.floor(Math.random() * 6) + 5, freeCells.length);
+    const numItems = Math.min(itemCount, freeCells.length)
 
     for (let i = freeCells.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [freeCells[i], freeCells[j]] = [freeCells[j], freeCells[i]];
+      [freeCells[i], freeCells[j]] = [freeCells[j], freeCells[i]]
     }
-    const selectedCells = freeCells.slice(0, numItems);
+    const selectedCells = freeCells.slice(0, numItems)
 
     for (const cell of selectedCells) {
-      const [x, y] = cell.split(',').map(Number);
+      const [x, y] = cell.split(',').map(Number)
 
-      let r = Math.random() * 100;
-      let type = 'gold';
-      let cumulative = 0;
-      for (let i = 0; i < itemTypes.length; i++) {
-        cumulative += itemWeights[i];
+      let r = Math.random() * 100
+      let type = itemPool[0]
+      let cumulative = 0
+      for (let i = 0; i < itemPool.length; i++) {
+        cumulative += itemWeights[i]
         if (r <= cumulative) {
-          type = itemTypes[i];
-          break;
+          type = itemPool[i]
+          break
         }
       }
 
-      const itemEntity = EntityFactory.createItem(x, y, type);
-      itemEntity.engine = location.engine;
-      location.engine.addEntity(itemEntity);
-      location.grid[y][x] = { type: 'item', entity: itemEntity };
+      const itemEntity = EntityFactory.createItem(x, y, type)
+      itemEntity.engine = location.engine
+      location.engine.addEntity(itemEntity)
+      location.grid[y][x] = { type: 'item', entity: itemEntity }
 
-      const render = itemEntity.getComponent(RenderComponent);
+      const render = itemEntity.getComponent(RenderComponent)
       if (render) {
-        render.visible = true;
-        render.explored = true;
+        render.visible = true
+        render.explored = true
       }
     }
 
@@ -367,7 +359,7 @@ export default class Location {
       location.setDoors(doors)
     }
 
-    location.revealAll();
+    location.revealAll()
 
     return location
   }

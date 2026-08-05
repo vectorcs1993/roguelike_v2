@@ -1,6 +1,7 @@
 // src/game/Camera.js
 
 import PositionComponent from '../engine/components/PositionComponent.js'
+import { GameConfig } from './GameConfig.js'
 
 export default class Camera {
   constructor(x, y, speed) {
@@ -12,6 +13,10 @@ export default class Camera {
     this.tileSize = 48
 
     this.followEntity = null
+    // Безопасное получение настройки
+    const uiConfig = GameConfig?.ui || {}
+    const cameraConfig = uiConfig.camera || {}
+    this.lerpFactor = cameraConfig.lerpFactor || 0.15
   }
 
   setViewportSize(width, height, tileSize) {
@@ -24,7 +29,6 @@ export default class Camera {
     this.followEntity = entity
   }
 
-  // Алиас для обратной совместимости
   follow(entity) {
     this.followEntity = entity
   }
@@ -37,7 +41,6 @@ export default class Camera {
     if (this.followEntity) {
       let targetX, targetY
 
-      // Проверяем, Entity ли это (есть метод getComponent)
       if (this.followEntity.getComponent) {
         const pos = this.followEntity.getComponent(PositionComponent)
         if (pos) {
@@ -45,13 +48,12 @@ export default class Camera {
           targetY = pos.y
         }
       } else {
-        // Старый Character (для обратной совместимости)
         targetX = this.followEntity.x
         targetY = this.followEntity.y
       }
 
       if (targetX !== undefined && targetY !== undefined) {
-        const lerpFactor = 0.15
+        const lerpFactor = this.lerpFactor
         this.x = this.x + (targetX - this.x) * lerpFactor
         this.y = this.y + (targetY - this.y) * lerpFactor
       }

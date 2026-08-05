@@ -5,6 +5,7 @@ import InputManager from './InputManager.js'
 import Renderer from './Renderer.js'
 import Location from './Location.js'
 import { logger, LOG_MODULES } from './Logger.js'
+import { GameConfig } from './GameConfig.js'
 
 import PositionComponent from '../engine/components/PositionComponent.js'
 import PlayerComponent from '../engine/components/PlayerComponent.js'
@@ -26,6 +27,11 @@ export default class GameLoop {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
+    // Безопасное получение настроек
+    const uiConfig = GameConfig?.ui || {}
+    const cameraConfig = uiConfig.camera || {}
+    const cameraSpeed = cameraConfig.speed || config.cameraSpeed || 15
+
     this.currentLocation = initialLocation || Location.generateProcedural(config, biomeType)
     this.currentLocation.setGameLoop(this)
     this.currentLocation.engine.currentLocation = this.currentLocation
@@ -40,10 +46,10 @@ export default class GameLoop {
     const mainPlayer = playerEntities[0]
     if (mainPlayer) {
       const pos = mainPlayer.getComponent(PositionComponent)
-      this.camera = new Camera(pos.x, pos.y, config.cameraSpeed)
+      this.camera = new Camera(pos.x, pos.y, cameraSpeed)
       this.camera.follow(mainPlayer)
     } else {
-      this.camera = new Camera(0, 0, config.cameraSpeed)
+      this.camera = new Camera(0, 0, cameraSpeed)
     }
 
     this.input = new InputManager(config.swipeThreshold)
@@ -125,7 +131,6 @@ export default class GameLoop {
       return
     }
 
-    // Действие врага
     const actionDone = this.aiSystem.performTurn(enemy, this.currentLocation)
 
     if (actionDone) {
@@ -134,9 +139,6 @@ export default class GameLoop {
 
     this.enemyTurnIndex++
 
-    // Без setTimeout - просто рекурсивный вызов
-    // Но чтобы не было stack overflow, используем requestAnimationFrame
-    // или проверяем, не заблокирован ли цикл
     if (this.enemyTurnIndex < this.enemyList.length) {
       this.processNextEnemy()
     } else {
@@ -173,7 +175,7 @@ export default class GameLoop {
     for (const ally of allies) {
       const pos = ally.getComponent(PositionComponent)
       const playerComp = ally.getComponent(PlayerComponent)
-      const radius = playerComp?.fovRadius || 8
+      const radius = playerComp?.fovRadius || GameConfig.player.fovRadius || 12
       this.currentLocation.computeFov(pos.tileX, pos.tileY, radius, first)
       first = false
     }
@@ -188,7 +190,6 @@ export default class GameLoop {
     this.camera.follow(entity)
     this.initializeFovForAllAllies()
   }
-
 
   centerOnCharacter(entityId) {
     const engine = this.currentLocation.engine
@@ -225,7 +226,6 @@ export default class GameLoop {
     if (newX < 0 || newX >= this.currentLocation.cols ||
       newY < 0 || newY >= this.currentLocation.rows) return false
 
-    // Проверяем проходимость клетки
     if (!this.currentLocation.isTileWalkable(newX, newY)) {
       const targetEntity = this.currentLocation.getEntityAt(newX, newY)
       if (targetEntity) {
@@ -244,12 +244,10 @@ export default class GameLoop {
     const engine = this.currentLocation.engine
     const targetEntity = engine.getFirstEntityAt(newX, newY)
 
-    // Проверяем, есть ли враг на целевой клетке
     if (targetEntity && targetEntity.active) {
       const targetHealth = targetEntity.getComponent(HealthComponent)
       const targetAI = targetEntity.getComponent(AIComponent)
 
-      // Если это враг (есть AI и HP) и он жив - атакуем
       if (targetAI && targetHealth && !targetHealth.isDead) {
         const combatSystem = engine.systems.find(s => s.name === 'CombatSystem')
         if (combatSystem) {
@@ -265,7 +263,6 @@ export default class GameLoop {
       }
     }
 
-    // Проверяем, есть ли предмет на клетке
     const itemEntity = engine.getFirstEntityAt(newX, newY)
     if (itemEntity && itemEntity.active) {
       const env = itemEntity.getComponent(EnvironmentComponent)
@@ -277,7 +274,6 @@ export default class GameLoop {
       }
     }
 
-    // Двигаемся
     pos.moveTo(newX, newY)
     this.endPlayerTurn()
     return true
@@ -666,7 +662,8 @@ export default class GameLoop {
     this.renderer.dpr = dpr || window.devicePixelRatio || 1
     this.renderer.resize(canvasWidth, canvasHeight, this.renderer.dpr)
     if (this.camera) {
-      this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
+      const uiConfig = GameConfig.getUIConfig()
+      this.camera.setViewportSize(canvasWidth, canvasHeight, uiConfig.renderer.tileSize || this.renderer.tileSize)
     }
   }
 
@@ -675,7 +672,8 @@ export default class GameLoop {
       this.renderer.dpr = dpr || window.devicePixelRatio || 1
       this.renderer.resize(canvasWidth, canvasHeight, this.renderer.dpr)
       if (this.camera) {
-        this.camera.setViewportSize(canvasWidth, canvasHeight, this.renderer.tileSize)
+        const uiConfig = GameConfig.getUIConfig()
+        this.camera.setViewportSize(canvasWidth, canvasHeight, uiConfig.renderer.tileSize || this.renderer.tileSize)
       }
     }
   }
@@ -710,7 +708,8 @@ export default class GameLoop {
     }
 
     if (this.renderer && this.camera) {
-      this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, this.renderer.tileSize)
+      const uiConfig = GameConfig.getUIConfig()
+      this.camera.setViewportSize(this.renderer.canvasW, this.renderer.canvasH, uiConfig.renderer.tileSize || this.renderer.tileSize)
     }
 
     this.aiSystem.engine = this.currentLocation.engine
@@ -731,7 +730,6 @@ export default class GameLoop {
   onKeyDown(e) {
     this.input.handleKeyDown(e)
 
-    // Отладочные клавиши - используем code (не зависит от раскладки)
     if (e.code === 'KeyF') {
       if (this.renderer) {
         this.renderer.debugFov = !this.renderer.debugFov
@@ -754,21 +752,16 @@ export default class GameLoop {
       }
     }
 
-
-
-    // Взаимодействие - используем code
     if (e.code === 'KeyE') {
       this.interact()
       e.preventDefault()
     }
 
-    // Подбор предмета - используем code
     if (e.code === 'KeyG') {
       this.pickupItem()
       e.preventDefault()
     }
 
-    // Движение - обрабатывается через InputManager (стрелки и WASD)
     if (this.isPlayerTurn) {
       const dir = this.input.getDirection()
       if (dir) {
