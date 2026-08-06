@@ -311,6 +311,13 @@ export default class ContentLoader {
         if (enemy.damageMin > enemy.damageMax) {
           errors.push(`Enemy "${id}": damageMin (${enemy.damageMin}) > damageMax (${enemy.damageMax})`)
         }
+        if (enemy.dropPool) {
+          if (typeof enemy.dropPool !== 'object' || Array.isArray(enemy.dropPool)) {
+            errors.push(`Enemy "${id}": dropPool must be an object { itemId: { chance, countMin, countMax } }`)
+          } else if (Object.keys(enemy.dropPool).length === 0) {
+            errors.push(`Enemy "${id}": dropPool is empty`)
+          }
+        }
       }
     }
 
@@ -330,7 +337,7 @@ export default class ContentLoader {
         if (biome.enemyPool && !biome.enemyPool.length) {
           errors.push(`Biome "${id}": enemyPool is empty`)
         }
-        if (biome.itemPool && !biome.itemPool.length) {
+        if (biome.itemPool && Object.keys(biome.itemPool).length === 0) {
           errors.push(`Biome "${id}": itemPool is empty`)
         }
         if (biome.enemyPool && biome.enemyCount) {

@@ -154,17 +154,26 @@ export const GameConfig = {
     const biome = this.getBiome(biomeId)
     if (!biome) return null
     const pool = biome.itemPool
-    const weights = biome.itemWeights
-    if (!pool || pool.length === 0) return null
-    const totalWeight = weights.reduce((a, b) => a + b, 0)
-    let r = Math.random() * totalWeight
-    for (let i = 0; i < pool.length; i++) {
-      r -= weights[i]
-      if (r <= 0) {
-        return this.getItem(pool[i])
+    if (!pool || typeof pool !== 'object' || Object.keys(pool).length === 0) return null
+    const entries = Object.entries(pool)
+    // Сначала пробуем выпасть по шансу каждого предмета.
+    for (const [itemId, cfg] of entries) {
+      const chance = cfg.chance !== undefined ? cfg.chance : 0
+      if (Math.random() < chance) {
+        return this.getItem(itemId)
       }
     }
-    return this.getItem(pool[0])
+    // Если ничего не выпало — возвращаем предмет с наибольшим шансом.
+    let bestId = entries[0][0]
+    let bestChance = -1
+    for (const [itemId, cfg] of entries) {
+      const chance = cfg.chance !== undefined ? cfg.chance : 0
+      if (chance > bestChance) {
+        bestChance = chance
+        bestId = itemId
+      }
+    }
+    return this.getItem(bestId)
   },
 
   getSymbol(type, subType = null) {
@@ -536,6 +545,33 @@ export const GameConfig = {
       if (data.damageMin > data.damageMax) {
         errors.push(`Enemy "${id}" damageMin (${data.damageMin}) > damageMax (${data.damageMax})`)
       }
+      if (data.dropPool) {
+        if (typeof data.dropPool !== 'object' || Array.isArray(data.dropPool)) {
+          errors.push(`Enemy "${id}" dropPool must be an object { itemId: { chance, countMin, countMax } }`)
+        } else {
+          for (const [itemId, cfg] of Object.entries(data.dropPool)) {
+            if (!GAME_CONFIG.items[itemId]) {
+              errors.push(`Enemy "${id}" dropPool references unknown item "${itemId}"`)
+            }
+            if (!cfg || typeof cfg !== 'object') {
+              errors.push(`Enemy "${id}" dropPool entry "${itemId}" must be an object { chance, countMin, countMax }`)
+              continue
+            }
+            if (cfg.chance !== undefined && (typeof cfg.chance !== 'number' || cfg.chance < 0 || cfg.chance > 1)) {
+              errors.push(`Enemy "${id}" dropPool entry "${itemId}" chance must be a number in [0, 1]`)
+            }
+            if (cfg.countMin !== undefined && typeof cfg.countMin !== 'number') {
+              errors.push(`Enemy "${id}" dropPool entry "${itemId}" countMin must be a number`)
+            }
+            if (cfg.countMax !== undefined && typeof cfg.countMax !== 'number') {
+              errors.push(`Enemy "${id}" dropPool entry "${itemId}" countMax must be a number`)
+            }
+            if (cfg.countMin !== undefined && cfg.countMax !== undefined && cfg.countMin > cfg.countMax) {
+              errors.push(`Enemy "${id}" dropPool entry "${itemId}" countMin (${cfg.countMin}) > countMax (${cfg.countMax})`)
+            }
+          }
+        }
+      }
     }
 
     for (const [id, data] of Object.entries(GAME_CONFIG.items)) {
@@ -562,16 +598,36 @@ export const GameConfig = {
       }
 
       if (data.itemPool) {
-        for (const itemId of data.itemPool) {
-          if (!GAME_CONFIG.items[itemId]) {
-            errors.push(`Biome "${id}" references unknown item "${itemId}"`)
+        if (Array.isArray(data.itemPool)) {
+          // Обратная совместимость: старый формат массива.
+          for (const itemId of data.itemPool) {
+            if (!GAME_CONFIG.items[itemId]) {
+              errors.push(`Biome "${id}" references unknown item "${itemId}"`)
+            }
           }
-        }
-      }
-
-      if (data.itemWeights && data.itemPool) {
-        if (data.itemWeights.length !== data.itemPool.length) {
-          errors.push(`Biome "${id}" itemWeights length (${data.itemWeights.length}) != itemPool length (${data.itemPool.length})`)
+        } else if (typeof data.itemPool === 'object') {
+          // Новый формат: { itemId: { chance, countMin, countMax } }.
+          for (const [itemId, cfg] of Object.entries(data.itemPool)) {
+            if (!GAME_CONFIG.items[itemId]) {
+              errors.push(`Biome "${id}" references unknown item "${itemId}"`)
+            }
+            if (!cfg || typeof cfg !== 'object') {
+              errors.push(`Biome "${id}" itemPool entry "${itemId}" must be an object { chance, countMin, countMax }`)
+              continue
+            }
+            if (cfg.chance !== undefined && (typeof cfg.chance !== 'number' || cfg.chance < 0 || cfg.chance > 1)) {
+              errors.push(`Biome "${id}" itemPool entry "${itemId}" chance must be a number in [0, 1]`)
+            }
+            if (cfg.countMin !== undefined && typeof cfg.countMin !== 'number') {
+              errors.push(`Biome "${id}" itemPool entry "${itemId}" countMin must be a number`)
+            }
+            if (cfg.countMax !== undefined && typeof cfg.countMax !== 'number') {
+              errors.push(`Biome "${id}" itemPool entry "${itemId}" countMax must be a number`)
+            }
+            if (cfg.countMin !== undefined && cfg.countMax !== undefined && cfg.countMin > cfg.countMax) {
+              errors.push(`Biome "${id}" itemPool entry "${itemId}" countMin (${cfg.countMin}) > countMax (${cfg.countMax})`)
+            }
+          }
         }
       }
     }

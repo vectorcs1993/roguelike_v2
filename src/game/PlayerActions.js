@@ -151,6 +151,10 @@ export default class PlayerActions {
           } else {
             logger.info(LOG_MODULES.COMBAT, `${attackerName} промахивается по ${targetName}.`)
           }
+          // Если враг погиб — выпадает предмет по его dropPool (не более 1 предмета).
+          if (targetHealth.isDead) {
+            this._spawnEnemyDrop(targetEntity)
+          }
           this.consumeAction()
           return true
         }
@@ -443,6 +447,48 @@ export default class PlayerActions {
       }
     }
     return false
+  }
+
+  /**
+   * Спавнит выпавший предмет после смерти врага.
+   * dropPool — объект вида { itemId: { chance, countMin, countMax } }.
+   * С одного врага может выпасть не более 1 предмета: перебираем пул по порядку
+   * и бросаем шанс каждого предмета; первый сработавший — выпадает.
+   */
+  _spawnEnemyDrop(enemyEntity) {
+    // Внимание: при смерти врага HealthComponent.takeDamage вызывает
+    // entity.destroy(), который ставит active = false. Поэтому здесь НЕ
+    // проверяем active — иначе дроп никогда не выпадет.
+    if (!enemyEntity) return
+
+    const enemyData = enemyEntity.enemyData || {}
+    const dropPool = enemyData.dropPool
+    if (!dropPool || typeof dropPool !== 'object' || Object.keys(dropPool).length === 0) return
+
+    const pos = enemyEntity.getComponent(PositionComponent)
+    if (!pos) return
+
+    const poolEntries = Object.entries(dropPool)
+    for (const [type, cfg] of poolEntries) {
+      const chance = cfg.chance !== undefined ? cfg.chance : 0
+      if (Math.random() >= chance) continue
+
+      const countMin = cfg.countMin !== undefined ? cfg.countMin : 1
+      const countMax = cfg.countMax !== undefined ? cfg.countMax : countMin
+      const count = countMax > countMin ?
+        Math.floor(Math.random() * (countMax - countMin + 1)) + countMin :
+        countMin
+
+      const itemEntity = EntityFactory.createItem(pos.tileX, pos.tileY, type, { count })
+      const render = itemEntity.getComponent(RenderComponent)
+      if (render) {
+        render.visible = true
+        render.explored = true
+      }
+      itemEntity.engine = this.engine
+      this.engine.addEntity(itemEntity)
+      break
+    }
   }
 
   /** Создаёт сущность предмета на указанной клетке (поверх существующего пола). */

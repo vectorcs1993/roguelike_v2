@@ -406,11 +406,20 @@ export default class Location {
     }
   }
 
-  /** Добавляет предметы на свободные клетки с учётом весов биома. */
+  /**
+   * Добавляет предметы на свободные клетки с учётом точной настройки биома.
+   * itemPool — объект вида { itemId: { chance, countMin, countMax } }.
+   * Для каждой клетки независимо бросается шанс каждого предмета; если шанс
+   * сработал, предмет размещается со случайным количеством в диапазоне
+   * [countMin, countMax]. Если ни один предмет не выпал — клетка остаётся пустой.
+   */
   static _placeItems(location, biome, available, playerStart, enemyPositions) {
-    const itemPool = biome ? biome.itemPool : ['health', 'gold', 'potion']
-    const itemWeights = biome ? biome.itemWeights : [30, 20, 15]
-    const itemCount = biome ?
+    const itemPool = biome && biome.itemPool ? biome.itemPool : {
+      health: { chance: 0.3, countMin: 1, countMax: 2 },
+      gold: { chance: 0.2, countMin: 1, countMax: 3 },
+      potion: { chance: 0.15, countMin: 1, countMax: 2 }
+    }
+    const itemCount = biome && biome.itemCount ?
       Math.floor(Math.random() * (biome.itemCount.max - biome.itemCount.min + 1)) + biome.itemCount.min :
       6
 
@@ -425,23 +434,27 @@ export default class Location {
     }
     const selectedCells = freeCells.slice(0, numItems)
 
+    const poolEntries = Object.entries(itemPool)
+
     for (const cell of selectedCells) {
       const [x, y] = cell.split(',').map(Number)
 
-      let r = Math.random() * 100
-      let type = itemPool[0]
-      let cumulative = 0
-      for (let i = 0; i < itemPool.length; i++) {
-        cumulative += itemWeights[i]
-        if (r <= cumulative) {
-          type = itemPool[i]
-          break
-        }
-      }
+      // Перебираем предметы пула и бросаем шанс для каждого.
+      for (const [type, cfg] of poolEntries) {
+        const chance = cfg.chance !== undefined ? cfg.chance : 0
+        if (Math.random() >= chance) continue
 
-      const itemEntity = EntityFactory.createItem(x, y, type)
-      itemEntity.engine = location.engine
-      location.engine.addEntity(itemEntity)
+        const countMin = cfg.countMin !== undefined ? cfg.countMin : 1
+        const countMax = cfg.countMax !== undefined ? cfg.countMax : countMin
+        const count = countMax > countMin ?
+          Math.floor(Math.random() * (countMax - countMin + 1)) + countMin :
+          countMin
+
+        const itemEntity = EntityFactory.createItem(x, y, type, { count })
+        itemEntity.engine = location.engine
+        location.engine.addEntity(itemEntity)
+        break
+      }
     }
   }
 

@@ -47,7 +47,19 @@
       "aggressionRange": 6,
       "fovRadius": 6,
       "xp": 10,
-      "description": "Медленный, но опасный вблизи"
+      "description": "Медленный, но опасный вблизи",
+      "dropPool": {
+        "gold": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "health": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 1
+        }
+      }
     },
     "crawler": {
       "id": "crawler",
@@ -69,7 +81,19 @@
       "aggressionRange": 4,
       "fovRadius": 4,
       "xp": 8,
-      "description": "Слабый, но быстрый"
+      "description": "Слабый, но быстрый",
+      "dropPool": {
+        "gold": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "potion": {
+          "chance": 0.1,
+          "countMin": 1,
+          "countMax": 1
+        }
+      }
     },
     "runner": {
       "id": "runner",
@@ -91,7 +115,19 @@
       "aggressionRange": 10,
       "fovRadius": 8,
       "xp": 6,
-      "description": "Быстрый, но хрупкий"
+      "description": "Быстрый, но хрупкий",
+      "dropPool": {
+        "gold": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "energy": {
+          "chance": 0.1,
+          "countMin": 1,
+          "countMax": 1
+        }
+      }
     },
     "brute": {
       "id": "brute",
@@ -113,7 +149,24 @@
       "aggressionRange": 5,
       "fovRadius": 5,
       "xp": 20,
-      "description": "Медленный, но очень сильный"
+      "description": "Медленный, но очень сильный",
+      "dropPool": {
+        "gold": {
+          "chance": 0.4,
+          "countMin": 2,
+          "countMax": 5
+        },
+        "weapon": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "armor": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 1
+        }
+      }
     },
     "shadow": {
       "id": "shadow",
@@ -135,7 +188,24 @@
       "aggressionRange": 8,
       "fovRadius": 10,
       "xp": 15,
-      "description": "Атакует издалека"
+      "description": "Атакует издалека",
+      "dropPool": {
+        "gold": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "scroll": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "energy": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 2
+        }
+      }
     },
     "boss": {
       "id": "boss",
@@ -157,7 +227,29 @@
       "aggressionRange": 12,
       "fovRadius": 12,
       "xp": 50,
-      "description": "Опасный противник"
+      "description": "Опасный противник",
+      "dropPool": {
+        "gold": {
+          "chance": 0.6,
+          "countMin": 5,
+          "countMax": 10
+        },
+        "weapon": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "armor": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "scroll": {
+          "chance": 0.25,
+          "countMin": 1,
+          "countMax": 2
+        }
+      }
     }
   },
   "environment": {
@@ -431,18 +523,28 @@
         "min": 5,
         "max": 12
       },
-      "itemPool": [
-        "gold",
-        "health",
-        "potion",
-        "weapon"
-      ],
-      "itemWeights": [
-        25,
-        25,
-        20,
-        10
-      ],
+      "itemPool": {
+        "gold": {
+          "chance": 0.25,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "health": {
+          "chance": 0.25,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "potion": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "weapon": {
+          "chance": 0.1,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
       "itemCount": {
         "min": 4,
         "max": 10
@@ -473,20 +575,33 @@
         "min": 6,
         "max": 14
       },
-      "itemPool": [
-        "gold",
-        "energy",
-        "weapon",
-        "armor",
-        "scroll"
-      ],
-      "itemWeights": [
-        20,
-        20,
-        15,
-        15,
-        10
-      ],
+      "itemPool": {
+        "gold": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "energy": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "weapon": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "armor": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "scroll": {
+          "chance": 0.1,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
       "itemCount": {
         "min": 4,
         "max": 10
@@ -517,18 +632,28 @@
         "min": 7,
         "max": 15
       },
-      "itemPool": [
-        "gold",
-        "energy",
-        "potion",
-        "scroll"
-      ],
-      "itemWeights": [
-        20,
-        25,
-        15,
-        10
-      ],
+      "itemPool": {
+        "gold": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "energy": {
+          "chance": 0.25,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "potion": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "scroll": {
+          "chance": 0.1,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
       "itemCount": {
         "min": 3,
         "max": 8
@@ -559,20 +684,33 @@
         "min": 5,
         "max": 12
       },
-      "itemPool": [
-        "health",
-        "potion",
-        "gold",
-        "scroll",
-        "armor"
-      ],
-      "itemWeights": [
-        30,
-        20,
-        15,
-        10,
-        10
-      ],
+      "itemPool": {
+        "health": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "potion": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "gold": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "scroll": {
+          "chance": 0.1,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "armor": {
+          "chance": 0.1,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
       "itemCount": {
         "min": 5,
         "max": 12
@@ -603,20 +741,33 @@
         "min": 6,
         "max": 13
       },
-      "itemPool": [
-        "gold",
-        "weapon",
-        "armor",
-        "scroll",
-        "health"
-      ],
-      "itemWeights": [
-        20,
-        15,
-        15,
-        10,
-        20
-      ],
+      "itemPool": {
+        "gold": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "weapon": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "armor": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "scroll": {
+          "chance": 0.1,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "health": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 2
+        }
+      },
       "itemCount": {
         "min": 4,
         "max": 10
@@ -654,20 +805,33 @@
         "min": 6,
         "max": 12
       },
-      "itemPool": [
-        "gold",
-        "health",
-        "weapon",
-        "armor",
-        "potion"
-      ],
-      "itemWeights": [
-        20,
-        20,
-        15,
-        15,
-        15
-      ],
+      "itemPool": {
+        "gold": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "health": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "weapon": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "armor": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "potion": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 2
+        }
+      },
       "itemCount": {
         "min": 5,
         "max": 10
