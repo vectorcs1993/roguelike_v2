@@ -1,6 +1,7 @@
 // src/engine/components/MovementComponent.js
 
 import Component from './Component.js'
+import PositionComponent from './PositionComponent.js'
 
 export default class MovementComponent extends Component {
   constructor(speed = 12) {
@@ -18,7 +19,7 @@ export default class MovementComponent extends Component {
       return
     }
     // Убираем первую клетку если это текущая позиция
-    const pos = this.entity?.getComponent('PositionComponent')
+    const pos = this.entity?.getComponent(PositionComponent)
     if (pos && path.length > 0 && path[0].x === pos.tileX && path[0].y === pos.tileY) {
       path.shift()
     }

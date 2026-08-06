@@ -7,6 +7,7 @@ import AIComponent from '../components/AIComponent.js'
 import CombatComponent from '../components/CombatComponent.js'
 import PlayerComponent from '../components/PlayerComponent.js'
 import RenderComponent from '../components/RenderComponent.js'
+import MovementComponent from '../components/MovementComponent.js'
 import { logger, LOG_MODULES } from '../../game/Logger.js'
 
 export default class AISystem extends System {
@@ -90,11 +91,35 @@ export default class AISystem extends System {
     const playerPos = player.getComponent(PositionComponent)
     if (!pos || !playerPos) return
 
-    // Вычисляем направление к игроку
+    // Используем Pathfinder для построения маршрута к игроку.
+    // Враги с препятствиями на пути будут обходить их, а не идти напрямую.
+    const path = location.findPath(pos.tileX, pos.tileY, playerPos.tileX, playerPos.tileY, enemy)
+
+    if (path && path.length > 0) {
+      // Сохраняем маршрут в MovementComponent для последующего следования
+      const movement = enemy.getComponent(MovementComponent)
+      if (movement) {
+        movement.setPath(path, { x: playerPos.tileX, y: playerPos.tileY }, player)
+      }
+
+      // Первый узел пути — текущая клетка врага, пропускаем её
+      let next = path[0]
+      if (next && next.x === pos.tileX && next.y === pos.tileY) {
+        next = path[1] || null
+      }
+
+      // Двигаемся на 1 клетку по маршруту за ход
+      if (next && !this.engine.isTileBlocked(next.x, next.y, enemy)) {
+        pos.moveTo(next.x, next.y)
+        if (movement) movement.advancePath()
+      }
+      return
+    }
+
+    // Запасной вариант: если путь не найден, пробуем жадное движение на 1 клетку
     const dx = Math.sign(playerPos.tileX - pos.tileX)
     const dy = Math.sign(playerPos.tileY - pos.tileY)
 
-    // Пробуем разные варианты движения: сначала диагональ, потом по осям
     const moves = []
     if (dx !== 0 && dy !== 0) {
       moves.push([dx, dy], [dx, 0], [0, dy])
@@ -106,17 +131,12 @@ export default class AISystem extends System {
       if (dx !== 0) moves.push([dx, 0])
     }
 
-    // Пробуем каждый вариант движения
     for (const [mx, my] of moves) {
       const nx = pos.tileX + mx
       const ny = pos.tileY + my
 
-      // Проверяем проходимость
       if (!location.isTileWalkable(nx, ny)) continue
-
-      // Проверяем, не занято ли клетку другим существом
       if (!this.engine.isTileBlocked(nx, ny, enemy)) {
-        // Двигаемся на 1 клетку
         pos.moveTo(nx, ny)
         return
       }
