@@ -60,6 +60,8 @@ export default class EntityFactory {
       .addComponent(new MovementComponent(config.speed || playerData.speed || 12))
       .addComponent(new InventoryComponent())
 
+    entity.enemyData = playerData
+
     if (config.components) {
       this._addCustomComponents(entity, config.components)
     }

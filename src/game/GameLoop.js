@@ -132,7 +132,7 @@ export default class GameLoop {
 
     const render = entity.getComponent(RenderComponent)
     if (render) {
-      render.flash('#ffdd00', 150)
+      render.flash('#ffffff', 150)
     }
   }
 

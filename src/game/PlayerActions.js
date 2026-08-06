@@ -125,13 +125,14 @@ export default class PlayerActions {
 
     const playerConfig = GameConfig.getPlayer()
     const hungerPerTurn = playerConfig.hungerPerTurn ?? 1
+    // Устанавливаем урон от голода из конфига
+    hunger.damagePerTurn = playerConfig.hungerDamagePerTurn ?? 1
 
-    const starved = hunger.increase(hungerPerTurn)
-    if (starved) {
-      logger.info(LOG_MODULES.SYSTEM, '💀 Игрок умер от голода!')
+    const damaged = hunger.increase(hungerPerTurn)
+    if (damaged) {
       const health = entity.getComponent(HealthComponent)
-      if (health && !health.isDead) {
-        health.takeDamage(health.hp, 'physical')
+      if (health && health.isAlive) {
+        logger.info(LOG_MODULES.SYSTEM, `Голод! Потеряно ${hunger.damagePerTurn} HP (${health.hp}/${health.maxHp})`)
       }
     }
   }
@@ -223,7 +224,7 @@ export default class PlayerActions {
       if (targetAI && targetHealth && !targetHealth.isDead) {
         if (this.combatSystem) {
           if (!this._canAfford('attack')) return false
-          this.combatSystem.attackWithLog(entity, targetEntity, (e) => this.gameLoop.getEntityName(e))
+          this.combatSystem.attackWithLog(entity, targetEntity)
           // Если враг погиб — выпадает предмет по его dropPool (не более 1 предмета).
           if (targetHealth.isDead) {
             this._spawnEnemyDrop(targetEntity)
@@ -449,7 +450,7 @@ export default class PlayerActions {
 
     if (!this._canAfford('attack')) return false
 
-    this.combatSystem.attackWithLog(entity, nearest, (e) => this.gameLoop.getEntityName(e))
+    this.combatSystem.attackWithLog(entity, nearest)
     this._spendEnergy('attack')
     return true
   }

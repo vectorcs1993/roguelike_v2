@@ -60,7 +60,7 @@ export default class AISystem extends System {
       if (minDist <= combat.attackRange) {
         const combatSystem = this.engine.systems.find(s => s.name === 'CombatSystem')
         if (combatSystem) {
-          combatSystem.attackWithLog(enemy, nearestPlayer, (e) => this._getEntityName(e))
+          combatSystem.attackWithLog(enemy, nearestPlayer)
           return true
         }
       } else {

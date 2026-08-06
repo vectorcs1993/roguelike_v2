@@ -54,10 +54,11 @@ export default class CombatSystem extends System {
    * getName — функция, возвращающая имя сущности для логов.
    * Возвращает нанесённый урон (0 — промах/блок).
    */
-  attackWithLog(attacker, target, getName) {
+  attackWithLog(attacker, target) {
+
     const damage = this.attack(attacker, target)
-    const attackerName = getName ? getName(attacker) : (attacker.tag || 'Сущность')
-    const targetName = getName ? getName(target) : (target.tag || 'Сущность')
+    const attackerName = attacker.enemyData?.name || attacker.tag
+    const targetName = target.enemyData?.name || target.tag
     if (damage > 0) {
       logger.info(LOG_MODULES.COMBAT, `${attackerName} наносит ${damage} урона ${targetName}.`)
     } else {

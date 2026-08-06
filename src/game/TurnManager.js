@@ -129,8 +129,8 @@ export default class TurnManager {
     }
 
     this.turnCount++
-    const locationName = this.location?.name || 'Локация'
-    logger.info(LOG_MODULES.TURN, `${locationName}: Ход ${this.turnCount}`)
+    // const locationName = this.location?.name || 'Локация'
+    // logger.info(LOG_MODULES.TURN, `${locationName}: Ход ${this.turnCount}`)
   }
 
   /** Сбрасывает состояние хода (при перезагрузке локации). */

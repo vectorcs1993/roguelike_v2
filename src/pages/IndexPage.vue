@@ -146,7 +146,7 @@
               Инвентарь
               <q-badge color="grey-7" :label="totalItems" class="q-ml-xs" />
               <q-space />
-              <q-btn flat dense icon="delete_sweep" @click="dropAllItems" label="Выбросить всё" />
+              <q-btn dense @click="dropAllItems" label="Выбросить всё" />
             </div>
           </q-card-section>
           <q-separator dark />
@@ -162,7 +162,7 @@
                 <q-item-section>
                   <q-item-label>
                     {{ item.name }}
-                    <span v-if="item.count > 1" class="text-grey-6">({{ item.count }})</span>
+                    <q-badge v-if="item.count > 1" color="grey-7" :label="item.count" class="q-ml-xs" />
                   </q-item-label>
                   <q-item-label caption class="text-grey-6">Тип: {{ item.type }}</q-item-label>
                 </q-item-section>
@@ -206,7 +206,7 @@
                   </q-item-label>
                 </q-item-section>
                 <div class="row q-gutter-sm">
-                  <q-btn icon="center_focus_strong" label="Найти" dense @click.stop="highlightOnCharacter(ent.id)" dark />
+                  <q-btn label="Найти" dense @click.stop="highlightOnCharacter(ent.id)" dark />
                 </div>
               </q-item>
             </q-scroll-area>

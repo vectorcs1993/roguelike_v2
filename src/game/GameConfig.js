@@ -84,7 +84,8 @@ export const GameConfig = {
       fovRadius: player.fovRadius,
       xpPerLevel: player.xpPerLevel,
       maxLevel: player.maxLevel,
-      levelBonuses: player.levelBonuses
+      levelBonuses: player.levelBonuses,
+      hungerDamagePerTurn: player.hungerDamagePerTurn,
     }
   },
 

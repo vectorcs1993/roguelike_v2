@@ -12,6 +12,7 @@
     "hunger": 0,
     "maxHunger": 100,
     "hungerPerTurn": 1,
+    "hungerDamagePerTurn": 1,
     "armor": 0,
     "damageMin": 3,
     "damageMax": 6,
