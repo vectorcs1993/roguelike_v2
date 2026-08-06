@@ -9,6 +9,7 @@ import AIComponent from '../engine/components/AIComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
 import MovementComponent from '../engine/components/MovementComponent.js'
 import { logger, LOG_MODULES } from './Logger.js'
+import { GameConfig } from './GameConfig.js'
 
 export default class TurnManager {
   constructor(gameLoop) {
@@ -154,14 +155,17 @@ export default class TurnManager {
     logger.info(LOG_MODULES.TURN, `${locationName}: Ход ${this.turnCount}`)
   }
 
-  /** Увеличивает голод игрока на 1 за ход и убивает при достижении максимума. */
+  /** Увеличивает голод игрока за ход и убивает при достижении максимума. */
   _applyHunger() {
     const playerEntities = this.gameLoop.getPlayerEntities()
+    const playerConfig = GameConfig.getPlayer()
+    const hungerPerTurn = playerConfig.hungerPerTurn ?? 1
+
     for (const entity of playerEntities) {
       const hunger = entity.getComponent(HungerComponent)
       if (!hunger) continue
 
-      const starved = hunger.increase(1)
+      const starved = hunger.increase(hungerPerTurn)
       if (starved) {
         logger.info(LOG_MODULES.SYSTEM, 'Игрок умер от голода!')
         const health = entity.getComponent(HealthComponent)
