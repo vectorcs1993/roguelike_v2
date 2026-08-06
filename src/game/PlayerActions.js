@@ -516,7 +516,7 @@ export default class PlayerActions {
       effects: item.effects,
       usable: item.data.usable,
       description: item.data.description
-    })
+    }, this.location ? this.location.biomeId : null)
 
     this._makeVisible(itemEntity)
 

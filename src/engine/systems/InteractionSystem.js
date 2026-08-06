@@ -11,6 +11,7 @@ import RenderComponent from '../components/RenderComponent.js'
 import EntityFactory from '../EntityFactory.js'
 import { GameConfig } from '../../game/GameConfig.js'
 import { logger, LOG_MODULES } from '../../game/Logger.js'
+import { rollLoot } from '../../game/utils.js'
 
 export default class InteractionSystem extends System {
   constructor() {
@@ -78,20 +79,21 @@ export default class InteractionSystem extends System {
 
     logger.info(LOG_MODULES.ACTION, `Ящик разбит!`)
 
-    // Выпадение лута из конфига
-    const worldConfig = GameConfig.getWorldConfig()
-    const crateLoot = worldConfig.crateLoot || {}
-    const dropChance = crateLoot.dropChance !== undefined ? crateLoot.dropChance : 0.5
-    const items = crateLoot.items && crateLoot.items.length ? crateLoot.items : ['ticket']
-    const minCount = crateLoot.minCount !== undefined ? crateLoot.minCount : 0
-    const maxCount = crateLoot.maxCount !== undefined ? crateLoot.maxCount : 999
+    // Выпадение лута из cratePool текущего биома: { dropChance, items, minCount, maxCount }.
+    // items — объект вида { itemId: { chance, countMin, countMax } }.
+    const loc = this.engine.currentLocation
+    const biome = loc && loc.biomeId ? GameConfig.getBiome(loc.biomeId) : null
+    const cratePool = (biome && biome.cratePool) || {}
+    const dropChance = cratePool.dropChance !== undefined ? cratePool.dropChance : 0.5
+    const items = (cratePool.items && Object.keys(cratePool.items).length)
+      ? cratePool.items
+      : { ticket: { chance: 1, countMin: 1, countMax: 1 } }
 
     if (Math.random() < dropChance) {
-      const type = items[Math.floor(Math.random() * items.length)]
-      const count = Math.floor(Math.random() * (maxCount - minCount + 1)) + minCount
+      const drop = rollLoot(items)
 
-      if (count > 0) {
-        const itemEntity = EntityFactory.createItem(tileX, tileY, type, { count })
+      if (drop && drop.count > 0) {
+        const itemEntity = EntityFactory.createItem(tileX, tileY, drop.type, { count: drop.count }, loc ? loc.biomeId : null)
         itemEntity.engine = this.engine
         this.engine.addEntity(itemEntity)
 
@@ -101,7 +103,7 @@ export default class InteractionSystem extends System {
           itemRender.explored = true
         }
 
-        logger.info(LOG_MODULES.ACTION, `Из ящика выпало: ${type} x${count}`)
+        logger.info(LOG_MODULES.ACTION, `Из ящика выпало: ${drop.type} x${drop.count}`)
       }
     }
 
@@ -146,7 +148,7 @@ export default class InteractionSystem extends System {
   /** Создаёт пол на клетке (x, y) и делает его видимым (используется при разбитии ящика). */
   _createFloorAt(x, y) {
     const loc = this.engine.currentLocation
-    const floorEntity = EntityFactory.createFloor(x, y)
+    const floorEntity = EntityFactory.createFloor(x, y, loc ? loc.biomeId : null)
     floorEntity.engine = this.engine
     this.engine.addEntity(floorEntity)
 

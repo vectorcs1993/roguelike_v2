@@ -67,7 +67,7 @@ export default class EntityFactory {
     return entity
   }
 
-  static createEnemy(x, y, type, enemyData) {
+  static createEnemy(x, y, type, enemyData, biomeId = null) {
     const data = enemyData || GameConfig.getEnemy(type)
     if (!data) {
       logger.warn(LOG_MODULES.SYSTEM, `[EntityFactory] Неизвестный тип врага: ${type}`)
@@ -84,10 +84,7 @@ export default class EntityFactory {
     const render = new RenderComponent(char, color, bgColor)
     render.layer = layer
 
-    const visibilityConfig = GameConfig.getVisibilityConfig('enemy', type)
-    render.visible = visibilityConfig.visibleByDefault || false
-    render.explored = visibilityConfig.exploredByDefault || false
-    render._visibilityConfig = visibilityConfig
+    this._applyVisibility(render, 'enemy', type, biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -118,7 +115,7 @@ export default class EntityFactory {
     return entity
   }
 
-  static createFloor(x, y) {
+  static createFloor(x, y, biomeId = null) {
     const envData = GameConfig.getEnvironment('floor')
     const entity = new Entity('floor')
     const render = new RenderComponent(
@@ -128,10 +125,7 @@ export default class EntityFactory {
     )
     render.layer = envData.layer || 0
 
-    const visibilityConfig = GameConfig.getVisibilityConfig('environment', 'floor')
-    render.visible = visibilityConfig.visibleByDefault || false
-    render.explored = visibilityConfig.exploredByDefault || false
-    render._visibilityConfig = visibilityConfig
+    this._applyVisibility(render, 'environment', 'floor', biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -147,7 +141,7 @@ export default class EntityFactory {
     return entity
   }
 
-  static createWall(x, y) {
+  static createWall(x, y, biomeId = null) {
     const envData = GameConfig.getEnvironment('wall')
     const entity = new Entity('wall')
     const render = new RenderComponent(
@@ -157,10 +151,7 @@ export default class EntityFactory {
     )
     render.layer = envData.layer || 1
 
-    const visibilityConfig = GameConfig.getVisibilityConfig('environment', 'wall')
-    render.visible = visibilityConfig.visibleByDefault || false
-    render.explored = visibilityConfig.exploredByDefault || false
-    render._visibilityConfig = visibilityConfig
+    this._applyVisibility(render, 'environment', 'wall', biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -176,7 +167,7 @@ export default class EntityFactory {
     return entity
   }
 
-  static createDoor(x, y, locked = false, options = {}) {
+  static createDoor(x, y, locked = false, options = {}, biomeId = null) {
     const envData = GameConfig.getEnvironment('door')
     const closedState = envData.states?.closed || { char: '+', color: '#aa8866', bgColor: '#332211', solid: true, blocksSight: true }
     const openState = envData.states?.open || { char: '/', color: '#88cc88', bgColor: '#112211', solid: false, blocksSight: false }
@@ -194,10 +185,7 @@ export default class EntityFactory {
     const render = new RenderComponent(closedChar, closedColor, closedBgColor)
     render.layer = layer
 
-    const visibilityConfig = GameConfig.getVisibilityConfig('environment', 'door')
-    render.visible = visibilityConfig.visibleByDefault || false
-    render.explored = visibilityConfig.exploredByDefault || false
-    render._visibilityConfig = visibilityConfig
+    this._applyVisibility(render, 'environment', 'door', biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -224,7 +212,7 @@ export default class EntityFactory {
     return entity
   }
 
-  static createCrate(x, y) {
+  static createCrate(x, y, biomeId = null) {
     const envData = GameConfig.getEnvironment('crate')
     const entity = new Entity('crate')
     const render = new RenderComponent(
@@ -234,10 +222,7 @@ export default class EntityFactory {
     )
     render.layer = envData.layer || 1
 
-    const visibilityConfig = GameConfig.getVisibilityConfig('environment', 'crate')
-    render.visible = visibilityConfig.visibleByDefault || false
-    render.explored = visibilityConfig.exploredByDefault || false
-    render._visibilityConfig = visibilityConfig
+    this._applyVisibility(render, 'environment', 'crate', biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -253,7 +238,7 @@ export default class EntityFactory {
     return entity
   }
 
-  static createItem(x, y, itemType, config = {}) {
+  static createItem(x, y, itemType, config = {}, biomeId = null) {
     const baseData = GameConfig.getItem(itemType) || GameConfig.getItem('generic')
 
     const char = config.char || baseData.char || '?'
@@ -281,10 +266,7 @@ export default class EntityFactory {
     const render = new RenderComponent(char, color, bgColor)
     render.layer = layer
 
-    const visibilityConfig = GameConfig.getVisibilityConfig('item', itemType)
-    render.visible = visibilityConfig.visibleByDefault || false
-    render.explored = visibilityConfig.exploredByDefault || false
-    render._visibilityConfig = visibilityConfig
+    this._applyVisibility(render, 'item', itemType, biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -300,6 +282,17 @@ export default class EntityFactory {
       .addComponent(new ItemComponent({ item }))
 
     return entity
+  }
+
+  /**
+   * Применяет настройки видимости к render-компоненту с учётом биома.
+   * Приоритет: индивидуальные настройки сущности > настройки биома > значения по умолчанию.
+   */
+  static _applyVisibility(render, entityType, entityId, biomeId) {
+    const visibilityConfig = GameConfig.getVisibilityConfig(entityType, entityId, biomeId)
+    render.visible = visibilityConfig.visibleByDefault || false
+    render.explored = visibilityConfig.exploredByDefault || false
+    render._visibilityConfig = visibilityConfig
   }
 
   // ===== ВСПОМОГАТЕЛЬНЫЙ МЕТОД ДЛЯ КАСТОМНЫХ КОМПОНЕНТОВ =====

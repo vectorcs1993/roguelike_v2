@@ -268,51 +268,55 @@ export const GameConfig = {
 
   // ===== НАСТРОЙКИ ВИДИМОСТИ =====
 
-  getVisibilityConfig(entityType, entityId = null) {
+  getVisibilityConfig(entityType, entityId = null, biomeId = null) {
+    // Индивидуальные настройки сущности (базовый слой).
+    let entityVisibility = null
     if (entityId) {
       const entity = this.getEnemy(entityId) || this.getItem(entityId) || this.getEnvironment(entityId)
       if (entity && entity.visibility) {
-        return { ...entity.visibility }
+        entityVisibility = entity.visibility
       }
     }
 
+    // Мировые значения по умолчанию, поверх которых применяются
+    // настройки конкретного биома (биом переопределяет мир).
     const worldVisibility = GAME_CONFIG.world.visibility || {}
 
-    if (entityType === 'item') {
-      return {
+    // Настройки биома имеют наивысший приоритет и переопределяют
+    // как глобальные, так и индивидуальные настройки сущности.
+    const biomeVisibility = biomeId && GAME_CONFIG.biomes[biomeId]
+      ? (GAME_CONFIG.biomes[biomeId].visibility || {})
+      : {}
+
+    const defaults = {
+      item: {
         visibleByDefault: false,
         exploredByDefault: false,
         showWhenVisible: true,
-        showWhenExplored: false,
-        ...worldVisibility.items
+        showWhenExplored: false
+      },
+      enemy: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      },
+      environment: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: true
       }
     }
 
-    if (entityType === 'enemy') {
-      return {
-        visibleByDefault: false,
-        exploredByDefault: false,
-        showWhenVisible: true,
-        showWhenExplored: false,
-        ...worldVisibility.enemies
-      }
-    }
-
-    if (entityType === 'environment') {
-      return {
-        visibleByDefault: false,
-        exploredByDefault: false,
-        showWhenVisible: true,
-        showWhenExplored: true,
-        ...worldVisibility.environment
-      }
-    }
+    const base = defaults[entityType] || defaults.item
+    const category = entityType === 'enemy' ? 'enemies' : entityType === 'environment' ? 'environment' : 'items'
 
     return {
-      visibleByDefault: false,
-      exploredByDefault: false,
-      showWhenVisible: true,
-      showWhenExplored: false
+      ...base,
+      ...entityVisibility,
+      ...(worldVisibility[category] || {}),
+      ...(biomeVisibility[category] || {})
     }
   },
 
@@ -439,11 +443,32 @@ export const GameConfig = {
     return this
   },
 
+  /**
+   * Устанавливает глобальные (мировые) настройки видимости.
+   * entityType — 'items', 'enemies' или 'environment'.
+   */
   setVisibilityConfig(entityType, config) {
     if (!GAME_CONFIG.world.visibility) {
       GAME_CONFIG.world.visibility = {}
     }
     GAME_CONFIG.world.visibility[entityType] = { ...GAME_CONFIG.world.visibility[entityType], ...config }
+    return this
+  },
+
+  /**
+   * Устанавливает настройки видимости для конкретного биома
+   * (переопределяют глобальные настройки видимости).
+   * entityType — 'items', 'enemies' или 'environment'.
+   */
+  setBiomeVisibilityConfig(biomeId, entityType, config) {
+    if (!biomeId || !GAME_CONFIG.biomes[biomeId]) return this
+    if (!GAME_CONFIG.biomes[biomeId].visibility) {
+      GAME_CONFIG.biomes[biomeId].visibility = {}
+    }
+    GAME_CONFIG.biomes[biomeId].visibility[entityType] = {
+      ...GAME_CONFIG.biomes[biomeId].visibility[entityType],
+      ...config
+    }
     return this
   },
 

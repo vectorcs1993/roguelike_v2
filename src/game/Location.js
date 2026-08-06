@@ -16,9 +16,10 @@ import PositionComponent from '../engine/components/PositionComponent.js'
 import RenderComponent from '../engine/components/RenderComponent.js'
 
 export default class Location {
-  constructor(config, walls, entities, biomeName = null, walkableCells = null) {
+  constructor(config, walls, entities, biomeName = null, walkableCells = null, biomeId = null) {
     this.biomeName = biomeName || 'Неизвестная локация'
     this.name = this.biomeName
+    this.biomeId = biomeId || null
 
     const worldConfig = GameConfig.getWorldConfig()
     this.cols = config.cols || worldConfig.width
@@ -98,14 +99,14 @@ export default class Location {
       }
     }
 
-    const floorEntity = EntityFactory.createFloor(x, y)
+    const floorEntity = EntityFactory.createFloor(x, y, this.biomeId)
     this._addToGrid(x, y, 'floor', floorEntity)
   }
 
   setWalls(pillars) {
     for (const [x, y] of pillars) {
       if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
-        const wallEntity = EntityFactory.createWall(x, y)
+        const wallEntity = EntityFactory.createWall(x, y, this.biomeId)
         this._addToGrid(x, y, 'wall', wallEntity)
       }
     }
@@ -115,7 +116,7 @@ export default class Location {
     for (const d of doors) {
       const { x, y, locked } = d
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
-        const doorEntity = EntityFactory.createDoor(x, y, locked || false)
+        const doorEntity = EntityFactory.createDoor(x, y, locked || false, {}, this.biomeId)
         this._addToGrid(x, y, 'door', doorEntity)
       }
     }
@@ -208,7 +209,20 @@ export default class Location {
       const all = engine.getEntitiesWithComponents([RenderComponent])
       for (const entity of all) {
         const render = entity.getComponent(RenderComponent)
-        if (render) render.visible = false
+        if (!render) continue
+        // Учитываем настройки биома: если объект помечен как видимый по
+        // умолчанию, он не сбрасывается при пересчёте FOV.
+        const visConfig = render._visibilityConfig || {}
+        if (visConfig.visibleByDefault) {
+          render.visible = true
+        } else {
+          render.visible = false
+        }
+        // Объекты, исследованные по умолчанию, остаются исследованными
+        // даже вне текущего FOV.
+        if (visConfig.exploredByDefault) {
+          render.explored = true
+        }
       }
     }
 
@@ -260,7 +274,7 @@ export default class Location {
   }
 
   static generateProcedural(biomeType = null) {
-    const { biome, biomeName, worldConfig, genConfig } = this._selectBiome(biomeType)
+    const { selectedBiomeId, biome, biomeName, worldConfig, genConfig } = this._selectBiome(biomeType)
 
     const generator = new BiomeGenerator({
       width: worldConfig.width,
@@ -291,9 +305,13 @@ export default class Location {
       return isFree(x, y)
     })
 
-    // Определяем ящики и свободные клетки
-    const crateChance = genConfig.crateChance !== undefined ? genConfig.crateChance : (worldConfig.crateChance || 0.3)
-    const crateCount = Math.min(Math.floor(freeRoomCells.length * crateChance), freeRoomCells.length)
+    // Определяем ящики и свободные клетки. Количество ящиков берётся из
+    // cratePool биома (minCount..maxCount), ограниченное числом свободных клеток.
+    const cratePool = biome && biome.cratePool ? biome.cratePool : {}
+    const crateMin = cratePool.minCount !== undefined ? cratePool.minCount : 0
+    const crateMax = cratePool.maxCount !== undefined ? cratePool.maxCount : freeRoomCells.length
+    const crateTarget = Math.floor(Math.random() * (crateMax - crateMin + 1)) + crateMin
+    const crateCount = Math.min(crateTarget, freeRoomCells.length)
     const crates = freeRoomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
     const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`))
     const available = freeRoomCells.filter(c => !crateSet.has(c))
@@ -305,18 +323,19 @@ export default class Location {
     const player = EntityFactory.createPlayer(playerStart.x, playerStart.y)
     entities.push(player)
 
-    const enemyPositions = this._createEnemies(entities, biome, available, playerStart)
+    const enemyPositions = this._createEnemies(entities, biome, available, playerStart, selectedBiomeId)
 
     const location = new Location(
       { cols: width, rows: height },
       walls,
       entities,
       biomeName,
-      walkableCells
+      walkableCells,
+      selectedBiomeId
     )
 
-    this._placeCrates(location, crates)
-    this._placeItems(location, biome, available, playerStart, enemyPositions)
+    this._placeCrates(location, crates, selectedBiomeId)
+    this._placeItems(location, biome, available, playerStart, enemyPositions, selectedBiomeId)
     this._placeDoors(location, doorData)
     this._setupBaseVisibility(location)
 
@@ -348,50 +367,56 @@ export default class Location {
   }
 
   /** Создаёт врагов на свободных клетках и возвращает их позиции. */
-  static _createEnemies(entities, biome, available, playerStart) {
+  static _createEnemies(entities, biome, available, playerStart, biomeId = null) {
     const enemyPool = biome && biome.enemyPool ? biome.enemyPool : {
-      groaner: { chance: 0.6, countMin: 1, countMax: 3 },
-      crawler: { chance: 0.5, countMin: 1, countMax: 2 },
-      runner: { chance: 0.4, countMin: 1, countMax: 2 }
+      groaner: { chance: 0.3, countMin: 1, countMax: 2 },
+      crawler: { chance: 0.25, countMin: 1, countMax: 1 },
+      runner: { chance: 0.2, countMin: 1, countMax: 1 }
     }
 
     // Клетки, удалённые от старта игрока.
-    let freeCells = shuffle(available.filter(c => {
+    const freeCells = shuffle(available.filter(c => {
       const [x, y] = c.split(',').map(Number)
       return Math.abs(x - playerStart.x) + Math.abs(y - playerStart.y) > 5
     }))
 
+    // Верхний предел врагов на уровень, чтобы большие карты не генерировали
+    // сотни существ. Значение из биома (enemyMax) или безопасный дефолт.
+    const maxEnemies = (biome && biome.enemyMax) || 25
+
     const enemyPositions = []
 
-    // Бросаем пул на каждой клетке; плотность врагов регулируется только
-    // вероятностями в enemyPool. Выпавший тип размещается в количестве count
-    // на последовательных свободных клетках.
-    for (let idx = 0; idx < freeCells.length; idx++) {
+    // Бросаем пул на каждой клетке ровно один раз; каждый тип — независимый
+    // бросок (cumulative вероятность). Выпавший тип размещается в количестве
+    // count на последовательных клетках, затем пропускаем их через idx += count,
+    // чтобы одна и та же клетка не проверялась повторно.
+    let idx = 0
+    while (idx < freeCells.length && enemyPositions.length < maxEnemies) {
       const drop = rollLoot(enemyPool)
-      if (!drop) continue
+      if (!drop) { idx++; continue }
 
-      const count = Math.min(drop.count, freeCells.length)
+      const count = Math.min(drop.count, freeCells.length - idx, maxEnemies - enemyPositions.length)
       for (let i = 0; i < count; i++) {
-        const [x, y] = freeCells[i].split(',').map(Number)
+        const [x, y] = freeCells[idx + i].split(',').map(Number)
         const enemyData = GameConfig.getEnemy(drop.type)
         if (enemyData) {
-          const enemy = EntityFactory.createEnemy(x, y, drop.type, enemyData)
+          const enemy = EntityFactory.createEnemy(x, y, drop.type, enemyData, biomeId)
           if (enemy) {
             entities.push(enemy)
-            enemyPositions.push(freeCells[i])
+            enemyPositions.push(freeCells[idx + i])
           }
         }
       }
-      freeCells = freeCells.slice(count)
+      idx += count
     }
 
     return enemyPositions
   }
 
   /** Добавляет ящики на указанные клетки. */
-  static _placeCrates(location, crates) {
+  static _placeCrates(location, crates, biomeId = null) {
     for (const [x, y] of crates) {
-      const crateEntity = EntityFactory.createCrate(x, y)
+      const crateEntity = EntityFactory.createCrate(x, y, biomeId)
       location._addToGrid(x, y, 'crate', crateEntity)
     }
   }
@@ -403,7 +428,7 @@ export default class Location {
    * сработал, предмет размещается со случайным количеством в диапазоне
    * [countMin, countMax]. Если ни один предмет не выпал — клетка остаётся пустой.
    */
-  static _placeItems(location, biome, available, playerStart, enemyPositions) {
+  static _placeItems(location, biome, available, playerStart, enemyPositions, biomeId = null) {
     const itemPool = biome && biome.itemPool ? biome.itemPool : {
       health: { chance: 0.3, countMin: 1, countMax: 2 },
       ticket: { chance: 0.2, countMin: 1, countMax: 3 },
@@ -423,7 +448,7 @@ export default class Location {
       const drop = rollLoot(itemPool)
       if (!drop) continue
 
-      const itemEntity = EntityFactory.createItem(x, y, drop.type, { count: drop.count })
+      const itemEntity = EntityFactory.createItem(x, y, drop.type, { count: drop.count }, biomeId)
       location._addToGrid(x, y, 'item', itemEntity)
     }
   }
