@@ -4,6 +4,7 @@ import Fov from './Fov.js'
 import Pathfinder from './Pathfinder.js'
 import BiomeGenerator from './BiomeGenerator.js'
 import { GameConfig } from './GameConfig.js'
+import { shuffle, rollLoot } from './utils.js'
 import Engine from '../engine/Engine.js'
 import EntityFactory from '../engine/EntityFactory.js'
 import CombatSystem from '../engine/systems/CombatSystem.js'
@@ -70,62 +71,42 @@ export default class Location {
   addFloorTiles(walkableCells = null) {
     // Если переданы проходимые клетки (комнаты + коридоры) - добавляем пол только в них.
     // Иначе (для совместимости) - добавляем пол во все пустые клетки.
-    const cells = walkableCells || []
-    const useWalkable = walkableCells !== null
-
-    if (useWalkable) {
-      for (const [x, y] of cells) {
-        if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) continue
-        if (this.grid[y][x]) continue
-        const entitiesAt = this.engine.getEntitiesAt(x, y)
-        let hasWall = false
-        for (const entity of entitiesAt) {
-          const env = entity.getComponent(EnvironmentComponent)
-          if (env && (env.type === 'wall' || env.type === 'door' || env.type === 'crate')) {
-            hasWall = true
-            break
-          }
-        }
-        if (!hasWall) {
-          const floorEntity = EntityFactory.createFloor(x, y)
-          floorEntity.engine = this.engine
-          this.engine.addEntity(floorEntity)
-          this.grid[y][x] = { type: 'floor', entity: floorEntity }
-        }
+    if (walkableCells !== null) {
+      for (const [x, y] of walkableCells) {
+        this._addFloorAt(x, y)
       }
       return
     }
 
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
-        if (!this.grid[y][x]) {
-          const entitiesAt = this.engine.getEntitiesAt(x, y)
-          let hasWall = false
-          for (const entity of entitiesAt) {
-            const env = entity.getComponent(EnvironmentComponent)
-            if (env && (env.type === 'wall' || env.type === 'door' || env.type === 'crate')) {
-              hasWall = true
-              break
-            }
-          }
-          if (!hasWall) {
-            const floorEntity = EntityFactory.createFloor(x, y)
-            floorEntity.engine = this.engine
-            this.engine.addEntity(floorEntity)
-            this.grid[y][x] = { type: 'floor', entity: floorEntity }
-          }
-        }
+        this._addFloorAt(x, y)
       }
     }
+  }
+
+  /** Добавляет пол на клетку (x, y), если она пустая и не содержит стену/дверь/ящик. */
+  _addFloorAt(x, y) {
+    if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return
+    if (this.grid[y][x]) return
+
+    const entitiesAt = this.engine.getEntitiesAt(x, y)
+    for (const entity of entitiesAt) {
+      const env = entity.getComponent(EnvironmentComponent)
+      if (env && (env.type === 'wall' || env.type === 'door' || env.type === 'crate')) {
+        return
+      }
+    }
+
+    const floorEntity = EntityFactory.createFloor(x, y)
+    this._addToGrid(x, y, 'floor', floorEntity)
   }
 
   setWalls(pillars) {
     for (const [x, y] of pillars) {
       if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
         const wallEntity = EntityFactory.createWall(x, y)
-        wallEntity.engine = this.engine
-        this.engine.addEntity(wallEntity)
-        this.grid[y][x] = { type: 'wall', entity: wallEntity }
+        this._addToGrid(x, y, 'wall', wallEntity)
       }
     }
   }
@@ -135,11 +116,16 @@ export default class Location {
       const { x, y, locked } = d
       if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
         const doorEntity = EntityFactory.createDoor(x, y, locked || false)
-        doorEntity.engine = this.engine
-        this.engine.addEntity(doorEntity)
-        this.grid[y][x] = { type: 'door', entity: doorEntity }
+        this._addToGrid(x, y, 'door', doorEntity)
       }
     }
+  }
+
+  /** Регистрирует сущность в engine и записывает её в grid. */
+  _addToGrid(x, y, type, entity) {
+    entity.engine = this.engine
+    this.engine.addEntity(entity)
+    this.grid[y][x] = { type, entity }
   }
 
   isTileWalkable(x, y) {
@@ -230,19 +216,15 @@ export default class Location {
     // и карта не менялась — вычисление пропускается).
     const visibleCells = this.fov.computeVisibleCells(originX, originY, radius)
 
+    // За один проход помечаем сущности видимыми и исследованными.
     for (const { x, y } of visibleCells) {
       const entitiesAt = this.getEntitiesAt(x, y)
       for (const entity of entitiesAt) {
         const render = entity.getComponent(RenderComponent)
-        if (render) render.visible = true
-      }
-    }
-
-    const all = engine.getEntitiesWithComponents([RenderComponent])
-    for (const entity of all) {
-      const render = entity.getComponent(RenderComponent)
-      if (render && render.visible) {
-        render.explored = true
+        if (render) {
+          render.visible = true
+          render.explored = true
+        }
       }
     }
   }
@@ -362,11 +344,7 @@ export default class Location {
         }
       }
     }
-    for (let i = roomCells.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [roomCells[i], roomCells[j]] = [roomCells[j], roomCells[i]]
-    }
-    return roomCells
+    return shuffle(roomCells)
   }
 
   /** Создаёт врагов на свободных клетках и возвращает их позиции. */
@@ -400,9 +378,7 @@ export default class Location {
   static _placeCrates(location, crates) {
     for (const [x, y] of crates) {
       const crateEntity = EntityFactory.createCrate(x, y)
-      crateEntity.engine = location.engine
-      location.engine.addEntity(crateEntity)
-      location.grid[y][x] = { type: 'crate', entity: crateEntity }
+      location._addToGrid(x, y, 'crate', crateEntity)
     }
   }
 
@@ -428,34 +404,17 @@ export default class Location {
     const freeCells = available.filter(c => !occupiedByEntities.has(c))
 
     const numItems = Math.min(itemCount, freeCells.length)
-
-    for (let i = freeCells.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [freeCells[i], freeCells[j]] = [freeCells[j], freeCells[i]]
-    }
-    const selectedCells = freeCells.slice(0, numItems)
-
-    const poolEntries = Object.entries(itemPool)
+    const selectedCells = shuffle(freeCells).slice(0, numItems)
 
     for (const cell of selectedCells) {
       const [x, y] = cell.split(',').map(Number)
 
-      // Перебираем предметы пула и бросаем шанс для каждого.
-      for (const [type, cfg] of poolEntries) {
-        const chance = cfg.chance !== undefined ? cfg.chance : 0
-        if (Math.random() >= chance) continue
+      // Бросаем лут из пула; если ничего не выпало — клетка остаётся пустой.
+      const drop = rollLoot(itemPool)
+      if (!drop) continue
 
-        const countMin = cfg.countMin !== undefined ? cfg.countMin : 1
-        const countMax = cfg.countMax !== undefined ? cfg.countMax : countMin
-        const count = countMax > countMin ?
-          Math.floor(Math.random() * (countMax - countMin + 1)) + countMin :
-          countMin
-
-        const itemEntity = EntityFactory.createItem(x, y, type, { count })
-        itemEntity.engine = location.engine
-        location.engine.addEntity(itemEntity)
-        break
-      }
+      const itemEntity = EntityFactory.createItem(x, y, drop.type, { count: drop.count })
+      location._addToGrid(x, y, 'item', itemEntity)
     }
   }
 
@@ -495,11 +454,7 @@ export default class Location {
   }
 
   static findStartInRoom(rooms, isFree, occupiedSet) {
-    const shuffled = [...rooms]
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-    }
+    const shuffled = shuffle([...rooms])
 
     for (const room of shuffled) {
       const candidates = []

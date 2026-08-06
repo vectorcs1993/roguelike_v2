@@ -8,7 +8,7 @@ import CombatComponent from '../components/CombatComponent.js'
 import PlayerComponent from '../components/PlayerComponent.js'
 import RenderComponent from '../components/RenderComponent.js'
 import MovementComponent from '../components/MovementComponent.js'
-import { logger, LOG_MODULES } from '../../game/Logger.js'
+import { shuffle } from '../../game/utils.js'
 
 export default class AISystem extends System {
   constructor() {
@@ -27,14 +27,11 @@ export default class AISystem extends System {
 
     if (!ai || !pos || !combat || !health || health.isDead) return false
 
-    const players = this.engine.getEntitiesWithComponents([
+    const players = this.engine.getLivingEntitiesWithComponents([
       PlayerComponent,
       PositionComponent,
       HealthComponent
-    ]).filter(p => {
-      const h = p.getComponent(HealthComponent)
-      return h && !h.isDead
-    })
+    ])
 
     if (players.length === 0) {
       this.wander(enemy, location)
@@ -63,14 +60,7 @@ export default class AISystem extends System {
       if (minDist <= combat.attackRange) {
         const combatSystem = this.engine.systems.find(s => s.name === 'CombatSystem')
         if (combatSystem) {
-          const damage = combatSystem.attack(enemy, nearestPlayer)
-          const enemyName = this._getEntityName(enemy)
-          const playerName = this._getEntityName(nearestPlayer)
-          if (damage > 0) {
-            logger.info(LOG_MODULES.COMBAT, `${enemyName} наносит ${damage} урона ${playerName}.`)
-          } else {
-            logger.info(LOG_MODULES.COMBAT, `${enemyName} промахивается по ${playerName}.`)
-          }
+          combatSystem.attackWithLog(enemy, nearestPlayer, (e) => this._getEntityName(e))
           return true
         }
       } else {
@@ -148,11 +138,7 @@ export default class AISystem extends System {
     if (!pos) return
 
     // Случайное направление
-    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]]
-    for (let i = dirs.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-        ;[dirs[i], dirs[j]] = [dirs[j], dirs[i]]
-    }
+    const dirs = shuffle([[1, 0], [-1, 0], [0, 1], [0, -1]])
 
     for (const [dx, dy] of dirs) {
       const nx = pos.tileX + dx

@@ -91,11 +91,7 @@ export default class GameLoop {
 
   getPlayerEntities() {
     const engine = this.currentLocation.engine
-    return engine.getEntitiesWithComponents([PlayerComponent, PositionComponent, HealthComponent])
-      .filter(e => {
-        const health = e.getComponent(HealthComponent)
-        return health && !health.isDead
-      })
+    return engine.getLivingEntitiesWithComponents([PlayerComponent, PositionComponent, HealthComponent])
   }
 
   getEntityName(entity) {

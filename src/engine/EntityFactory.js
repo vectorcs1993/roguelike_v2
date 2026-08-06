@@ -299,13 +299,6 @@ export default class EntityFactory {
       }))
       .addComponent(new ItemComponent({ item }))
 
-    // Обратная совместимость: поля на сущности для кода, который ещё
-    // обращается к ним напрямую.
-    entity.itemData = item.data
-    entity.itemType = item.type
-    entity.itemCount = item.count
-    entity.itemEffects = { ...item.effects }
-
     return entity
   }
 

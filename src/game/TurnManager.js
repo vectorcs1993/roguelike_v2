@@ -35,11 +35,7 @@ export default class TurnManager {
   /** Обновляет список живых врагов из текущей локации. */
   updateEnemyList() {
     this.enemyList = this.engine
-      .getEntitiesWithComponents([AIComponent, PositionComponent, HealthComponent])
-      .filter(e => {
-        const health = e.getComponent(HealthComponent)
-        return health && !health.isDead
-      })
+      .getLivingEntitiesWithComponents([AIComponent, PositionComponent, HealthComponent])
   }
 
   /** Завершает ход игрока и запускает ход врагов. */
@@ -57,10 +53,6 @@ export default class TurnManager {
     if (this.isPlayerTurn || this.isProcessingEnemyTurn) return
 
     this.updateEnemyList()
-    this.enemyList = this.enemyList.filter(e => {
-      const health = e.getComponent(HealthComponent)
-      return health && !health.isDead
-    })
 
     if (this.enemyList.length === 0) {
       this.endEnemyTurn()
@@ -81,10 +73,6 @@ export default class TurnManager {
     }
 
     this.updateEnemyList()
-    this.enemyList = this.enemyList.filter(e => {
-      const health = e.getComponent(HealthComponent)
-      return health && !health.isDead
-    })
 
     if (this.enemyList.length === 0 || this.enemyTurnIndex >= this.enemyList.length) {
       this.isProcessingEnemyTurn = false

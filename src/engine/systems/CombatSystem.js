@@ -5,6 +5,7 @@ import PositionComponent from '../components/PositionComponent.js'
 import HealthComponent from '../components/HealthComponent.js'
 import CombatComponent from '../components/CombatComponent.js'
 import RenderComponent from '../components/RenderComponent.js'
+import { logger, LOG_MODULES } from '../../game/Logger.js'
 
 export default class CombatSystem extends System {
   constructor() {
@@ -46,6 +47,23 @@ export default class CombatSystem extends System {
     }
 
     return actualDamage
+  }
+
+  /**
+   * Выполняет атаку и логирует результат (попадание/промах).
+   * getName — функция, возвращающая имя сущности для логов.
+   * Возвращает нанесённый урон (0 — промах/блок).
+   */
+  attackWithLog(attacker, target, getName) {
+    const damage = this.attack(attacker, target)
+    const attackerName = getName ? getName(attacker) : (attacker.tag || 'Сущность')
+    const targetName = getName ? getName(target) : (target.tag || 'Сущность')
+    if (damage > 0) {
+      logger.info(LOG_MODULES.COMBAT, `${attackerName} наносит ${damage} урона ${targetName}.`)
+    } else {
+      logger.info(LOG_MODULES.COMBAT, `${attackerName} промахивается по ${targetName}.`)
+    }
+    return damage
   }
 
   /** Запускает вспышку на сущности, если у неё есть RenderComponent. */

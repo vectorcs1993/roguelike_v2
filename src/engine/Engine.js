@@ -48,6 +48,17 @@ export default class Engine {
     })
   }
 
+  /**
+   * Возвращает активные сущности с указанными компонентами, у которых
+   * HealthComponent (если есть) не мёртв.
+   */
+  getLivingEntitiesWithComponents(componentClasses) {
+    return this.getEntitiesWithComponents(componentClasses).filter(e => {
+      const health = e.getComponent(HealthComponent)
+      return !health || !health.isDead
+    })
+  }
+
   getEnemyEntities() {
     return this.getEntitiesWithComponents([AIComponent, HealthComponent])
   }
@@ -103,16 +114,18 @@ export default class Engine {
 
   getBlockedCells(excludeEntity = null) {
     const blocked = []
+    const seen = new Set()
     for (const entity of this.entities) {
       if (!entity.active) continue
       if (entity === excludeEntity) continue
       const pos = entity.getComponent(PositionComponent)
-      if (pos) {
-        const health = entity.getComponent(HealthComponent)
-        if (health) {
-          blocked.push({ x: pos.tileX, y: pos.tileY })
-        }
-      }
+      if (!pos) continue
+      const health = entity.getComponent(HealthComponent)
+      if (!health) continue
+      const key = `${pos.tileX},${pos.tileY}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      blocked.push({ x: pos.tileX, y: pos.tileY })
     }
     return blocked
   }

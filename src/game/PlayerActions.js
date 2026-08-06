@@ -13,10 +13,12 @@ import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
 import ItemComponent from '../engine/components/ItemComponent.js'
 import InventoryComponent from '../engine/components/InventoryComponent.js'
 import EntityFactory from '../engine/EntityFactory.js'
+import Item from '../engine/Item.js'
 import EnergyComponent from '../engine/components/EnergyComponent.js'
 import { logger, LOG_MODULES } from './Logger.js'
 import { GameConfig } from './GameConfig.js'
 import { applyItemEffects, isItemUsable } from './ItemEffects.js'
+import { rollLoot } from './utils.js'
 
 export default class PlayerActions {
   constructor(gameLoop) {
@@ -51,8 +53,8 @@ export default class PlayerActions {
   }
 
   /**
-   * Проверяет, достаточно ли энергии для действия. Если не хватает —
-   * игрок автоматически ждёт (пропускает ход), возвращается false.
+   * Проверяет, достаточно ли энергии для действия. Возвращает true,
+   * если энергии хватает (или у сущности нет энергии). Побочных эффектов нет.
    */
   _canAfford(actionType) {
     const entity = this.gameLoop.selectedEntity
@@ -61,8 +63,7 @@ export default class PlayerActions {
 
     const cost = this._getEnergyCost(actionType)
     if (!energy.isSufficient(cost)) {
-      logger.info(LOG_MODULES.ACTION, `Недостаточно энергии для действия (нужно ${cost}, есть ${energy.energy}). Игрок автоматически ждёт.`)
-      this.wait()
+      logger.info(LOG_MODULES.ACTION, `Недостаточно энергии для действия (нужно ${cost}, есть ${energy.energy}).`)
       return false
     }
     return true
@@ -98,14 +99,6 @@ export default class PlayerActions {
         health.takeDamage(health.hp, 'physical')
       }
     }
-  }
-
-  /**
-   * Сбрасывает счётчик действий игрока. Оставлено для обратной совместимости
-   * (в энергетической системе счётчик действий не используется).
-   */
-  resetActions() {
-    // no-op
   }
 
   /**
@@ -176,7 +169,7 @@ export default class PlayerActions {
         const env = targetEntity.getComponent(EnvironmentComponent)
         if (env && env.isInteractive) {
           if (!this._canAfford('interact')) return false
-          const success = this.interactionSystem.interact(entity, targetEntity, newX, newY)
+          const success = this.interactionSystem.interact(entity, targetEntity)
           if (success) {
             this._spendEnergy('interact')
             return true
@@ -195,14 +188,7 @@ export default class PlayerActions {
       if (targetAI && targetHealth && !targetHealth.isDead) {
         if (this.combatSystem) {
           if (!this._canAfford('attack')) return false
-          const damage = this.combatSystem.attack(entity, targetEntity)
-          const attackerName = this.gameLoop.getEntityName(entity)
-          const targetName = this.gameLoop.getEntityName(targetEntity)
-          if (damage > 0) {
-            logger.info(LOG_MODULES.COMBAT, `${attackerName} наносит ${damage} урона ${targetName}.`)
-          } else {
-            logger.info(LOG_MODULES.COMBAT, `${attackerName} промахивается по ${targetName}.`)
-          }
+          this.combatSystem.attackWithLog(entity, targetEntity, (e) => this.gameLoop.getEntityName(e))
           // Если враг погиб — выпадает предмет по его dropPool (не более 1 предмета).
           if (targetHealth.isDead) {
             this._spawnEnemyDrop(targetEntity)
@@ -294,27 +280,13 @@ export default class PlayerActions {
     const x = pos.tileX
     const y = pos.tileY
 
-    if (!this.location.isTileWalkable(x, y)) {
-      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]]
-      let placed = false
-      for (const [dx, dy] of dirs) {
-        const nx = x + dx, ny = y + dy
-        if (nx >= 0 && nx < this.location.cols &&
-          ny >= 0 && ny < this.location.rows &&
-          this.location.isTileWalkable(nx, ny)) {
-          this._createItemEntity(nx, ny, item)
-          placed = true
-          break
-        }
-      }
-      if (!placed) {
-        inv.addItem(item)
-        logger.info(LOG_MODULES.ACTION, 'Нет места для выброса предмета')
-        return false
-      }
-    } else {
-      this._createItemEntity(x, y, item)
+    const dropCell = this._findDropCell(x, y)
+    if (!dropCell) {
+      inv.addItem(item)
+      logger.info(LOG_MODULES.ACTION, 'Нет места для выброса предмета')
+      return false
     }
+    this._createItemEntity(dropCell.x, dropCell.y, item)
 
     const remaining = inv.getItemCount(itemId)
     const countMsg = remaining > 0 ? ` (осталось ${remaining})` : ''
@@ -343,31 +315,12 @@ export default class PlayerActions {
         const pos = entity.getComponent(PositionComponent)
         if (!pos) break
 
-        const x = pos.tileX
-        const y = pos.tileY
+        const dropCell = this._findDropCell(pos.tileX, pos.tileY, true)
+        if (!dropCell) break
 
-        let placed = false
-        const dirs = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]
-        for (const [dx, dy] of dirs) {
-          const nx = x + dx, ny = y + dy
-          if (nx >= 0 && nx < this.location.cols &&
-            ny >= 0 && ny < this.location.rows &&
-            this.location.isTileWalkable(nx, ny)) {
-            // Проверяем, нет ли уже предмета на клетке (предметы лежат на своём слое)
-            const hasItem = this.engine.getEntitiesAt(nx, ny)
-              .some(e => e.getComponent(ItemComponent))
-            if (!hasItem) {
-              this._createItemEntity(nx, ny, item)
-              placed = true
-              break
-            }
-          }
-        }
-
-        if (placed) {
-          totalDropped++
-          inv.removeItem(item.id, 1)
-        }
+        this._createItemEntity(dropCell.x, dropCell.y, item)
+        totalDropped++
+        inv.removeItem(item.id, 1)
       }
     }
 
@@ -461,14 +414,7 @@ export default class PlayerActions {
 
     if (!this._canAfford('attack')) return false
 
-    const damage = this.combatSystem.attack(entity, nearest)
-    const attackerName = this.gameLoop.getEntityName(entity)
-    const targetName = this.gameLoop.getEntityName(nearest)
-    if (damage > 0) {
-      logger.info(LOG_MODULES.COMBAT, `${attackerName} наносит ${damage} урона ${targetName}.`)
-    } else {
-      logger.info(LOG_MODULES.COMBAT, `${attackerName} промахивается по ${targetName}.`)
-    }
+    this.combatSystem.attackWithLog(entity, nearest, (e) => this.gameLoop.getEntityName(e))
     this._spendEnergy('attack')
     return true
   }
@@ -522,32 +468,40 @@ export default class PlayerActions {
 
     const enemyData = enemyEntity.enemyData || {}
     const dropPool = enemyData.dropPool
-    if (!dropPool || typeof dropPool !== 'object' || Object.keys(dropPool).length === 0) return
+    if (!dropPool) return
 
     const pos = enemyEntity.getComponent(PositionComponent)
     if (!pos) return
 
-    const poolEntries = Object.entries(dropPool)
-    for (const [type, cfg] of poolEntries) {
-      const chance = cfg.chance !== undefined ? cfg.chance : 0
-      if (Math.random() >= chance) continue
+    const drop = rollLoot(dropPool)
+    if (!drop) return
 
-      const countMin = cfg.countMin !== undefined ? cfg.countMin : 1
-      const countMax = cfg.countMax !== undefined ? cfg.countMax : countMin
-      const count = countMax > countMin ?
-        Math.floor(Math.random() * (countMax - countMin + 1)) + countMin :
-        countMin
+    // Переиспользуем общий метод создания предмета на земле.
+    const baseData = GameConfig.getItem(drop.type) || GameConfig.getItem('generic') || {}
+    const item = new Item({ ...baseData, type: drop.type }, drop.count)
+    this._createItemEntity(pos.tileX, pos.tileY, item)
+  }
 
-      const itemEntity = EntityFactory.createItem(pos.tileX, pos.tileY, type, { count })
-      const render = itemEntity.getComponent(RenderComponent)
-      if (render) {
-        render.visible = true
-        render.explored = true
+  /**
+   * Находит клетку для выброса предмета рядом с (x, y).
+   * Сначала пробует саму клетку, затем соседние. Если checkNoItem — пропускает
+   * клетки, где уже лежит предмет. Возвращает { x, y } или null.
+   */
+  _findDropCell(x, y, checkNoItem = false) {
+    const dirs = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]
+    for (const [dx, dy] of dirs) {
+      const nx = x + dx, ny = y + dy
+      if (nx < 0 || nx >= this.location.cols ||
+        ny < 0 || ny >= this.location.rows) continue
+      if (!this.location.isTileWalkable(nx, ny)) continue
+      if (checkNoItem) {
+        const hasItem = this.engine.getEntitiesAt(nx, ny)
+          .some(e => e.getComponent(ItemComponent))
+        if (hasItem) continue
       }
-      itemEntity.engine = this.engine
-      this.engine.addEntity(itemEntity)
-      break
+      return { x: nx, y: ny }
     }
+    return null
   }
 
   /** Создаёт сущность предмета на указанной клетке (поверх существующего пола). */
@@ -564,11 +518,7 @@ export default class PlayerActions {
       description: item.data.description
     })
 
-    const render = itemEntity.getComponent(RenderComponent)
-    if (render) {
-      render.visible = true
-      render.explored = true
-    }
+    this._makeVisible(itemEntity)
 
     const env = itemEntity.getComponent(EnvironmentComponent)
     if (env) {
@@ -577,5 +527,14 @@ export default class PlayerActions {
 
     itemEntity.engine = this.engine
     this.engine.addEntity(itemEntity)
+  }
+
+  /** Делает сущность видимой и исследованной (для предметов на земле). */
+  _makeVisible(entity) {
+    const render = entity.getComponent(RenderComponent)
+    if (render) {
+      render.visible = true
+      render.explored = true
+    }
   }
 }
