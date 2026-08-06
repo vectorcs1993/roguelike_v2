@@ -1,0 +1,1246 @@
+{
+  "version": "1.0.0",
+  "player": {
+    "id": "player",
+    "name": "Игрок",
+    "char": "@",
+    "color": "#88ff88",
+    "bgColor": "#1a3a1a",
+    "layer": 4,
+    "hp": 55,
+    "maxHp": 55,
+    "hunger": 0,
+    "maxHunger": 100,
+    "hungerPerTurn": 1,
+    "hungerDamagePerTurn": 1,
+    "armor": 0,
+    "damageMin": 3,
+    "damageMax": 6,
+    "damageType": "physical",
+    "range": 1,
+    "initiative": 6,
+    "accuracy": 0.75,
+    "fovRadius": 6,
+    "speed": 1,
+    "xpPerLevel": 20,
+    "maxLevel": 20,
+    "maxCarryWeight": 10,
+    "energy": 100,
+    "maxEnergy": 100,
+    "energyRegen": 15,
+    "energyCosts": {
+      "move": 1,
+      "attack": 1,
+      "useItem": 2,
+      "pickup": 2,
+      "wait": 0,
+      "interact": 2
+    },
+    "levelBonuses": {
+      "hp": 5,
+      "damage": 1,
+      "accuracy": 0.01
+    }
+  },
+  "enemies": {
+    "groaner": {
+      "id": "groaner",
+      "name": "Стонущий",
+      "char": "g",
+      "color": "#88aa88",
+      "bgColor": "#1a2a1a",
+      "layer": 3,
+      "hp": 12,
+      "maxHp": 12,
+      "damageMin": 2,
+      "damageMax": 4,
+      "damageType": "physical",
+      "range": 1,
+      "accuracy": 0.6,
+      "initiative": 4,
+      "speed": 1,
+      "aiType": "aggressive",
+      "aggressionRange": 6,
+      "fovRadius": 6,
+      "xp": 10,
+      "description": "Медленный, но опасный вблизи",
+      "dropPool": {
+        "ticket": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "health": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 1
+        }
+      }
+    },
+    "crawler": {
+      "id": "crawler",
+      "name": "Ползун",
+      "char": "c",
+      "color": "#cc8844",
+      "bgColor": "#2a1a0a",
+      "layer": 3,
+      "hp": 8,
+      "maxHp": 8,
+      "damageMin": 1,
+      "damageMax": 3,
+      "damageType": "physical",
+      "range": 1,
+      "accuracy": 0.5,
+      "initiative": 3,
+      "speed": 1,
+      "aiType": "aggressive",
+      "aggressionRange": 4,
+      "fovRadius": 4,
+      "xp": 8,
+      "description": "Слабый, но быстрый",
+      "dropPool": {
+        "ticket": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "potion": {
+          "chance": 0.1,
+          "countMin": 1,
+          "countMax": 1
+        }
+      }
+    },
+    "runner": {
+      "id": "runner",
+      "name": "Бегун",
+      "char": "r",
+      "color": "#ff6644",
+      "bgColor": "#2a0a0a",
+      "layer": 3,
+      "hp": 6,
+      "maxHp": 6,
+      "damageMin": 1,
+      "damageMax": 2,
+      "damageType": "physical",
+      "range": 1,
+      "accuracy": 0.4,
+      "initiative": 8,
+      "speed": 2,
+      "aiType": "aggressive",
+      "aggressionRange": 10,
+      "fovRadius": 8,
+      "xp": 6,
+      "description": "Быстрый, но хрупкий",
+      "dropPool": {
+        "ticket": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "coffee": {
+          "chance": 0.1,
+          "countMin": 1,
+          "countMax": 1
+        }
+      }
+    },
+    "brute": {
+      "id": "brute",
+      "name": "Громила",
+      "char": "B",
+      "color": "#ff4444",
+      "bgColor": "#2a0a0a",
+      "layer": 3,
+      "hp": 25,
+      "maxHp": 25,
+      "damageMin": 5,
+      "damageMax": 9,
+      "damageType": "physical",
+      "range": 1,
+      "accuracy": 0.65,
+      "initiative": 2,
+      "speed": 1,
+      "aiType": "aggressive",
+      "aggressionRange": 5,
+      "fovRadius": 5,
+      "xp": 20,
+      "description": "Медленный, но очень сильный",
+      "dropPool": {
+        "ticket": {
+          "chance": 0.4,
+          "countMin": 2,
+          "countMax": 5
+        },
+        "weapon": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "armor": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 1
+        }
+      }
+    },
+    "shadow": {
+      "id": "shadow",
+      "name": "Тень",
+      "char": "S",
+      "color": "#8888cc",
+      "bgColor": "#0a0a1a",
+      "layer": 3,
+      "hp": 10,
+      "maxHp": 10,
+      "damageMin": 3,
+      "damageMax": 6,
+      "damageType": "shadow",
+      "range": 2,
+      "accuracy": 0.7,
+      "initiative": 7,
+      "speed": 2,
+      "aiType": "aggressive",
+      "aggressionRange": 8,
+      "fovRadius": 10,
+      "xp": 15,
+      "description": "Атакует издалека",
+      "dropPool": {
+        "ticket": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "scroll": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "coffee": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 2
+        }
+      }
+    },
+    "boss": {
+      "id": "boss",
+      "name": "Босс",
+      "char": "&",
+      "color": "#ff4444",
+      "bgColor": "#2a0000",
+      "layer": 4,
+      "hp": 50,
+      "maxHp": 50,
+      "damageMin": 8,
+      "damageMax": 14,
+      "damageType": "physical",
+      "range": 1,
+      "accuracy": 0.75,
+      "initiative": 4,
+      "speed": 1,
+      "aiType": "boss",
+      "aggressionRange": 12,
+      "fovRadius": 12,
+      "xp": 50,
+      "description": "Опасный противник",
+      "dropPool": {
+        "ticket": {
+          "chance": 0.6,
+          "countMin": 5,
+          "countMax": 10
+        },
+        "weapon": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "armor": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "scroll": {
+          "chance": 0.25,
+          "countMin": 1,
+          "countMax": 2
+        }
+      }
+    }
+  },
+  "environment": {
+    "floor": {
+      "id": "floor",
+      "name": "Пол",
+      "char": ".",
+      "color": "#333333",
+      "bgColor": "#1a1a1a",
+      "solid": false,
+      "blocksSight": false,
+      "isInteractive": false,
+      "isCollectible": false,
+      "layer": 0,
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": true
+      }
+    },
+    "wall": {
+      "id": "wall",
+      "name": "Стена",
+      "char": "#",
+      "color": "#666666",
+      "bgColor": "#333333",
+      "solid": true,
+      "blocksSight": true,
+      "isInteractive": false,
+      "isCollectible": false,
+      "layer": 1,
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": true
+      }
+    },
+    "door": {
+      "id": "door",
+      "name": "Дверь",
+      "char": "+",
+      "color": "#aa8866",
+      "bgColor": "#332211",
+      "solid": true,
+      "blocksSight": true,
+      "isInteractive": true,
+      "isCollectible": false,
+      "layer": 1,
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": true
+      },
+      "states": {
+        "open": {
+          "char": "/",
+          "color": "#88cc88",
+          "bgColor": "#112211",
+          "solid": false,
+          "blocksSight": false
+        },
+        "closed": {
+          "char": "+",
+          "color": "#aa8866",
+          "bgColor": "#332211",
+          "solid": true,
+          "blocksSight": true
+        }
+      }
+    },
+    "crate": {
+      "id": "crate",
+      "name": "Ящик",
+      "char": "■",
+      "color": "#aa8844",
+      "bgColor": "#332211",
+      "solid": true,
+      "blocksSight": false,
+      "isInteractive": true,
+      "isCollectible": false,
+      "layer": 1,
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    }
+  },
+  "items": {
+    "ticket": {
+      "id": "ticket",
+      "name": "Талоны",
+      "char": "$",
+      "color": "#ffdd44",
+      "bgColor": "#2a1a00",
+      "layer": 2,
+      "type": "currency",
+      "category": "ticket",
+      "value": 1,
+      "weight": 0.01,
+      "usable": false,
+      "effects": {},
+      "description": "Местная валюта",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    },
+    "bread": {
+      "id": "bread",
+      "name": "Хлеб",
+      "char": "b",
+      "color": "#e8c07a",
+      "bgColor": "#3a2a10",
+      "layer": 2,
+      "type": "consumable",
+      "category": "food",
+      "value": 5,
+      "weight": 0.4,
+      "usable": true,
+      "effects": {
+        "restoreHunger": 20
+      },
+      "description": "Утоляет голод на 20",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    },
+    "health": {
+      "id": "health",
+      "name": "Аптечка",
+      "char": "♥",
+      "color": "#ff4444",
+      "bgColor": "#2a0a0a",
+      "layer": 2,
+      "type": "consumable",
+      "category": "healing",
+      "value": 10,
+      "weight": 0.5,
+      "usable": true,
+      "effects": {
+        "heal": 15
+      },
+      "description": "Восстанавливает 15 HP",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    },
+    "coffee": {
+      "id": "coffee",
+      "name": "Кофе",
+      "char": "☕",
+      "color": "#c8a06a",
+      "bgColor": "#2a1a0a",
+      "layer": 2,
+      "type": "consumable",
+      "category": "energy",
+      "value": 8,
+      "weight": 0.3,
+      "usable": true,
+      "effects": {
+        "restoreEnergy": 10
+      },
+      "description": "Восстанавливает 10 энергии",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    },
+    "weapon": {
+      "id": "weapon",
+      "name": "Оружие",
+      "char": "⚔",
+      "color": "#ffaa44",
+      "bgColor": "#2a1a0a",
+      "layer": 2,
+      "type": "weapon",
+      "category": "melee",
+      "value": 15,
+      "weight": 3.0,
+      "usable": true,
+      "effects": {
+        "damageBonus": 3
+      },
+      "description": "Увеличивает урон на 3",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    },
+    "armor": {
+      "id": "armor",
+      "name": "Броня",
+      "char": "♠",
+      "color": "#44aaff",
+      "bgColor": "#0a1a2a",
+      "layer": 2,
+      "type": "armor",
+      "category": "body",
+      "value": 12,
+      "weight": 4.0,
+      "usable": true,
+      "effects": {
+        "armorBonus": 2
+      },
+      "description": "Увеличивает броню на 2",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    },
+    "potion": {
+      "id": "potion",
+      "name": "Зелье",
+      "char": "!",
+      "color": "#ff66ff",
+      "bgColor": "#1a0a1a",
+      "layer": 2,
+      "type": "consumable",
+      "category": "healing",
+      "value": 8,
+      "weight": 0.3,
+      "usable": true,
+      "effects": {
+        "heal": 8
+      },
+      "description": "Восстанавливает 8 HP",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    },
+    "scroll": {
+      "id": "scroll",
+      "name": "Свиток",
+      "char": "?",
+      "color": "#dddd88",
+      "bgColor": "#1a1a0a",
+      "layer": 2,
+      "type": "consumable",
+      "category": "magic",
+      "value": 12,
+      "weight": 0.1,
+      "usable": true,
+      "effects": {
+        "identify": true
+      },
+      "description": "Идентифицирует предмет",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    }
+  },
+  "biomes": {
+    "residential": {
+      "id": "residential",
+      "name": "Жилой этаж",
+      "enemyMax": 25,
+      "description": "Заброшенные жилые квартиры самосбора Гигахруща. Коридоры, комнаты и общие кухни, где обитают бывшие жильцы.",
+      "generation": {
+        "minRoomSize": 4,
+        "maxRoomSize": 8,
+        "maxRooms": 22,
+        "doorChance": 0.6
+      },
+      "enemyPool": {
+        "groaner": {
+          "chance": 0.35,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "crawler": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "runner": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
+      "itemPool": {
+        "ticket": {
+          "chance": 0.04,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "bread": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "health": {
+          "chance": 0.04,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "potion": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "weapon": {
+          "chance": 0.015,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
+      "cratePool": {
+        "dropChance": 0.2,
+        "items": {
+          "ticket": {
+            "chance": 0.05,
+            "countMin": 1,
+            "countMax": 2
+          },
+          "bread": {
+            "chance": 0.04,
+            "countMin": 1,
+            "countMax": 1
+          },
+          "health": {
+            "chance": 0.05,
+            "countMin": 1,
+            "countMax": 1
+          }
+        },
+        "minCount": 1,
+        "maxCount": 4
+      },
+      "colors": {
+        "floor": "#3a3a3a",
+        "wall": "#6a6a6a",
+        "background": "#0d0d0d"
+      },
+      "visibility": {
+        "items": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "enemies": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "environment": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": true
+        }
+      }
+    },
+    "factory": {
+      "id": "factory",
+      "name": "Фабрика",
+      "enemyMax": 20,
+      "description": "Производственные цеха Гигахруща. Конвейеры, станки и роботы, сошедшие с ума.",
+      "generation": {
+        "minRoomSize": 6,
+        "maxRoomSize": 12,
+        "maxRooms": 14,
+        "doorChance": 0.4
+      },
+      "enemyPool": {
+        "brute": {
+          "chance": 0.25,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "runner": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "crawler": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "shadow": {
+          "chance": 0.18,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
+      "itemPool": {
+        "ticket": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "bread": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "coffee": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "weapon": {
+          "chance": 0.02,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "armor": {
+          "chance": 0.02,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "scroll": {
+          "chance": 0.015,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
+      "cratePool": {
+        "dropChance": 0.2,
+        "items": {
+          "ticket": {
+            "chance": 0.04,
+            "countMin": 1,
+            "countMax": 2
+          },
+          "coffee": {
+            "chance": 0.04,
+            "countMin": 1,
+            "countMax": 1
+          },
+          "weapon": {
+            "chance": 0.02,
+            "countMin": 1,
+            "countMax": 1
+          }
+        },
+        "minCount": 1,
+        "maxCount": 4
+      },
+      "colors": {
+        "floor": "#443322",
+        "wall": "#776644",
+        "background": "#0a0805"
+      },
+      "visibility": {
+        "items": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "enemies": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "environment": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": true
+        }
+      }
+    },
+    "technical": {
+      "id": "technical",
+      "name": "Технический этаж",
+      "enemyMax": 30,
+      "description": "Лабиринты труб, кабелей и вентиляции Гигахруща. Здесь темно и тесно.",
+      "generation": {
+        "minRoomSize": 3,
+        "maxRoomSize": 6,
+        "maxRooms": 26,
+        "doorChance": 0.3
+      },
+      "enemyPool": {
+        "runner": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "shadow": {
+          "chance": 0.1,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
+      "itemPool": {
+        "ticket": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "bread": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "coffee": {
+          "chance": 0.04,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "potion": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "scroll": {
+          "chance": 0.015,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
+      "cratePool": {
+        "dropChance": 0.2,
+        "items": {
+          "ticket": {
+            "chance": 0.04,
+            "countMin": 1,
+            "countMax": 2
+          },
+          "coffee": {
+            "chance": 0.05,
+            "countMin": 1,
+            "countMax": 1
+          },
+          "potion": {
+            "chance": 0.03,
+            "countMin": 1,
+            "countMax": 1
+          }
+        },
+        "minCount": 2,
+        "maxCount": 5
+      },
+      "colors": {
+        "floor": "#333a44",
+        "wall": "#556677",
+        "background": "#07090d"
+      },
+      "visibility": {
+        "items": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "enemies": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "environment": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": true
+        }
+      }
+    },
+    "medical": {
+      "id": "medical",
+      "name": "Медицинский этаж",
+      "enemyMax": 18,
+      "description": "Больничные палаты и лаборатории Гигахруща. Запах антисептика и заражённые пациенты.",
+      "generation": {
+        "minRoomSize": 4,
+        "maxRoomSize": 9,
+        "maxRooms": 18,
+        "doorChance": 0.5
+      },
+      "enemyPool": {
+        "groaner": {
+          "chance": 0.35,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "shadow": {
+          "chance": 0.25,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "crawler": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "boss": {
+          "chance": 0.08,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
+      "itemPool": {
+        "health": {
+          "chance": 0.05,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "potion": {
+          "chance": 0.04,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "ticket": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "bread": {
+          "chance": 0.04,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "scroll": {
+          "chance": 0.02,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "armor": {
+          "chance": 0.02,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
+      "cratePool": {
+        "dropChance": 0.25,
+        "items": {
+          "health": {
+            "chance": 0.06,
+            "countMin": 1,
+            "countMax": 1
+          },
+          "potion": {
+            "chance": 0.04,
+            "countMin": 1,
+            "countMax": 1
+          },
+          "ticket": {
+            "chance": 0.03,
+            "countMin": 1,
+            "countMax": 2
+          }
+        },
+        "minCount": 1,
+        "maxCount": 4
+      },
+      "colors": {
+        "floor": "#3a3a3a",
+        "wall": "#6a6a6a",
+        "background": "#0a0a0a"
+      },
+      "visibility": {
+        "items": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "enemies": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "environment": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": true
+        }
+      }
+    },
+    "administration": {
+      "id": "administration",
+      "name": "Администрация",
+      "enemyMax": 0,
+      "description": "Офисы и кабинеты руководства Гигахруща. Охрана и элитные сотрудники.",
+      "generation": {
+        "minRoomSize": 5,
+        "maxRoomSize": 10,
+        "maxRooms": 10,
+        "doorChance": 1
+      },
+      "enemyPool": {},
+      "itemPool": {},
+      "cratePool": {
+        "dropChance": 0.2,
+        "items": {
+          "ticket": {
+            "chance": 0.05,
+            "countMin": 1,
+            "countMax": 2
+          },
+          "bread": {
+            "chance": 0.04,
+            "countMin": 1,
+            "countMax": 1
+          },
+          "health": {
+            "chance": 0.05,
+            "countMin": 1,
+            "countMax": 1
+          }
+        },
+        "minCount": 1,
+        "maxCount": 4
+      },
+      "colors": {
+        "floor": "#3a3a3a",
+        "wall": "#6a6a6a",
+        "background": "#0d0d0d"
+      },
+      "visibility": {
+        "items": {
+          "visibleByDefault": true,
+          "exploredByDefault": true,
+          "showWhenVisible": true,
+          "showWhenExplored": true
+        },
+        "enemies": {
+          "visibleByDefault": true,
+          "exploredByDefault": true,
+          "showWhenVisible": true,
+          "showWhenExplored": true
+        },
+        "environment": {
+          "visibleByDefault": true,
+          "exploredByDefault": true,
+          "showWhenVisible": true,
+          "showWhenExplored": true
+        }
+      }
+    },
+    "arena": {
+      "id": "arena",
+      "name": "Арена",
+      "enemyMax": 15,
+      "description": "Огороженная стенами боевая площадка Гигахруща. Колонны, обломки стен и ящики, за которыми можно укрыться.",
+      "generation": {
+        "layout": "arena",
+        "minRoomSize": 4,
+        "maxRoomSize": 8,
+        "maxRooms": 1,
+        "doorChance": 0,
+        "padding": 2,
+        "crateChance": 0.01,
+        "columnCount": 14,
+        "wallSegmentCount": 6,
+        "wallSegmentMin": 2,
+        "wallSegmentMax": 5
+      },
+      "enemyPool": {
+        "runner": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "brute": {
+          "chance": 0.25,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "crawler": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "shadow": {
+          "chance": 0.18,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
+      "itemPool": {
+        "ticket": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "bread": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "health": {
+          "chance": 0.04,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "weapon": {
+          "chance": 0.02,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "armor": {
+          "chance": 0.02,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "potion": {
+          "chance": 0.03,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
+      "cratePool": {
+        "dropChance": 0.3,
+        "items": {
+          "ticket": {
+            "chance": 0.04,
+            "countMin": 1,
+            "countMax": 2
+          },
+          "health": {
+            "chance": 0.04,
+            "countMin": 1,
+            "countMax": 1
+          },
+          "weapon": {
+            "chance": 0.02,
+            "countMin": 1,
+            "countMax": 1
+          }
+        },
+        "minCount": 2,
+        "maxCount": 6
+      },
+      "colors": {
+        "floor": "#3a3a3a",
+        "wall": "#6a6a6a",
+        "background": "#0d0d0d"
+      },
+      "visibility": {
+        "items": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "enemies": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "environment": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": true
+        }
+      }
+    }
+  },
+  "world": {
+    "width": 60,
+    "height": 40,
+    "padding": 2,
+    "minRoomSize": 4,
+    "maxRoomSize": 8,
+    "maxRooms": 20,
+    "roomSpacing": 1,
+    "doorChance": 0.5,
+    "crateChance": 0.3,
+    "doorSpawnChance": 0.5,
+    "visibility": {
+      "items": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      },
+      "enemies": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      },
+      "environment": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": true
+      }
+    }
+  },
+  "combat": {
+    "baseAccuracy": 0.7,
+    "modifiers": {
+      "flanking": 0.1,
+      "highGround": 0.15,
+      "cover": -0.2,
+      "range": {
+        "melee": 0,
+        "short": -0.1,
+        "medium": -0.3,
+        "long": -0.5
+      }
+    }
+  },
+  "ui": {
+    "logger": {
+      "level": 2,
+      "enabledModules": [
+        "enemy",
+        "combat",
+        "movement",
+        "action",
+        "ai",
+        "turn",
+        "pathfinding",
+        "generation",
+        "system"
+      ]
+    },
+    "console": {
+      "maxMessages": 500,
+      "autoScroll": true
+    },
+    "camera": {
+      "speed": 15,
+      "lerpFactor": 0.15
+    },
+    "renderer": {
+      "tileSize": 48,
+      "minTileSize": 12,
+      "fontFamily": "Lucida Console, monospace"
+    },
+    "colors": {
+      "background": "#0a0a0a",
+      "player": "#88ff88",
+      "enemy": "#ff4444",
+      "healthBar": "#44ff44",
+      "healthBarLow": "#ffaa44",
+      "healthBarCritical": "#ff4444"
+    }
+  },
+  "debug": {
+    "enabled": false,
+    "showFov": false,
+    "showRays": false,
+    "showVisibleCells": false,
+    "showPathfinding": false,
+    "logActions": true
+  }
+}
