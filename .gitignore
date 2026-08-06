@@ -31,3 +31,5 @@ yarn-error.log*
 
 # local .env files
 .env.local*
+
+!assets/_plugin-vue_export-helper.js
