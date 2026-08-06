@@ -4,6 +4,7 @@ import Entity from './Entity.js'
 import PositionComponent from './components/PositionComponent.js'
 import RenderComponent from './components/RenderComponent.js'
 import HealthComponent from './components/HealthComponent.js'
+import HungerComponent from './components/HungerComponent.js'
 import CombatComponent from './components/CombatComponent.js'
 import PlayerComponent from './components/PlayerComponent.js'
 import AIComponent from './components/AIComponent.js'
@@ -37,6 +38,10 @@ export default class EntityFactory {
       .addComponent(new HealthComponent(
         config.hp || playerData.hp,
         config.maxHp || playerData.maxHp
+      ))
+      .addComponent(new HungerComponent(
+        config.hunger ?? playerData.hunger ?? 0,
+        config.maxHunger ?? playerData.maxHunger ?? 100
       ))
       .addComponent(new CombatComponent({
         damageMin: config.damageMin || playerData.damageMin,
@@ -308,6 +313,7 @@ export default class EntityFactory {
       'PositionComponent': PositionComponent,
       'RenderComponent': RenderComponent,
       'HealthComponent': HealthComponent,
+      'HungerComponent': HungerComponent,
       'CombatComponent': CombatComponent,
       'PlayerComponent': PlayerComponent,
       'AIComponent': AIComponent,

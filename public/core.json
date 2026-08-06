@@ -9,6 +9,8 @@
     "layer": 4,
     "hp": 55,
     "maxHp": 55,
+    "hunger": 0,
+    "maxHunger": 100,
     "armor": 0,
     "damageMin": 3,
     "damageMax": 6,
@@ -49,7 +51,7 @@
       "xp": 10,
       "description": "Медленный, но опасный вблизи",
       "dropPool": {
-        "gold": {
+        "ticket": {
           "chance": 0.3,
           "countMin": 1,
           "countMax": 3
@@ -83,7 +85,7 @@
       "xp": 8,
       "description": "Слабый, но быстрый",
       "dropPool": {
-        "gold": {
+        "ticket": {
           "chance": 0.2,
           "countMin": 1,
           "countMax": 2
@@ -117,7 +119,7 @@
       "xp": 6,
       "description": "Быстрый, но хрупкий",
       "dropPool": {
-        "gold": {
+        "ticket": {
           "chance": 0.15,
           "countMin": 1,
           "countMax": 2
@@ -151,7 +153,7 @@
       "xp": 20,
       "description": "Медленный, но очень сильный",
       "dropPool": {
-        "gold": {
+        "ticket": {
           "chance": 0.4,
           "countMin": 2,
           "countMax": 5
@@ -190,7 +192,7 @@
       "xp": 15,
       "description": "Атакует издалека",
       "dropPool": {
-        "gold": {
+        "ticket": {
           "chance": 0.3,
           "countMin": 1,
           "countMax": 3
@@ -229,7 +231,7 @@
       "xp": 50,
       "description": "Опасный противник",
       "dropPool": {
-        "gold": {
+        "ticket": {
           "chance": 0.6,
           "countMin": 5,
           "countMax": 10
@@ -343,20 +345,43 @@
     }
   },
   "items": {
-    "gold": {
-      "id": "gold",
-      "name": "Золото",
+    "ticket": {
+      "id": "ticket",
+      "name": "Талоны",
       "char": "$",
       "color": "#ffdd44",
       "bgColor": "#2a1a00",
       "layer": 2,
       "type": "currency",
-      "category": "gold",
+      "category": "ticket",
       "value": 1,
       "weight": 0.01,
       "usable": false,
       "effects": {},
-      "description": "Игровая валюта",
+      "description": "Местная валюта",
+      "visibility": {
+        "visibleByDefault": false,
+        "exploredByDefault": false,
+        "showWhenVisible": true,
+        "showWhenExplored": false
+      }
+    },
+    "bread": {
+      "id": "bread",
+      "name": "Хлеб",
+      "char": "🍞",
+      "color": "#e8c07a",
+      "bgColor": "#3a2a10",
+      "layer": 2,
+      "type": "consumable",
+      "category": "food",
+      "value": 5,
+      "weight": 0.4,
+      "usable": true,
+      "effects": {
+        "restoreHunger": 20
+      },
+      "description": "Утоляет голод на 20",
       "visibility": {
         "visibleByDefault": false,
         "exploredByDefault": false,
@@ -524,10 +549,15 @@
         "max": 12
       },
       "itemPool": {
-        "gold": {
+        "ticket": {
           "chance": 0.25,
           "countMin": 1,
           "countMax": 3
+        },
+        "bread": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 2
         },
         "health": {
           "chance": 0.25,
@@ -576,10 +606,15 @@
         "max": 14
       },
       "itemPool": {
-        "gold": {
+        "ticket": {
           "chance": 0.2,
           "countMin": 1,
           "countMax": 3
+        },
+        "bread": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 2
         },
         "energy": {
           "chance": 0.2,
@@ -633,10 +668,15 @@
         "max": 15
       },
       "itemPool": {
-        "gold": {
+        "ticket": {
           "chance": 0.2,
           "countMin": 1,
           "countMax": 3
+        },
+        "bread": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 2
         },
         "energy": {
           "chance": 0.25,
@@ -695,10 +735,15 @@
           "countMin": 1,
           "countMax": 2
         },
-        "gold": {
+        "ticket": {
           "chance": 0.15,
           "countMin": 1,
           "countMax": 3
+        },
+        "bread": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 2
         },
         "scroll": {
           "chance": 0.1,
@@ -742,10 +787,15 @@
         "max": 13
       },
       "itemPool": {
-        "gold": {
+        "ticket": {
           "chance": 0.2,
           "countMin": 1,
           "countMax": 3
+        },
+        "bread": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 2
         },
         "weapon": {
           "chance": 0.15,
@@ -806,10 +856,15 @@
         "max": 12
       },
       "itemPool": {
-        "gold": {
+        "ticket": {
           "chance": 0.2,
           "countMin": 1,
           "countMax": 3
+        },
+        "bread": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 2
         },
         "health": {
           "chance": 0.2,
@@ -857,9 +912,10 @@
     "crateLoot": {
       "dropChance": 0.5,
       "items": [
-        "gold",
+        "ticket",
         "health",
-        "potion"
+        "potion",
+        "bread"
       ],
       "minCount": 0,
       "maxCount": 999

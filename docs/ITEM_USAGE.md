@@ -80,7 +80,7 @@ ItemEffects.applyItemEffects() → для каждого эффекта вызы
 | `bgColor` | string | нет | Цвет фона (hex) |
 | `layer` | number | нет | Слой отрисовки |
 | `type` | string | нет | Тип предмета (`consumable`, `weapon`, `armor`, `currency`, `misc`) |
-| `category` | string | нет | Категория (`healing`, `energy`, `buff`, `scroll`, `melee`, `body`, `gold`, `other`) |
+| `category` | string | нет | Категория (`healing`, `energy`, `food`, `buff`, `scroll`, `melee`, `body`, `ticket`, `other`) |
 | `value` | number | нет | Базовая ценность |
 | `weight` | number | нет | Вес (для генерации) |
 | `usable` | boolean | нет | Можно ли использовать предмет. Если `true` — кнопка «Использовать» активна |
@@ -385,15 +385,15 @@ UI-слой. В блоке «Инвентарь» для каждого испо
 
 ```json
 {
-  "id": "gold",
-  "name": "Золото",
+  "id": "ticket",
+  "name": "Талоны",
   "char": "$",
   "color": "#ffdd44",
   "type": "currency",
-  "category": "gold",
+  "category": "ticket",
   "usable": false,
   "effects": {},
-  "description": "Игровая валюта"
+  "description": "Местная валюта"
 }
 ```
 

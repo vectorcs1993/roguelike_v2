@@ -69,6 +69,12 @@
                   <span>{{ playerStats.energy }}/{{ playerStats.maxEnergy }}</span>
                 </div>
 
+                <!-- Голод -->
+                <div class="row justify-between q-py-xs">
+                  <span>🍞 Голод</span>
+                  <span>{{ playerStats.hunger }}/{{ playerStats.maxHunger }}</span>
+                </div>
+
                 <!-- Броня -->
                 <div class="row justify-between q-py-xs">
                   <span class="text-grey-5">🛡️ Броня</span>
@@ -266,6 +272,7 @@ import { ContentLoader, GameConfig, logger, LOG_LEVEL, isItemUsable, LOG_MODULES
 import PositionComponent from 'src/engine/components/PositionComponent.js'
 import RenderComponent from 'src/engine/components/RenderComponent.js'
 import HealthComponent from 'src/engine/components/HealthComponent.js'
+import HungerComponent from 'src/engine/components/HungerComponent.js'
 import PlayerComponent from 'src/engine/components/PlayerComponent.js'
 import AIComponent from 'src/engine/components/AIComponent.js'
 import InventoryComponent from 'src/engine/components/InventoryComponent.js'
@@ -400,6 +407,10 @@ function updateEntitiesList() {
       const maxEnergy = entity.maxEnergy ?? 100
       const energy = entity.energy ?? maxEnergy
 
+      const hungerComp = entity.getComponent(HungerComponent)
+      const hunger = hungerComp ? hungerComp.hunger : 0
+      const maxHunger = hungerComp ? hungerComp.maxHunger : 100
+
       playerFound = {
         id: entity.id,
         name: playerConfig.name || 'Игрок',
@@ -410,6 +421,9 @@ function updateEntitiesList() {
         energy: energy,
         maxEnergy: maxEnergy,
         energyPercent: maxEnergy > 0 ? energy / maxEnergy : 0,
+        hunger: hunger,
+        maxHunger: maxHunger,
+        hungerPercent: maxHunger > 0 ? hunger / maxHunger : 0,
         armor: health.armor,
         armorType: health.armorType,
         damageMin: combat?.damageMin ?? 1,

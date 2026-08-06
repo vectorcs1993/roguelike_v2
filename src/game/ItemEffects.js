@@ -27,6 +27,7 @@
 //   - строку — сообщение для лога (эффект применён, предмет израсходован)
 
 import HealthComponent from '../engine/components/HealthComponent.js'
+import HungerComponent from '../engine/components/HungerComponent.js'
 import CombatComponent from '../engine/components/CombatComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
 import { logger, LOG_MODULES } from './Logger.js'
@@ -35,6 +36,10 @@ import { logger, LOG_MODULES } from './Logger.js'
 
 function getHealth(entity) {
   return entity ? entity.getComponent(HealthComponent) : null
+}
+
+function getHunger(entity) {
+  return entity ? entity.getComponent(HungerComponent) : null
 }
 
 function getCombat(entity) {
@@ -83,6 +88,22 @@ export const EFFECT_HANDLERS = {
     if (amount <= 0) return false
     entity.energy = Math.min(maxEnergy, current + amount)
     return `Восстановлено ${amount} энергии (${entity.energy}/${maxEnergy})`
+  },
+
+  // Утоление голода: { "restoreHunger": 20 }
+  restoreHunger(ctx) {
+    const hunger = getHunger(ctx.entity)
+    if (!hunger) return false
+    const amount = Number(ctx.value) || 0
+    if (amount <= 0) return false
+    if (hunger.hunger <= 0) {
+      logger.info(LOG_MODULES.ACTION, 'Голод уже утолён')
+      return false
+    }
+    const before = hunger.hunger
+    hunger.decrease(amount)
+    const reduced = before - hunger.hunger
+    return `Голод уменьшен на ${reduced} (${hunger.hunger}/${hunger.maxHunger})`
   },
 
   // Бонус к урону (постоянный): { "damageBonus": 3 }

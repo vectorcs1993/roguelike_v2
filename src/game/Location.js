@@ -416,7 +416,8 @@ export default class Location {
   static _placeItems(location, biome, available, playerStart, enemyPositions) {
     const itemPool = biome && biome.itemPool ? biome.itemPool : {
       health: { chance: 0.3, countMin: 1, countMax: 2 },
-      gold: { chance: 0.2, countMin: 1, countMax: 3 },
+      ticket: { chance: 0.2, countMin: 1, countMax: 3 },
+      bread: { chance: 0.15, countMin: 1, countMax: 2 },
       potion: { chance: 0.15, countMin: 1, countMax: 2 }
     }
     const itemCount = biome && biome.itemCount ?

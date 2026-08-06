@@ -4,6 +4,7 @@
 // обработку очереди врагов и завершение ходов.
 
 import HealthComponent from '../engine/components/HealthComponent.js'
+import HungerComponent from '../engine/components/HungerComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
 import MovementComponent from '../engine/components/MovementComponent.js'
@@ -138,6 +139,9 @@ export default class TurnManager {
 
     this.gameLoop.initializeFovForAllAllies()
 
+    // Голод растёт на 1 каждый ход; при достижении максимума игрок умирает.
+    this._applyHunger()
+
     const playerEntities = this.gameLoop.getPlayerEntities()
     if (playerEntities.length === 0) {
       logger.info(LOG_MODULES.SYSTEM, 'Игрок мёртв! Перезагрузка...')
@@ -148,6 +152,24 @@ export default class TurnManager {
     this.turnCount++
     const locationName = this.location?.name || 'Локация'
     logger.info(LOG_MODULES.TURN, `${locationName}: Ход ${this.turnCount}`)
+  }
+
+  /** Увеличивает голод игрока на 1 за ход и убивает при достижении максимума. */
+  _applyHunger() {
+    const playerEntities = this.gameLoop.getPlayerEntities()
+    for (const entity of playerEntities) {
+      const hunger = entity.getComponent(HungerComponent)
+      if (!hunger) continue
+
+      const starved = hunger.increase(1)
+      if (starved) {
+        logger.info(LOG_MODULES.SYSTEM, 'Игрок умер от голода!')
+        const health = entity.getComponent(HealthComponent)
+        if (health) {
+          health.takeDamage(health.hp, 'physical')
+        }
+      }
+    }
   }
 
   /** Сбрасывает состояние хода (при перезагрузке локации). */

@@ -82,7 +82,7 @@ export default class InteractionSystem extends System {
     const worldConfig = GameConfig.getWorldConfig()
     const crateLoot = worldConfig.crateLoot || {}
     const dropChance = crateLoot.dropChance !== undefined ? crateLoot.dropChance : 0.5
-    const items = crateLoot.items && crateLoot.items.length ? crateLoot.items : ['gold']
+    const items = crateLoot.items && crateLoot.items.length ? crateLoot.items : ['ticket']
     const minCount = crateLoot.minCount !== undefined ? crateLoot.minCount : 0
     const maxCount = crateLoot.maxCount !== undefined ? crateLoot.maxCount : 999
 
