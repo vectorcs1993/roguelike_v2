@@ -12,7 +12,6 @@ import RenderComponent from '../engine/components/RenderComponent.js'
 import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
 import ItemComponent from '../engine/components/ItemComponent.js'
 import InventoryComponent from '../engine/components/InventoryComponent.js'
-import WeightComponent from '../engine/components/WeightComponent.js'
 import EntityFactory from '../engine/EntityFactory.js'
 import Item from '../engine/Item.js'
 import EnergyComponent from '../engine/components/EnergyComponent.js'
@@ -130,13 +129,13 @@ export default class PlayerActions {
     const entity = this.gameLoop.selectedEntity
     if (!entity) return false
 
-    const weight = entity.getComponent(WeightComponent)
-    if (!weight) return false
+    const inv = entity.getComponent(InventoryComponent)
+    if (!inv) return false
 
-    if (weight.isOverweight()) {
-      const percent = Math.round(weight.getOverweightPercent())
+    if (inv.isOverweight()) {
+      const percent = Math.round(inv.getOverweightPercent())
       logger.warn(LOG_MODULES.ACTION,
-        `⚠️ Перегруз! ${weight.toString()} (${percent}% перевеса). Сбросьте лишний вес.`
+        `⚠️ Перегруз! ${inv.getWeightString()} (${percent}% перевеса). Сбросьте лишний вес.`
       )
       return true
     }
@@ -152,11 +151,8 @@ export default class PlayerActions {
     const health = entity.getComponent(HealthComponent)
     if (!health || health.isDead) return false
 
-    const weight = entity.getComponent(WeightComponent)
-    const overloaded = weight && weight.isOverweight()
-    if (overloaded) {
-      this._checkOverweight()
-    }
+    const inv = entity.getComponent(InventoryComponent)
+    const overloaded = inv && inv.isOverweight()
 
     const energy = entity.getComponent(EnergyComponent)
     const playerConfig = GameConfig.getPlayer()
@@ -164,8 +160,8 @@ export default class PlayerActions {
     const baseRegen = playerConfig.energyRegen || 15
     let regen = baseRegen
 
-    if (overloaded && weight) {
-      regen = Math.floor(baseRegen * weight.getRegenModifier())
+    if (overloaded && inv) {
+      regen = Math.floor(baseRegen * inv.getRegenModifier())
     }
 
     if (energy) {
@@ -194,8 +190,8 @@ export default class PlayerActions {
 
     if (!pos || !health || health.isDead) return false
 
-    const weight = entity.getComponent(WeightComponent)
-    if (weight && weight.isOverweight()) {
+    const inv = entity.getComponent(InventoryComponent)
+    if (inv && inv.isOverweight()) {
       this._checkOverweight()
       return false
     }
@@ -276,8 +272,8 @@ export default class PlayerActions {
     if (!pos) return false
 
     // Только проверка перегруза перед подбором
-    const weight = entity.getComponent(WeightComponent)
-    if (weight && weight.isOverweight()) {
+    const inv = entity.getComponent(InventoryComponent)
+    if (inv && inv.isOverweight()) {
       this._checkOverweight()
       return false
     }

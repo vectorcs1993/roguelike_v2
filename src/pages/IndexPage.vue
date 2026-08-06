@@ -406,9 +406,8 @@ function updateEntitiesList() {
 
 
       const inventory = entity.getComponent(InventoryComponent)
-      const playerComp = entity.getComponent(PlayerComponent)
       const totalWeight = inventory ? inventory.totalWeight : 0
-      const maxCarryWeight = playerComp ? playerComp.maxCarryWeight : 50
+      const maxCarryWeight = inventory ? inventory.maxWeight : 50
 
       playerFound = {
         id: entity.id,

@@ -2,32 +2,37 @@
 
 import Component from './Component.js'
 import PositionComponent from './PositionComponent.js'
-import WeightComponent from './WeightComponent.js'
 
 export default class MovementComponent extends Component {
-  constructor(speed = 12) {
+  constructor(config = {}) {
     super()
-    this.speed = speed
+    this.speed = config.speed || 1
     this.path = []
     this.followingPath = false
     this.target = null
     this.targetEntity = null
   }
 
-  /** Проверяет, может ли сущность двигаться (не перегружена) */
+  /**
+   * Проверяет, может ли сущность двигаться (не перегружена).
+   * @returns {boolean} true если можно двигаться
+   */
   canMove() {
-    const weight = this.entity?.getComponent(WeightComponent)
-    if (weight) {
-      return !weight.isOverweight()
+    const inventory = this.entity?.getComponent('InventoryComponent')
+    if (inventory) {
+      return !inventory.isOverweight()
     }
     return true
   }
 
-  /** Возвращает актуальную скорость с учётом перегруза */
+  /**
+   * Возвращает актуальную скорость с учётом перегруза.
+   * @returns {number} текущая скорость
+   */
   getCurrentSpeed() {
-    const weight = this.entity?.getComponent(WeightComponent)
-    if (weight && weight.isOverweight()) {
-      return Math.max(1, Math.floor(this.speed * weight.getSpeedModifier()))
+    const inventory = this.entity?.getComponent('InventoryComponent')
+    if (inventory && inventory.isOverweight()) {
+      return Math.max(1, Math.floor(this.speed * inventory.getSpeedModifier()))
     }
     return this.speed
   }

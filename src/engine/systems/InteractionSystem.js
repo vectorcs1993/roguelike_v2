@@ -8,7 +8,6 @@ import ItemComponent from '../components/ItemComponent.js'
 import HealthComponent from '../components/HealthComponent.js'
 import InventoryComponent from '../components/InventoryComponent.js'
 import RenderComponent from '../components/RenderComponent.js'
-import WeightComponent from '../components/WeightComponent.js'
 import EntityFactory from '../EntityFactory.js'
 import { GameConfig } from '../../game/GameConfig.js'
 import { logger, LOG_MODULES } from '../../game/Logger.js'
@@ -120,14 +119,11 @@ export default class InteractionSystem extends System {
     }
 
     // ТОЛЬКО ЗДЕСЬ ПРОВЕРЯЕМ ВЕС
-    const weight = actor.getComponent(WeightComponent)
-    if (weight) {
-      const itemWeight = itemComp.item.unitWeight * itemComp.item.count
-      if (!weight.canAddWeight(itemWeight)) {
-        const needed = itemWeight - (weight.maxWeight - weight.currentWeight)
-        logger.warn(LOG_MODULES.ACTION, `Слишком тяжело! Не хватает ${needed.toFixed(1)} кг`)
-        return false
-      }
+    const itemWeight = itemComp.item.unitWeight * itemComp.item.count
+    if (!inv.canAddWeight(itemWeight)) {
+      const needed = itemWeight - (inv.maxWeight - inv.currentWeight)
+      logger.warn(LOG_MODULES.ACTION, `Слишком тяжело! Не хватает ${needed.toFixed(1)} кг`)
+      return false
     }
 
     const item = itemComp.item

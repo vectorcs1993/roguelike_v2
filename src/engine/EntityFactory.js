@@ -14,67 +14,60 @@ import InventoryComponent from './components/InventoryComponent.js'
 import EnvironmentComponent from './components/EnvironmentComponent.js'
 import DoorComponent from './components/DoorComponent.js'
 import ItemComponent from './components/ItemComponent.js'
-import WeightComponent from './components/WeightComponent.js'
 import Item from './Item.js'
 import { GameConfig } from '../game/GameConfig.js'
 import { logger, LOG_MODULES } from '../game/Logger.js'
 
 export default class EntityFactory {
 
-  static createPlayer(x, y, config = {}) {
+  static createPlayer(x, y) {
     const playerData = GameConfig.getPlayer()
 
     const entity = new Entity('player')
     const render = new RenderComponent(
-      config.char || playerData.char,
-      config.color || playerData.color,
-      config.bgColor || playerData.bgColor || null
+      playerData.char,
+      playerData.color,
+      playerData.bgColor
     )
     render.layer = playerData.layer || 4
     render.visible = true
     render.explored = true
 
-    const maxCarryWeight = config.maxCarryWeight || playerData.maxCarryWeight || 50
-
     entity
       .addComponent(new PositionComponent(x, y))
       .addComponent(render)
       .addComponent(new HealthComponent(
-        config.hp || playerData.hp,
-        config.maxHp || playerData.maxHp
+        playerData.hp,
+        playerData.maxHp
       ))
-      .addComponent(new HungerComponent(
-        config.hunger ?? playerData.hunger ?? 0,
-        config.maxHunger ?? playerData.maxHunger ?? 100
-      ))
-      .addComponent(new EnergyComponent(
-        config.energy ?? playerData.energy ?? 100,
-        config.maxEnergy ?? playerData.maxEnergy ?? 100
-      ))
+      .addComponent(new HungerComponent({
+        hunger: playerData.hunger,
+        maxHunger: playerData.maxHunger,
+      }))
+      .addComponent(new EnergyComponent({
+        energy: playerData.energy,
+        maxEnergy: playerData.maxEnergy,
+      }))
       .addComponent(new CombatComponent({
-        damageMin: config.damageMin || playerData.damageMin,
-        damageMax: config.damageMax || playerData.damageMax,
-        damageType: config.damageType || playerData.damageType || 'physical',
-        attackRange: config.attackRange || playerData.range || 1,
-        accuracy: config.accuracy || playerData.accuracy || 0.75,
-        initiative: config.initiative || playerData.initiative || 6
+        damageMin: playerData.damageMin,
+        damageMax: playerData.damageMax,
+        damageType: playerData.damageType,
+        attackRange: playerData.range,
+        accuracy: playerData.accuracy,
+        initiative: playerData.initiative,
       }))
       .addComponent(new PlayerComponent({
-        maxCarryWeight: maxCarryWeight,
-        speed: config.speed || playerData.speed || 12
+        speed: playerData.speed
       }))
-      .addComponent(new MovementComponent(config.speed || playerData.speed || 12))
-      .addComponent(new InventoryComponent())
-      .addComponent(new WeightComponent({
-        maxWeight: maxCarryWeight,
+      .addComponent(new MovementComponent({
+        speed: playerData.speed
+      }))
+      .addComponent(new InventoryComponent({
+        maxWeight: playerData.maxCarryWeight || 50,
         currentWeight: 0
       }))
 
     entity.enemyData = playerData
-
-    if (config.components) {
-      this._addCustomComponents(entity, config.components)
-    }
 
     return entity
   }
@@ -90,7 +83,7 @@ export default class EntityFactory {
     const color = data.color || '#ffffff'
     const bgColor = data.bgColor || null
     const layer = data.layer || 3
-    const speed = data.speed || 12
+
 
     const entity = new Entity('enemy')
     const render = new RenderComponent(char, color, bgColor)
@@ -115,7 +108,13 @@ export default class EntityFactory {
         aggressionRange: data.aggressionRange || 8,
         fovRadius: data.fovRadius || 8
       }))
-      .addComponent(new MovementComponent(speed))
+      .addComponent(new MovementComponent({
+        speed: data.speed
+      }))
+      .addComponent(new InventoryComponent({
+        maxWeight: data.maxCarryWeight || 20,
+        currentWeight: 0
+      }))
 
     entity.enemyType = type
     entity.enemyData = data
@@ -326,8 +325,7 @@ export default class EntityFactory {
       'InventoryComponent': InventoryComponent,
       'EnvironmentComponent': EnvironmentComponent,
       'DoorComponent': DoorComponent,
-      'ItemComponent': ItemComponent,
-      'WeightComponent': WeightComponent
+      'ItemComponent': ItemComponent
     }
 
     for (const [name, data] of Object.entries(components)) {

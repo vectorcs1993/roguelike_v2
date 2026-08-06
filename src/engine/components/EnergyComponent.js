@@ -11,11 +11,11 @@ import Component from './Component.js'
 const CRITICAL_THRESHOLD = 0.25
 
 export default class EnergyComponent extends Component {
-  constructor(energy = 100, maxEnergy = 100) {
+  constructor(config = {}) {
     super()
-    this.energy = energy
-    this.maxEnergy = maxEnergy || 100
-    // Список слушателей события критического уровня энергии.
+    this.energy = config.energy || 0
+    this.maxEnergy = config.maxEnergy || 100
+    // Список слушателей события критического уровня енергии.
     this._listeners = []
     this._criticalFired = false
   }

@@ -1,7 +1,6 @@
 // src/engine/components/PlayerComponent.js
 
 import Component from './Component.js'
-import WeightComponent from './WeightComponent.js'
 
 export default class PlayerComponent extends Component {
   constructor(config = {}) {
@@ -9,42 +8,41 @@ export default class PlayerComponent extends Component {
     this.isPlayerControlled = true
     this.canSwitchTo = true
     this.team = 'player'
-    // Максимальный переносимый вес
-    this.maxCarryWeight = config.maxCarryWeight || 50
-    // Базовая скорость (может снижаться при перегрузе)
     this.baseSpeed = config.speed || 12
   }
 
-  /** Проверяет, есть ли перегруз через WeightComponent */
-  isOverweight() {
-    const weight = this.entity?.getComponent(WeightComponent)
-    if (weight) {
-      return weight.isOverweight()
-    }
-    // Fallback
-    const inv = this.entity?.getComponent('InventoryComponent')
-    if (!inv) return false
-    return inv.totalWeight > this.maxCarryWeight
+  /**
+   * Проверяет, есть ли перегруз через InventoryComponent.
+   * @param {InventoryComponent} [inv] - опционально переданный инвентарь
+   * @returns {boolean} true если перегружен
+   */
+  isOverweight(inv) {
+    const inventory = inv || this.entity?.getComponent('InventoryComponent')
+    if (!inventory) return false
+    return inventory.isOverweight()
   }
 
-  /** Возвращает текущую скорость с учётом перегруза */
-  getCurrentSpeed() {
-    const weight = this.entity?.getComponent(WeightComponent)
-    if (weight && weight.isOverweight()) {
-      // При перегрузе скорость снижается до минимума
-      return Math.max(1, Math.floor(this.baseSpeed * weight.getSpeedModifier()))
+  /**
+   * Возвращает текущую скорость с учётом перегруза.
+   * @param {InventoryComponent} [inv] - опционально переданный инвентарь
+   * @returns {number} текущая скорость
+   */
+  getCurrentSpeed(inv) {
+    const inventory = inv || this.entity?.getComponent('InventoryComponent')
+    if (inventory && inventory.isOverweight()) {
+      return Math.max(1, Math.floor(this.baseSpeed * inventory.getSpeedModifier()))
     }
     return this.baseSpeed
   }
 
-  /** Возвращает процент заполнения инвентаря */
-  getWeightPercent() {
-    const weight = this.entity?.getComponent(WeightComponent)
-    if (weight) {
-      return weight.getWeightPercent()
-    }
-    const inv = this.entity?.getComponent('InventoryComponent')
-    if (!inv) return 0
-    return inv.getWeightPercent(this.maxCarryWeight)
+  /**
+   * Возвращает процент заполнения инвентаря.
+   * @param {InventoryComponent} [inv] - опционально переданный инвентарь
+   * @returns {number} процент заполнения (0-1)
+   */
+  getWeightPercent(inv) {
+    const inventory = inv || this.entity?.getComponent('InventoryComponent')
+    if (!inventory) return 0
+    return inventory.getWeightPercent()
   }
 }

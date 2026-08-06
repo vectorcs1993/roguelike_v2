@@ -9,10 +9,10 @@ import HealthComponent from './HealthComponent.js'
 import RenderComponent from './RenderComponent.js'
 
 export default class HungerComponent extends Component {
-  constructor(hunger = 0, maxHunger = 100) {
+  constructor(config = {}) {
     super()
-    this.hunger = hunger
-    this.maxHunger = maxHunger || 100
+    this.hunger = config.hunger || 0
+    this.maxHunger = config.maxHunger || 100
     this.damagePerTurn = 1
   }
 
