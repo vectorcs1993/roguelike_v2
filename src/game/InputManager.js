@@ -34,7 +34,7 @@ export default class InputManager {
   handleKeyDown(e) {
     this.keys[e.code] = true
 
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Enter', 'Tab'].includes(e.code)) {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Enter', 'Tab', 'Numpad1', 'Numpad2', 'Numpad3', 'Numpad4', 'Numpad5', 'Numpad6', 'Numpad7', 'Numpad8', 'Numpad9'].includes(e.code)) {
       e.preventDefault()
     }
   }
@@ -79,16 +79,16 @@ export default class InputManager {
 
   getDirection() {
     let x = 0, y = 0
-    if (this.keys['ArrowUp'] || this.keys['KeyW']) y = -1
-    if (this.keys['ArrowDown'] || this.keys['KeyS']) y = 1
-    if (this.keys['ArrowLeft'] || this.keys['KeyA']) x = -1
-    if (this.keys['ArrowRight'] || this.keys['KeyD']) x = 1
+    if (this.keys['ArrowUp'] || this.keys['KeyW'] || this.keys['Numpad8']) y = -1
+    if (this.keys['ArrowDown'] || this.keys['KeyS'] || this.keys['Numpad2']) y = 1
+    if (this.keys['ArrowLeft'] || this.keys['KeyA'] || this.keys['Numpad4']) x = -1
+    if (this.keys['ArrowRight'] || this.keys['KeyD'] || this.keys['Numpad6']) x = 1
 
-    // Диагональные перемещения (Q/E/Z/C)
-    if (this.keys['KeyQ']) { x = -1; y = -1 }
-    if (this.keys['KeyE']) { x = 1; y = -1 }
-    if (this.keys['KeyZ']) { x = -1; y = 1 }
-    if (this.keys['KeyC']) { x = 1; y = 1 }
+    // Диагональные перемещения (num pad)
+    if (this.keys['Numpad7']) { x = -1; y = -1 }
+    if (this.keys['Numpad9']) { x = 1; y = -1 }
+    if (this.keys['Numpad1']) { x = -1; y = 1 }
+    if (this.keys['Numpad3']) { x = 1; y = 1 }
 
     if (this.touchActive && (this.touchDirX !== 0 || this.touchDirY !== 0)) {
       x = this.touchDirX

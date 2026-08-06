@@ -308,7 +308,7 @@ export default class GameLoop {
       }
     }
 
-    if (e.code === 'KeyE') {
+    if (e.code === 'KeyE' || e.code === 'Numpad5') {
       this.interact()
       e.preventDefault()
     }
