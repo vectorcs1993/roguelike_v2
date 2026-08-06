@@ -12,6 +12,7 @@ import RenderComponent from '../engine/components/RenderComponent.js'
 import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
 import ItemComponent from '../engine/components/ItemComponent.js'
 import InventoryComponent from '../engine/components/InventoryComponent.js'
+import WeightComponent from '../engine/components/WeightComponent.js'
 import EntityFactory from '../engine/EntityFactory.js'
 import Item from '../engine/Item.js'
 import EnergyComponent from '../engine/components/EnergyComponent.js'
@@ -64,7 +65,6 @@ export default class PlayerActions {
 
     const cost = this._getEnergyCost(actionType)
 
-    // Если энергия равна 0 - принудительный отдых
     if (energy.isExhausted()) {
       logger.info(LOG_MODULES.ACTION, '💤 Вы полностью истощены! Принудительный отдых...')
       this._forceRest(entity)
@@ -79,10 +79,6 @@ export default class PlayerActions {
     return true
   }
 
-  /**
-   * Принудительный отдых - восстанавливает энергию и забирает ход.
-   * Используется когда энергия = 0.
-   */
   _forceRest(entity) {
     const energy = entity?.getComponent(EnergyComponent)
     if (!energy) return
@@ -97,14 +93,10 @@ export default class PlayerActions {
     logger.info(LOG_MODULES.ACTION,
       `💤 Восстановлено ${restored} энергии (${Math.floor(energy.energy)}/${energy.maxEnergy})`)
 
-    // Голод тоже увеличивается при отдыхе
     this._applyHunger()
-
-    // Передаем ход врагам
     this.turnManager.endPlayerTurn()
   }
 
-  /** Тратит энергию на действие, увеличивает голод и передаёт ход врагам. */
   _spendEnergy(actionType) {
     const entity = this.gameLoop.selectedEntity
     const energy = entity?.getComponent(EnergyComponent)
@@ -113,11 +105,9 @@ export default class PlayerActions {
     const cost = this._getEnergyCost(actionType)
     energy.spend(cost)
     this._applyHunger()
-    // После каждого действия ход передаётся врагам, чтобы они могли действовать.
     this.turnManager.endPlayerTurn()
   }
 
-  /** Увеличивает голод за действие и убивает игрока при достижении максимума. */
   _applyHunger() {
     const entity = this.gameLoop.selectedEntity
     const hunger = entity?.getComponent(HungerComponent)
@@ -125,7 +115,6 @@ export default class PlayerActions {
 
     const playerConfig = GameConfig.getPlayer()
     const hungerPerTurn = playerConfig.hungerPerTurn ?? 1
-    // Устанавливаем урон от голода из конфига
     hunger.damagePerTurn = playerConfig.hungerDamagePerTurn ?? 1
 
     const damaged = hunger.increase(hungerPerTurn)
@@ -137,10 +126,23 @@ export default class PlayerActions {
     }
   }
 
-  /**
-   * Ожидание: восстанавливает энергию на energyRegen из конфига и
-   * передаёт ход врагам.
-   */
+  _checkOverweight() {
+    const entity = this.gameLoop.selectedEntity
+    if (!entity) return false
+
+    const weight = entity.getComponent(WeightComponent)
+    if (!weight) return false
+
+    if (weight.isOverweight()) {
+      const percent = Math.round(weight.getOverweightPercent())
+      logger.warn(LOG_MODULES.ACTION,
+        `⚠️ Перегруз! ${weight.toString()} (${percent}% перевеса). Сбросьте лишний вес.`
+      )
+      return true
+    }
+    return false
+  }
+
   wait() {
     if (!this.turnManager.isPlayerTurn) return false
 
@@ -150,27 +152,37 @@ export default class PlayerActions {
     const health = entity.getComponent(HealthComponent)
     if (!health || health.isDead) return false
 
+    const weight = entity.getComponent(WeightComponent)
+    const overloaded = weight && weight.isOverweight()
+    if (overloaded) {
+      this._checkOverweight()
+    }
+
     const energy = entity.getComponent(EnergyComponent)
     const playerConfig = GameConfig.getPlayer()
-    const regen = playerConfig.energyRegen || 15
+
+    const baseRegen = playerConfig.energyRegen || 15
+    let regen = baseRegen
+
+    if (overloaded && weight) {
+      regen = Math.floor(baseRegen * weight.getRegenModifier())
+    }
 
     if (energy) {
       const before = energy.energy
       energy.regen(regen)
       const restored = energy.energy - before
-      logger.info(LOG_MODULES.ACTION, `💤 Отдых: восстановлено ${restored} энергии (${Math.floor(energy.energy)}/${energy.maxEnergy})`)
+      const overloadMsg = overloaded ? ' (замедленно из-за перегруза)' : ''
+      logger.info(LOG_MODULES.ACTION, `💤 Отдых: восстановлено ${restored} энергии${overloadMsg}`)
     } else {
       logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} ждёт`)
     }
 
-    // При ожидании голод тоже растёт.
     this._applyHunger()
-
     this.turnManager.endPlayerTurn()
     return true
   }
 
-  /** Перемещает выбранного персонажа на (dx, dy), обрабатывая атаку и взаимодействие. */
   moveCharacter(dx, dy) {
     if (!this.turnManager.isPlayerTurn) return false
 
@@ -182,14 +194,18 @@ export default class PlayerActions {
 
     if (!pos || !health || health.isDead) return false
 
+    const weight = entity.getComponent(WeightComponent)
+    if (weight && weight.isOverweight()) {
+      this._checkOverweight()
+      return false
+    }
+
     const newX = pos.tileX + dx
     const newY = pos.tileY + dy
 
     if (newX < 0 || newX >= this.location.cols ||
       newY < 0 || newY >= this.location.rows) return false
 
-    // Ящик: игрок разбивает его, наступая на клетку.
-    // Разбитие занимает целый ход — игрок остаётся на месте.
     const targetCell = this.location.grid[newY]?.[newX]
     if (targetCell && targetCell.type === 'crate' && targetCell.entity) {
       if (!this._canAfford('move')) return false
@@ -198,7 +214,6 @@ export default class PlayerActions {
       return true
     }
 
-    // Попытка взаимодействия с интерактивным объектом на целевой клетке
     if (!this.location.isTileWalkable(newX, newY)) {
       const targetEntity = this.location.getEntityAt(newX, newY)
       if (targetEntity) {
@@ -215,7 +230,6 @@ export default class PlayerActions {
       return false
     }
 
-    // Атака врага на целевой клетке
     const targetEntity = this.engine.getFirstEntityAt(newX, newY)
     if (targetEntity && targetEntity.active) {
       const targetHealth = targetEntity.getComponent(HealthComponent)
@@ -225,7 +239,6 @@ export default class PlayerActions {
         if (this.combatSystem) {
           if (!this._canAfford('attack')) return false
           this.combatSystem.attackWithLog(entity, targetEntity)
-          // Если враг погиб — выпадает предмет по его dropPool (не более 1 предмета).
           if (targetHealth.isDead) {
             this._spawnEnemyDrop(targetEntity)
           }
@@ -235,7 +248,6 @@ export default class PlayerActions {
       }
     }
 
-    // Логирование предмета на земле (без действия)
     const itemEntity = this.engine.getEntitiesAt(newX, newY)
       .find(e => {
         const env = e.getComponent(EnvironmentComponent)
@@ -263,10 +275,16 @@ export default class PlayerActions {
     const pos = entity.getComponent(PositionComponent)
     if (!pos) return false
 
+    // Только проверка перегруза перед подбором
+    const weight = entity.getComponent(WeightComponent)
+    if (weight && weight.isOverweight()) {
+      this._checkOverweight()
+      return false
+    }
+
     const cx = pos.tileX
     const cy = pos.tileY
 
-    // Ищем предмет на клетке игрока (предметы лежат на своём слое поверх пола)
     let itemEntity = null
     const entitiesAt = this.engine.getEntitiesAt(cx, cy)
     for (const e of entitiesAt) {
@@ -283,6 +301,8 @@ export default class PlayerActions {
     }
 
     if (!this._canAfford('pickup')) return false
+
+    // Вся логика проверки веса теперь в InteractionSystem.pickupItem()
     const success = this.interactionSystem.pickupItem(entity, itemEntity)
     if (success) {
       this._spendEnergy('pickup')
@@ -290,7 +310,6 @@ export default class PlayerActions {
     return success
   }
 
-  /** Выбрасывает один предмет из инвентаря выбранного персонажа. */
   dropItem(itemId) {
     const entity = this.gameLoop.selectedEntity
     if (!entity) return false
@@ -330,7 +349,6 @@ export default class PlayerActions {
     return true
   }
 
-  /** Выбрасывает все предметы из инвентаря выбранного персонажа. */
   dropAllItems() {
     const entity = this.gameLoop.selectedEntity
     if (!entity) return false
@@ -364,7 +382,6 @@ export default class PlayerActions {
     return totalDropped > 0
   }
 
-  /** Использует предмет из инвентаря выбранного персонажа. */
   useItem(itemId) {
     if (!this.turnManager.isPlayerTurn) return false
 
@@ -380,7 +397,6 @@ export default class PlayerActions {
       return false
     }
 
-    // Эффекты работают с данными предмета (Item.toData()).
     const itemData = item.toData()
 
     if (!isItemUsable(itemData)) {
@@ -390,7 +406,6 @@ export default class PlayerActions {
 
     if (!this._canAfford('useItem')) return false
 
-    // Применяем эффекты предмета.
     const result = applyItemEffects(entity, itemData, this.gameLoop)
 
     if (!result.success) {
@@ -398,12 +413,10 @@ export default class PlayerActions {
       return false
     }
 
-    // Логируем сообщения об эффектах.
     for (const msg of result.messages) {
       logger.info(LOG_MODULES.ACTION, msg)
     }
 
-    // Расходуем один предмет.
     inv.removeItem(itemId, 1)
 
     const remaining = inv.getItemCount(itemId)
@@ -414,7 +427,6 @@ export default class PlayerActions {
     return true
   }
 
-  /** Атакует ближайшего врага в пределах дальности атаки. */
   attackNearestEnemy() {
     if (!this.turnManager.isPlayerTurn) return false
 
@@ -455,7 +467,6 @@ export default class PlayerActions {
     return true
   }
 
-  /** Взаимодействует с ближайшим интерактивным объектом вокруг персонажа. */
   interact() {
     if (!this.turnManager.isPlayerTurn) return false
 
@@ -490,16 +501,7 @@ export default class PlayerActions {
     return false
   }
 
-  /**
-   * Спавнит выпавший предмет после смерти врага.
-   * dropPool — объект вида { itemId: { chance, countMin, countMax } }.
-   * С одного врага может выпасть не более 1 предмета: перебираем пул по порядку
-   * и бросаем шанс каждого предмета; первый сработавший — выпадает.
-   */
   _spawnEnemyDrop(enemyEntity) {
-    // Внимание: при смерти врага HealthComponent.takeDamage вызывает
-    // entity.destroy(), который ставит active = false. Поэтому здесь НЕ
-    // проверяем active — иначе дроп никогда не выпадет.
     if (!enemyEntity) return
 
     const enemyData = enemyEntity.enemyData || {}
@@ -512,17 +514,11 @@ export default class PlayerActions {
     const drop = rollLoot(dropPool)
     if (!drop) return
 
-    // Переиспользуем общий метод создания предмета на земле.
     const baseData = GameConfig.getItem(drop.type) || GameConfig.getItem('generic') || {}
     const item = new Item({ ...baseData, type: drop.type }, drop.count)
     this._createItemEntity(pos.tileX, pos.tileY, item)
   }
 
-  /**
-   * Находит клетку для выброса предмета рядом с (x, y).
-   * Сначала пробует саму клетку, затем соседние. Если checkNoItem — пропускает
-   * клетки, где уже лежит предмет. Возвращает { x, y } или null.
-   */
   _findDropCell(x, y, checkNoItem = false) {
     const dirs = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]
     for (const [dx, dy] of dirs) {
@@ -540,15 +536,14 @@ export default class PlayerActions {
     return null
   }
 
-  /** Создаёт сущность предмета на указанной клетке (поверх существующего пола). */
   _createItemEntity(x, y, item) {
-    // Предмет лежит на своём слое поверх пола — пол на клетке не трогаем.
     const itemEntity = EntityFactory.createItem(x, y, item.type, {
       name: item.name,
       char: item.char,
       color: item.color,
       bgColor: item.bgColor,
       count: item.count,
+      weight: item.unitWeight,
       effects: item.effects,
       usable: item.data.usable,
       description: item.data.description
@@ -565,7 +560,6 @@ export default class PlayerActions {
     this.engine.addEntity(itemEntity)
   }
 
-  /** Делает сущность видимой и исследованной (для предметов на земле). */
   _makeVisible(entity) {
     const render = entity.getComponent(RenderComponent)
     if (render) {

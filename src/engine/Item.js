@@ -22,10 +22,6 @@
 export default class Item {
   static _nextId = 1
 
-  /**
-   * @param {object} data  — данные предмета (см. GameConfig.getItem)
-   * @param {number} count — количество в стаке
-   */
   constructor(data = {}, count = 1) {
     this.id = data.id !== undefined ? data.id : Item._nextId++
     this.data = { ...data }
@@ -64,6 +60,16 @@ export default class Item {
     return Object.keys(this.effects).length > 0
   }
 
+  /** Вес предмета (умножается на количество) */
+  get weight() {
+    return (this.data.weight || 0) * this.count
+  }
+
+  /** Вес одного экземпляра предмета */
+  get unitWeight() {
+    return this.data.weight || 0
+  }
+
   // ===== Операции со стаком =====
 
   add(count = 1) {
@@ -82,12 +88,10 @@ export default class Item {
 
   // ===== Сериализация =====
 
-  /** Возвращает копию данных предмета (для передачи в эффекты и т.п.). */
   toData() {
-    return { ...this.data, id: this.id, count: this.count }
+    return { ...this.data, id: this.id, count: this.count, weight: this.weight }
   }
 
-  /** Создаёт копию предмета (для выброса/передачи). */
   clone(count = this.count) {
     return new Item({ ...this.data, id: this.id }, count)
   }

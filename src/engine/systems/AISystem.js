@@ -64,7 +64,7 @@ export default class AISystem extends System {
           return true
         }
       } else {
-        // Двигаемся к игроку на 1 клетку за ход
+        // Двигаемся к игроку
         this.moveToPlayer(enemy, nearestPlayer, location)
         return true
       }
@@ -79,15 +79,15 @@ export default class AISystem extends System {
   moveToPlayer(enemy, player, location) {
     const pos = enemy.getComponent(PositionComponent)
     const playerPos = player.getComponent(PositionComponent)
+    const movement = enemy.getComponent(MovementComponent)
+
     if (!pos || !playerPos) return
 
     // Используем Pathfinder для построения маршрута к игроку.
-    // Враги с препятствиями на пути будут обходить их, а не идти напрямую.
     const path = location.findPath(pos.tileX, pos.tileY, playerPos.tileX, playerPos.tileY, enemy)
 
     if (path && path.length > 0) {
       // Сохраняем маршрут в MovementComponent для последующего следования
-      const movement = enemy.getComponent(MovementComponent)
       if (movement) {
         movement.setPath(path, { x: playerPos.tileX, y: playerPos.tileY }, player)
       }
@@ -98,10 +98,25 @@ export default class AISystem extends System {
         next = path[1] || null
       }
 
-      // Двигаемся на 1 клетку по маршруту за ход
-      if (next && !this.engine.isTileBlocked(next.x, next.y, enemy)) {
+      // Учитываем скорость с перегрузом
+      const speed = movement?.getCurrentSpeed() || 1
+      let moved = 0
+
+      while (next && moved < speed && !this.engine.isTileBlocked(next.x, next.y, enemy)) {
         pos.moveTo(next.x, next.y)
         if (movement) movement.advancePath()
+        moved++
+
+        // Пересчитываем путь после каждого шага
+        const newPath = location.findPath(pos.tileX, pos.tileY, playerPos.tileX, playerPos.tileY, enemy)
+        if (newPath && newPath.length > 0) {
+          next = newPath[0]
+          if (next && next.x === pos.tileX && next.y === pos.tileY) {
+            next = newPath[1] || null
+          }
+        } else {
+          break
+        }
       }
       return
     }
@@ -146,7 +161,6 @@ export default class AISystem extends System {
 
       if (!location.isTileWalkable(nx, ny)) continue
       if (!this.engine.isTileBlocked(nx, ny, enemy)) {
-        // Двигаемся на 1 клетку
         pos.moveTo(nx, ny)
         return
       }

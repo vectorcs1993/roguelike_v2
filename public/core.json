@@ -24,6 +24,7 @@
     "speed": 1,
     "xpPerLevel": 20,
     "maxLevel": 20,
+    "maxCarryWeight": 10,
     "energy": 100,
     "maxEnergy": 100,
     "energyRegen": 15,
@@ -458,7 +459,7 @@
       "type": "weapon",
       "category": "melee",
       "value": 15,
-      "weight": 2,
+      "weight": 3.0,
       "usable": true,
       "effects": {
         "damageBonus": 3
@@ -481,7 +482,7 @@
       "type": "armor",
       "category": "body",
       "value": 12,
-      "weight": 3,
+      "weight": 4.0,
       "usable": true,
       "effects": {
         "armorBonus": 2

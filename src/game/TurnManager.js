@@ -41,7 +41,6 @@ export default class TurnManager {
   /** Завершает ход игрока и запускает ход врагов. */
   endPlayerTurn() {
     if (!this.isPlayerTurn) return
-    // logger.info(LOG_MODULES.TURN, 'Игрок завершил ход')
     this.isPlayerTurn = false
     this.enemyTurnIndex = 0
     this.updateEnemyList()
@@ -59,7 +58,6 @@ export default class TurnManager {
       return
     }
 
-    // logger.info(LOG_MODULES.TURN, `Ход врагов (${this.enemyList.length})`)
     this.isProcessingEnemyTurn = true
     this.enemyTurnIndex = 0
     this.processNextEnemy()
@@ -90,7 +88,8 @@ export default class TurnManager {
 
     // Враг выполняет количество действий за ход, равное его скорости (speed).
     const movement = enemy.getComponent(MovementComponent)
-    const speed = Math.max(1, movement?.speed || 1)
+    // Используем актуальную скорость с учётом возможных модификаторов (перегруз)
+    const speed = Math.max(1, movement?.getCurrentSpeed() || 1)
 
     for (let i = 0; i < speed; i++) {
       if (this.isPlayerTurn) break
@@ -114,7 +113,6 @@ export default class TurnManager {
 
   /** Завершает ход врагов и возвращает ход игроку. */
   endEnemyTurn() {
-    // logger.info(LOG_MODULES.TURN, 'Враги завершили ход')
     this.isPlayerTurn = true
     this.enemyTurnIndex = 0
     this.isProcessingEnemyTurn = false
@@ -129,8 +127,6 @@ export default class TurnManager {
     }
 
     this.turnCount++
-    // const locationName = this.location?.name || 'Локация'
-    // logger.info(LOG_MODULES.TURN, `${locationName}: Ход ${this.turnCount}`)
   }
 
   /** Сбрасывает состояние хода (при перезагрузке локации). */

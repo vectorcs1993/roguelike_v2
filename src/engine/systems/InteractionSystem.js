@@ -8,6 +8,7 @@ import ItemComponent from '../components/ItemComponent.js'
 import HealthComponent from '../components/HealthComponent.js'
 import InventoryComponent from '../components/InventoryComponent.js'
 import RenderComponent from '../components/RenderComponent.js'
+import WeightComponent from '../components/WeightComponent.js'
 import EntityFactory from '../EntityFactory.js'
 import { GameConfig } from '../../game/GameConfig.js'
 import { logger, LOG_MODULES } from '../../game/Logger.js'
@@ -33,7 +34,6 @@ export default class InteractionSystem extends System {
     if (!actorPos || !targetPos) return false
     if (actorPos.chebyshevDistanceTo(targetPos) > 1) return false
 
-    // Дверь
     const door = target.getComponent(DoorComponent)
     if (door) {
       const success = door.toggle()
@@ -50,12 +50,10 @@ export default class InteractionSystem extends System {
       }
     }
 
-    // Ящик: разбивается, исчезает с уровня, с шансом из конфига выпадает лут
     if (env.type === 'crate') {
       return this.breakCrate(actor, target)
     }
 
-    // Сбор предмета
     if (env.isCollectible) {
       return this.pickupItem(actor, target)
     }
@@ -63,10 +61,6 @@ export default class InteractionSystem extends System {
     return false
   }
 
-  /**
-   * Разбивает ящик: удаляет его с уровня, создаёт пол на его месте
-   * и с шансом из конфига выпадает случайный предмет.
-   */
   breakCrate(actor, target) {
     const targetPos = target.getComponent(PositionComponent)
     if (!targetPos) return false
@@ -79,8 +73,6 @@ export default class InteractionSystem extends System {
 
     logger.info(LOG_MODULES.ACTION, `Ящик разбит!`)
 
-    // Выпадение лута из cratePool текущего биома: { dropChance, items, minCount, maxCount }.
-    // items — объект вида { itemId: { chance, countMin, countMax } }.
     const loc = this.engine.currentLocation
     const biome = loc && loc.biomeId ? GameConfig.getBiome(loc.biomeId) : null
     const cratePool = (biome && biome.cratePool) || {}
@@ -111,8 +103,8 @@ export default class InteractionSystem extends System {
   }
 
   /**
-   * Подбирает предмет: добавляет его в инвентарь актора и
-   * удаляет сущность с уровня (пол на клетке остаётся нетронутым).
+   * Подбирает предмет: добавляет его в инвентарь актора.
+   * ЕДИНСТВЕННОЕ МЕСТО ПРОВЕРКИ ВЕСА ПРИ ПОДБОРЕ.
    */
   pickupItem(actor, target) {
     const itemComp = target.getComponent(ItemComponent)
@@ -127,8 +119,17 @@ export default class InteractionSystem extends System {
       return false
     }
 
-    // Унифицированный предмет передаётся в инвентарь целиком — без ручной
-    // пересборки данных. Инвентарь сам обработает стаки.
+    // ТОЛЬКО ЗДЕСЬ ПРОВЕРЯЕМ ВЕС
+    const weight = actor.getComponent(WeightComponent)
+    if (weight) {
+      const itemWeight = itemComp.item.unitWeight * itemComp.item.count
+      if (!weight.canAddWeight(itemWeight)) {
+        const needed = itemWeight - (weight.maxWeight - weight.currentWeight)
+        logger.warn(LOG_MODULES.ACTION, `Слишком тяжело! Не хватает ${needed.toFixed(1)} кг`)
+        return false
+      }
+    }
+
     const item = itemComp.item
     if (!inv.addItem(item)) {
       logger.warn(LOG_MODULES.ACTION, `Не удалось добавить предмет в инвентарь`)
@@ -136,16 +137,12 @@ export default class InteractionSystem extends System {
     }
 
     itemComp.collected = true
-
-    // Предмет лежит на своём слое поверх пола — просто удаляем его сущность,
-    // пол на клетке остаётся нетронутым.
     this.engine.removeEntity(target)
 
     logger.info(LOG_MODULES.ACTION, `Подобран предмет: ${env.name}`)
     return true
   }
 
-  /** Создаёт пол на клетке (x, y) и делает его видимым (используется при разбитии ящика). */
   _createFloorAt(x, y) {
     const loc = this.engine.currentLocation
     const floorEntity = EntityFactory.createFloor(x, y, loc ? loc.biomeId : null)

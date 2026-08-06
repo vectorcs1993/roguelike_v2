@@ -32,6 +32,7 @@ import EnergyComponent from '../engine/components/EnergyComponent.js'
 import CombatComponent from '../engine/components/CombatComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
 import { logger, LOG_MODULES } from './Logger.js'
+import PlayerComponent from 'src/engine/components/PlayerComponent.js'
 
 // ===== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ =====
 
@@ -207,7 +208,17 @@ export const EFFECT_HANDLERS = {
     health.heal(amount)
     const healed = health.hp - before
     return `Восстановлено ${healed} HP (${health.hp}/${health.maxHp})`
-  }
+  },
+
+  // Увеличение грузоподъёмности: { "carryBonus": 10 }
+  carryBonus(ctx) {
+    const player = ctx.entity.getComponent(PlayerComponent)
+    if (!player) return false
+    const amount = Number(ctx.value) || 0
+    if (amount <= 0) return false
+    player.maxCarryWeight += amount
+    return `Грузоподъёмность увеличена на ${amount} (${player.maxCarryWeight})`
+  },
 }
 
 // ===== ПРИМЕНЕНИЕ СТАТИСТИКИ БАФФОВ =====

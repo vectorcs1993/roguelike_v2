@@ -144,7 +144,10 @@
             <div class="text-subtitle1 text-sm-h6 flex items-center">
               <q-icon name="inventory" class="q-mr-xs" />
               Инвентарь
-              <q-badge color="grey-7" :label="totalItems" class="q-ml-xs" />
+              <q-badge v-if="playerStats" color="grey-7" :label="`${playerStats.totalWeight.toFixed(1)}/${playerStats.maxCarryWeight} кг`"
+                class="q-ml-xs">
+              </q-badge>
+
               <q-space />
               <q-btn dense @click="dropAllItems" label="Выбросить всё" />
             </div>
@@ -259,7 +262,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import GameLoop from 'src/game/GameLoop.js'
 import { ContentLoader, GameConfig, logger, LOG_LEVEL, isItemUsable, LOG_MODULES } from 'src/game/index.js'
 
@@ -303,11 +306,6 @@ const contentTypeOptions = [
   { label: 'Мод (URL)', value: 'mod' }
 ]
 
-const totalItems = computed(() => {
-  if (!game?.selectedEntity) return 0
-  const inv = game.selectedEntity.getComponent(InventoryComponent)
-  return inv ? inv.count : 0
-})
 
 function onGlobalKeyDown(event) {
   if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return
@@ -406,6 +404,12 @@ function updateEntitiesList() {
       const hunger = hungerComp ? hungerComp.hunger : 0
       const maxHunger = hungerComp ? hungerComp.maxHunger : 100
 
+
+      const inventory = entity.getComponent(InventoryComponent)
+      const playerComp = entity.getComponent(PlayerComponent)
+      const totalWeight = inventory ? inventory.totalWeight : 0
+      const maxCarryWeight = playerComp ? playerComp.maxCarryWeight : 50
+
       playerFound = {
         id: entity.id,
         name: playerConfig.name || 'Игрок',
@@ -428,6 +432,8 @@ function updateEntitiesList() {
         attackRange: combat?.attackRange ?? 1,
         initiative: combat?.initiative ?? 5,
         speed: movement?.speed ?? 12,
+        totalWeight: totalWeight,
+        maxCarryWeight: maxCarryWeight,
         x: position?.tileX ?? 0,
         y: position?.tileY ?? 0
       }

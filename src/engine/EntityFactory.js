@@ -14,6 +14,7 @@ import InventoryComponent from './components/InventoryComponent.js'
 import EnvironmentComponent from './components/EnvironmentComponent.js'
 import DoorComponent from './components/DoorComponent.js'
 import ItemComponent from './components/ItemComponent.js'
+import WeightComponent from './components/WeightComponent.js'
 import Item from './Item.js'
 import { GameConfig } from '../game/GameConfig.js'
 import { logger, LOG_MODULES } from '../game/Logger.js'
@@ -32,6 +33,8 @@ export default class EntityFactory {
     render.layer = playerData.layer || 4
     render.visible = true
     render.explored = true
+
+    const maxCarryWeight = config.maxCarryWeight || playerData.maxCarryWeight || 50
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -56,9 +59,16 @@ export default class EntityFactory {
         accuracy: config.accuracy || playerData.accuracy || 0.75,
         initiative: config.initiative || playerData.initiative || 6
       }))
-      .addComponent(new PlayerComponent())
+      .addComponent(new PlayerComponent({
+        maxCarryWeight: maxCarryWeight,
+        speed: config.speed || playerData.speed || 12
+      }))
       .addComponent(new MovementComponent(config.speed || playerData.speed || 12))
       .addComponent(new InventoryComponent())
+      .addComponent(new WeightComponent({
+        maxWeight: maxCarryWeight,
+        currentWeight: 0
+      }))
 
     entity.enemyData = playerData
 
@@ -249,8 +259,8 @@ export default class EntityFactory {
     const name = config.name || baseData.name || 'Предмет'
     const layer = config.layer || baseData.layer || 2
     const count = config.count !== undefined ? config.count : 1
+    const weight = config.weight !== undefined ? config.weight : (baseData.weight || 0)
 
-    // Унифицированный предмет: объединяем данные из конфига с переопределениями.
     const item = new Item({
       ...baseData,
       type: itemType || baseData.type || 'generic',
@@ -259,6 +269,7 @@ export default class EntityFactory {
       color,
       bgColor,
       layer,
+      weight: weight,
       effects: config.effects || baseData.effects || {},
       usable: config.usable !== undefined ? config.usable : baseData.usable,
       description: config.description !== undefined ? config.description : baseData.description
@@ -315,7 +326,8 @@ export default class EntityFactory {
       'InventoryComponent': InventoryComponent,
       'EnvironmentComponent': EnvironmentComponent,
       'DoorComponent': DoorComponent,
-      'ItemComponent': ItemComponent
+      'ItemComponent': ItemComponent,
+      'WeightComponent': WeightComponent
     }
 
     for (const [name, data] of Object.entries(components)) {

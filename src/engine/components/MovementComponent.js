@@ -2,6 +2,7 @@
 
 import Component from './Component.js'
 import PositionComponent from './PositionComponent.js'
+import WeightComponent from './WeightComponent.js'
 
 export default class MovementComponent extends Component {
   constructor(speed = 12) {
@@ -11,6 +12,24 @@ export default class MovementComponent extends Component {
     this.followingPath = false
     this.target = null
     this.targetEntity = null
+  }
+
+  /** Проверяет, может ли сущность двигаться (не перегружена) */
+  canMove() {
+    const weight = this.entity?.getComponent(WeightComponent)
+    if (weight) {
+      return !weight.isOverweight()
+    }
+    return true
+  }
+
+  /** Возвращает актуальную скорость с учётом перегруза */
+  getCurrentSpeed() {
+    const weight = this.entity?.getComponent(WeightComponent)
+    if (weight && weight.isOverweight()) {
+      return Math.max(1, Math.floor(this.speed * weight.getSpeedModifier()))
+    }
+    return this.speed
   }
 
   setPath(path, target = null, targetEntity = null) {
