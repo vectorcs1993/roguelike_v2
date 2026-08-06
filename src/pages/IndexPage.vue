@@ -32,18 +32,7 @@
           <div class="absolute-bottom full-width q-pa-sm">
             <q-card-section flat bordered class="row bg-grey-9 justify-center">
               <div class="row q-gutter-sm">
-                <q-btn label="↖" @click="move(-1, -1)" />
-                <q-btn label="⬆" @click="move(0, -1)" />
-                <q-btn label="↗" @click="move(1, -1)" />
-                <q-btn label="⬅" @click="move(-1, 0)" />
-                <q-btn label="➡" @click="move(1, 0)" />
-                <q-btn label="↙" @click="move(-1, 1)" />
-                <q-btn label="⬇" @click="move(0, 1)" />
-                <q-btn label="↘" @click="move(1, 1)" />
-                <q-btn label="Ждать" @click="waitTurn" />
-                <q-btn label="Атака" @click="attack" />
-                <q-btn label="Взаимодействие" @click="interact" />
-                <q-btn label="Поднять" @click="pickup" />
+                Здесь инфа о предмете (тултип)
               </div>
             </q-card-section>
           </div>
@@ -62,8 +51,8 @@
             </div>
           </q-card-section>
           <q-separator dark />
-          <q-card-section dark>
-            <template v-if="playerStats">
+          <q-card-section class="row" dark>
+            <div class="col" v-if="playerStats">
               <!-- Здоровье -->
               <div>
                 <div class="row justify-between">
@@ -121,46 +110,33 @@
                 <span class="text-grey-5">📍 Позиция</span>
                 <span>{{ playerStats.x }}, {{ playerStats.y }}</span>
               </div>
-            </template>
-            <div v-else class="text-center text-grey-5 q-py-md">Игрок не найден</div>
+            </div>
+            <div v-else class="col text-center text-grey-5 q-py-md">Игрок не найден</div>
+            <div class="col q-pa-md q-gutter-sm">
+              <!-- Сетка перемещения -->
+              <div class="row" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                <q-btn label="↖" @click="move(-1, -1)" class="full-width" />
+                <q-btn label="⬆" @click="move(0, -1)" class="full-width" />
+                <q-btn label="↗" @click="move(1, -1)" class="full-width" />
+                <q-btn label="⬅" @click="move(-1, 0)" class="full-width" />
+                <q-btn label="🖱" @click="interact" class="full-width" />
+                <q-btn label="➡" @click="move(1, 0)" class="full-width" />
+                <q-btn label="↙" @click="move(-1, 1)" class="full-width" />
+                <q-btn label="⬇" @click="move(0, 1)" class="full-width" />
+                <q-btn label="↘" @click="move(1, 1)" class="full-width" />
+              </div>
+
+              <!-- Действия -->
+              <div class="row">
+                <q-btn label="Ждать" @click="waitTurn" class="col" />
+                <q-btn label="Атака" @click="attack" class="col" />
+                <q-btn label="Поднять" @click="pickup" class="col" />
+              </div>
+            </div>
           </q-card-section>
         </q-card>
 
-        <!-- Сущности -->
-        <q-card flat square bordered dark style="flex-shrink: 0;">
-          <q-card-section class="bg-grey-9">
-            <div class="text-h6 flex items-center">
-              <q-icon name="groups" class="q-mr-sm" />
-              Сущности
-              <q-badge color="grey-7" :label="entitiesList.length" class="q-ml-sm" />
-            </div>
-          </q-card-section>
-          <q-separator dark />
-          <q-card-section style="height: 200px; overflow-y: auto;" dark>
-            <q-scroll-area v-if="entitiesList.length > 0" dark style="width: 100%; height: 100%;">
-              <q-item v-for="(ent) in entitiesList" :key="ent.id" :active="ent.id === selectedEntityId" clickable dark>
-                <q-item-section avatar dark>
-                  <q-chip :style="{ backgroundColor: ent.teamColor, color: 'white' }">
-                    {{ ent.char }}
-                  </q-chip>
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>
-                    {{ ent.name }}
-                    <q-badge :color="ent.isEnemy ? 'red' : 'grey'" flat>
-                      {{ ent.isEnemy ? 'Враг' : ent.isEnvironment ? 'Окр.' : 'Предм.' }}
-                    </q-badge>
-                  </q-item-label>
-                  <q-item-label>❤️ {{ ent.hp }}/{{ ent.maxHp }}</q-item-label>
-                </q-item-section>
-                <div class="row q-gutter-sm">
-                  <q-btn icon="center_focus_strong" label="Центр" dense @click.stop="centerOnCharacter(ent.id)" dark />
-                </div>
-              </q-item>
-            </q-scroll-area>
-            <div v-else class="text-center text-grey-5 q-py-md">Нет сущностей</div>
-          </q-card-section>
-        </q-card>
+
 
         <!-- Инвентарь -->
         <q-card flat square bordered dark style="flex-shrink: 0;">
@@ -199,6 +175,42 @@
               </q-item>
             </q-scroll-area>
             <div v-else class="text-center text-grey-5 q-py-md">Инвентарь пуст</div>
+          </q-card-section>
+        </q-card>
+
+        <!-- Сущности -->
+        <q-card flat square bordered dark style="flex-shrink: 0;">
+          <q-card-section class="bg-grey-9">
+            <div class="text-h6 flex items-center">
+              <q-icon name="groups" class="q-mr-sm" />
+              Сущности
+              <q-badge color="grey-7" :label="entitiesList.length" class="q-ml-sm" />
+            </div>
+          </q-card-section>
+          <q-separator dark />
+          <q-card-section style="height: 200px; overflow-y: auto;" dark>
+            <q-scroll-area v-if="entitiesList.length > 0" dark style="width: 100%; height: 100%;">
+              <q-item v-for="(ent) in entitiesList" :key="ent.id" :active="ent.id === selectedEntityId" clickable dark>
+                <q-item-section avatar dark>
+                  <q-chip :style="{ backgroundColor: ent.teamColor, color: 'white' }">
+                    {{ ent.char }}
+                  </q-chip>
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label>
+                    {{ ent.name }}
+                    <q-badge :color="ent.isEnemy ? 'red' : 'grey'" flat>
+                      {{ ent.isEnemy ? 'Враг' : ent.isEnvironment ? 'Окр.' : 'Предм.' }}
+                    </q-badge>
+                  </q-item-label>
+                  <q-item-label>❤️ {{ ent.hp }}/{{ ent.maxHp }}</q-item-label>
+                </q-item-section>
+                <div class="row q-gutter-sm">
+                  <q-btn icon="center_focus_strong" label="Центр" dense @click.stop="centerOnCharacter(ent.id)" dark />
+                </div>
+              </q-item>
+            </q-scroll-area>
+            <div v-else class="text-center text-grey-5 q-py-md">Нет сущностей</div>
           </q-card-section>
         </q-card>
 
@@ -250,7 +262,7 @@
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import GameLoop from 'src/game/GameLoop.js'
-import { ContentLoader, GameConfig, logger, LOG_LEVEL, isItemUsable } from 'src/game/index.js'
+import { ContentLoader, GameConfig, logger, LOG_LEVEL, isItemUsable, LOG_MODULES } from 'src/game/index.js'
 
 import PositionComponent from 'src/engine/components/PositionComponent.js'
 import RenderComponent from 'src/engine/components/RenderComponent.js'
@@ -510,7 +522,7 @@ function waitTurn() {
 function attack() {
   const result = game?.attackNearestEnemy()
   if (result) addConsoleMessage('Атака выполнена!', 'success')
-  else addConsoleMessage('Нет цели для атаки', 'warning')
+  else logger.info(LOG_MODULES.COMBAT, 'Нет цели для атаки')
 }
 
 function interact() { game?.interact() }

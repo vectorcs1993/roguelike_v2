@@ -224,8 +224,8 @@ export default class PlayerActions {
       return false
     }
 
-    const itemData = inv.removeItem(itemId, 1)
-    if (!itemData) {
+    const item = inv.removeItem(itemId, 1)
+    if (!item) {
       logger.info(LOG_MODULES.ACTION, 'Не удалось удалить предмет')
       return false
     }
@@ -244,23 +244,23 @@ export default class PlayerActions {
         if (nx >= 0 && nx < this.location.cols &&
           ny >= 0 && ny < this.location.rows &&
           this.location.isTileWalkable(nx, ny)) {
-          this._createItemEntity(nx, ny, itemData)
+          this._createItemEntity(nx, ny, item)
           placed = true
           break
         }
       }
       if (!placed) {
-        inv.addItem(itemData)
+        inv.addItem(item)
         logger.info(LOG_MODULES.ACTION, 'Нет места для выброса предмета')
         return false
       }
     } else {
-      this._createItemEntity(x, y, itemData)
+      this._createItemEntity(x, y, item)
     }
 
     const remaining = inv.getItemCount(itemId)
     const countMsg = remaining > 0 ? ` (осталось ${remaining})` : ''
-    logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} выбросил ${itemData.name}${countMsg}`)
+    logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} выбросил ${item.name}${countMsg}`)
     return true
   }
 
@@ -279,9 +279,8 @@ export default class PlayerActions {
     }
 
     let totalDropped = 0
-    for (const entry of items) {
-      const itemData = entry.itemData
-      const count = entry.count
+    for (const item of items) {
+      const count = item.count
       for (let i = 0; i < count; i++) {
         const pos = entity.getComponent(PositionComponent)
         if (!pos) break
@@ -300,7 +299,7 @@ export default class PlayerActions {
             const hasItem = this.engine.getEntitiesAt(nx, ny)
               .some(e => e.getComponent(ItemComponent))
             if (!hasItem) {
-              this._createItemEntity(nx, ny, itemData)
+              this._createItemEntity(nx, ny, item)
               placed = true
               break
             }
@@ -309,7 +308,7 @@ export default class PlayerActions {
 
         if (placed) {
           totalDropped++
-          inv.removeItem(itemData.id, 1)
+          inv.removeItem(item.id, 1)
         }
       }
     }
@@ -328,14 +327,17 @@ export default class PlayerActions {
     const inv = entity.getComponent(InventoryComponent)
     if (!inv) return false
 
-    const itemData = inv.getItem(itemId)
-    if (!itemData) {
+    const item = inv.getItem(itemId)
+    if (!item) {
       logger.info(LOG_MODULES.ACTION, 'Предмет не найден в инвентаре')
       return false
     }
 
+    // Эффекты работают с данными предмета (Item.toData()).
+    const itemData = item.toData()
+
     if (!isItemUsable(itemData)) {
-      logger.info(LOG_MODULES.ACTION, `Предмет "${itemData.name}" нельзя использовать`)
+      logger.info(LOG_MODULES.ACTION, `Предмет "${item.name}" нельзя использовать`)
       return false
     }
 
@@ -343,7 +345,7 @@ export default class PlayerActions {
     const result = applyItemEffects(entity, itemData, this.gameLoop)
 
     if (!result.success) {
-      logger.info(LOG_MODULES.ACTION, `Не удалось использовать "${itemData.name}"`)
+      logger.info(LOG_MODULES.ACTION, `Не удалось использовать "${item.name}"`)
       return false
     }
 
@@ -357,7 +359,7 @@ export default class PlayerActions {
 
     const remaining = inv.getItemCount(itemId)
     const countMsg = remaining > 0 ? ` (осталось ${remaining})` : ''
-    logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} использовал ${itemData.name}${countMsg}`)
+    logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} использовал ${item.name}${countMsg}`)
 
     this.consumeAction()
     return true
@@ -444,13 +446,17 @@ export default class PlayerActions {
   }
 
   /** Создаёт сущность предмета на указанной клетке (поверх существующего пола). */
-  _createItemEntity(x, y, itemData) {
+  _createItemEntity(x, y, item) {
     // Предмет лежит на своём слое поверх пола — пол на клетке не трогаем.
-    const itemEntity = EntityFactory.createItem(x, y, itemData.type || 'generic', {
-      name: itemData.name,
-      char: itemData.char,
-      color: itemData.color,
-      bgColor: itemData.bgColor
+    const itemEntity = EntityFactory.createItem(x, y, item.type, {
+      name: item.name,
+      char: item.char,
+      color: item.color,
+      bgColor: item.bgColor,
+      count: item.count,
+      effects: item.effects,
+      usable: item.data.usable,
+      description: item.data.description
     })
 
     const render = itemEntity.getComponent(RenderComponent)
@@ -461,12 +467,7 @@ export default class PlayerActions {
 
     const env = itemEntity.getComponent(EnvironmentComponent)
     if (env) {
-      env.name = itemData.name || env.name
-    }
-
-    const itemComp = itemEntity.getComponent(ItemComponent)
-    if (itemComp) {
-      itemComp.itemType = itemData.type || 'generic'
+      env.name = item.name || env.name
     }
 
     itemEntity.engine = this.engine

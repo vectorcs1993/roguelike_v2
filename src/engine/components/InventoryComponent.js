@@ -1,75 +1,74 @@
 // src/engine/components/InventoryComponent.js
+//
+// Компонент инвентаря. Хранит унифицированные объекты Item (см. src/engine/Item.js)
+// вместо разрозненных данных { itemData, count }.
 
 import Component from './Component.js'
+import Item from '../Item.js'
 
 export default class InventoryComponent extends Component {
   constructor() {
     super()
-    this.items = [] // { itemData, count }
+    this.items = [] // Item[]
     this.equipped = {
       weapon: null,
       armor: null,
       accessory: null
     }
-    this._nextItemId = 1
   }
 
-  // Добавление предмета с поддержкой стаков
-  addItem(itemData, count = 1) {
+  // Добавление предмета с поддержкой стаков.
+  // Принимает Item или данные предмета (объект).
+  addItem(itemOrData, count = 1) {
+    const item = itemOrData instanceof Item ? itemOrData : new Item(itemOrData, count)
+
     // Проверяем, есть ли уже такой предмет в инвентаре (по типу, имени и символу)
-    const existing = this.items.find(item =>
-      item.itemData.type === itemData.type &&
-      item.itemData.name === itemData.name &&
-      item.itemData.char === itemData.char
+    const existing = this.items.find(entry =>
+      entry.type === item.type &&
+      entry.name === item.name &&
+      entry.char === item.char
     )
 
     if (existing) {
-      existing.count += count
+      existing.add(item.count)
       return true
     }
 
-    // Если предмета нет, создаём новый
-    if (!itemData.id) {
-      itemData.id = this._nextItemId++
-    }
-    this.items.push({
-      itemData: { ...itemData },
-      count: count
-    })
+    this.items.push(item)
     return true
   }
 
-  // Удаление конкретного количества предметов
+  // Удаление конкретного количества предметов.
+  // Возвращает удалённый Item (или null, если предмет не найден).
   removeItem(itemId, count = 1) {
-    const index = this.items.findIndex(item => item.itemData.id === itemId)
+    const index = this.items.findIndex(entry => entry.id === itemId)
     if (index === -1) return null
 
     const entry = this.items[index]
-    const removed = { ...entry.itemData }
+    const removed = entry.clone(count)
 
     if (entry.count > count) {
-      entry.count -= count
-      return removed
+      entry.remove(count)
     } else {
       this.items.splice(index, 1)
-      return removed
     }
+    return removed
   }
 
   // Получить предмет по ID
   getItem(itemId) {
-    const entry = this.items.find(item => item.itemData.id === itemId)
-    return entry ? entry.itemData : null
+    const entry = this.items.find(item => item.id === itemId)
+    return entry || null
   }
 
   // Получить количество предметов по ID
   getItemCount(itemId) {
-    const entry = this.items.find(item => item.itemData.id === itemId)
+    const entry = this.items.find(item => item.id === itemId)
     return entry ? entry.count : 0
   }
 
   getItemsByType(type) {
-    return this.items.filter(item => item.itemData.type === type)
+    return this.items.filter(item => item.type === type)
   }
 
   get count() {
@@ -78,10 +77,7 @@ export default class InventoryComponent extends Component {
 
   // Возвращает массив предметов для отображения (каждый стак как отдельный элемент)
   getDisplayItems() {
-    return this.items.map(entry => ({
-      ...entry.itemData,
-      count: entry.count
-    }))
+    return this.items.map(item => item.toData())
   }
 
   // Очистка инвентаря

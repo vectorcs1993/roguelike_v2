@@ -12,6 +12,7 @@ import InventoryComponent from './components/InventoryComponent.js'
 import EnvironmentComponent from './components/EnvironmentComponent.js'
 import DoorComponent from './components/DoorComponent.js'
 import ItemComponent from './components/ItemComponent.js'
+import Item from './Item.js'
 import { GameConfig } from '../game/GameConfig.js'
 import { logger, LOG_MODULES } from '../game/Logger.js'
 
@@ -243,14 +244,28 @@ export default class EntityFactory {
   }
 
   static createItem(x, y, itemType, config = {}) {
-    const itemData = GameConfig.getItem(itemType) || GameConfig.getItem('generic')
+    const baseData = GameConfig.getItem(itemType) || GameConfig.getItem('generic')
 
-    const char = config.char || itemData.char || '?'
-    const color = config.color || itemData.color || '#ffffff'
-    const bgColor = config.bgColor || itemData.bgColor || null
-    const name = config.name || itemData.name || 'Предмет'
-    const layer = config.layer || itemData.layer || 2
+    const char = config.char || baseData.char || '?'
+    const color = config.color || baseData.color || '#ffffff'
+    const bgColor = config.bgColor || baseData.bgColor || null
+    const name = config.name || baseData.name || 'Предмет'
+    const layer = config.layer || baseData.layer || 2
     const count = config.count !== undefined ? config.count : 1
+
+    // Унифицированный предмет: объединяем данные из конфига с переопределениями.
+    const item = new Item({
+      ...baseData,
+      type: itemType || baseData.type || 'generic',
+      name,
+      char,
+      color,
+      bgColor,
+      layer,
+      effects: config.effects || baseData.effects || {},
+      usable: config.usable !== undefined ? config.usable : baseData.usable,
+      description: config.description !== undefined ? config.description : baseData.description
+    }, count)
 
     const entity = new Entity('item')
     const render = new RenderComponent(char, color, bgColor)
@@ -272,17 +287,14 @@ export default class EntityFactory {
         isInteractive: true,
         name: name
       }))
-      .addComponent(new ItemComponent({
-        itemType: itemType || 'generic'
-      }))
+      .addComponent(new ItemComponent({ item }))
 
-    entity.itemData = itemData
-    entity.itemType = itemType || 'generic'
-    entity.itemCount = count
-
-    if (itemData.effects) {
-      entity.itemEffects = { ...itemData.effects }
-    }
+    // Обратная совместимость: поля на сущности для кода, который ещё
+    // обращается к ним напрямую.
+    entity.itemData = item.data
+    entity.itemType = item.type
+    entity.itemCount = item.count
+    entity.itemEffects = { ...item.effects }
 
     return entity
   }

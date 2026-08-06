@@ -113,30 +113,11 @@ export default class InteractionSystem extends System {
    * удаляет сущность с уровня (пол на клетке остаётся нетронутым).
    */
   pickupItem(actor, target) {
-    const item = target.getComponent(ItemComponent)
-    if (!item || item.collected) return false
+    const itemComp = target.getComponent(ItemComponent)
+    if (!itemComp || itemComp.collected) return false
 
     const env = target.getComponent(EnvironmentComponent)
     if (!env || !env.isCollectible) return false
-
-    const render = target.getComponent(RenderComponent)
-
-    // Берём эффекты и флаг usable из конфига предмета (itemData сущности),
-    // чтобы предмет можно было использовать после подбора.
-    const sourceItemData = target.itemData || {}
-    const itemEffects = target.itemEffects || sourceItemData.effects || {}
-
-    const itemData = {
-      id: Date.now() + Math.random() * 1000,
-      type: item.itemType || 'generic',
-      name: env.name || 'Предмет',
-      char: render ? render.char : '?',
-      color: render ? render.color : '#ffffff',
-      bgColor: render ? render.bgColor : null,
-      usable: sourceItemData.usable !== undefined ? sourceItemData.usable : (Object.keys(itemEffects).length > 0),
-      effects: { ...itemEffects },
-      description: sourceItemData.description || null
-    }
 
     const inv = actor.getComponent(InventoryComponent)
     if (!inv) {
@@ -144,14 +125,15 @@ export default class InteractionSystem extends System {
       return false
     }
 
-    const itemCount = target.itemCount !== undefined ? target.itemCount : 1
-
-    if (!inv.addItem(itemData, itemCount)) {
+    // Унифицированный предмет передаётся в инвентарь целиком — без ручной
+    // пересборки данных. Инвентарь сам обработает стаки.
+    const item = itemComp.item
+    if (!inv.addItem(item)) {
       logger.warn(LOG_MODULES.ACTION, `Не удалось добавить предмет в инвентарь`)
       return false
     }
 
-    item.collected = true
+    itemComp.collected = true
 
     // Предмет лежит на своём слое поверх пола — просто удаляем его сущность,
     // пол на клетке остаётся нетронутым.
