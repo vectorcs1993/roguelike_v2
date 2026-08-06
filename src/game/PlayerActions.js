@@ -53,8 +53,9 @@ export default class PlayerActions {
   }
 
   /**
-   * Проверяет, достаточно ли энергии для действия. Возвращает true,
-   * если энергии хватает (или у сущности нет энергии). Побочных эффектов нет.
+   * Проверяет, достаточно ли энергии для действия.
+   * Если энергии нет - принудительный отдых.
+   * Возвращает true, если действие можно выполнить.
    */
   _canAfford(actionType) {
     const entity = this.gameLoop.selectedEntity
@@ -62,11 +63,45 @@ export default class PlayerActions {
     if (!energy) return true
 
     const cost = this._getEnergyCost(actionType)
+
+    // Если энергия равна 0 - принудительный отдых
+    if (energy.isExhausted()) {
+      logger.info(LOG_MODULES.ACTION, '💤 Вы полностью истощены! Принудительный отдых...')
+      this._forceRest(entity)
+      return false
+    }
+
     if (!energy.isSufficient(cost)) {
-      logger.info(LOG_MODULES.ACTION, `Недостаточно энергии для действия (нужно ${cost}, есть ${energy.energy}).`)
+      logger.info(LOG_MODULES.ACTION,
+        `Недостаточно энергии (нужно ${cost}, есть ${Math.floor(energy.energy)}). Нажмите P для отдыха.`)
       return false
     }
     return true
+  }
+
+  /**
+   * Принудительный отдых - восстанавливает энергию и забирает ход.
+   * Используется когда энергия = 0.
+   */
+  _forceRest(entity) {
+    const energy = entity?.getComponent(EnergyComponent)
+    if (!energy) return
+
+    const playerConfig = GameConfig.getPlayer()
+    const regen = playerConfig.energyRegen || 15
+
+    const before = energy.energy
+    energy.regen(regen)
+    const restored = energy.energy - before
+
+    logger.info(LOG_MODULES.ACTION,
+      `💤 Восстановлено ${restored} энергии (${Math.floor(energy.energy)}/${energy.maxEnergy})`)
+
+    // Голод тоже увеличивается при отдыхе
+    this._applyHunger()
+
+    // Передаем ход врагам
+    this.turnManager.endPlayerTurn()
   }
 
   /** Тратит энергию на действие, увеличивает голод и передаёт ход врагам. */
@@ -93,7 +128,7 @@ export default class PlayerActions {
 
     const starved = hunger.increase(hungerPerTurn)
     if (starved) {
-      logger.info(LOG_MODULES.SYSTEM, 'Игрок умер от голода!')
+      logger.info(LOG_MODULES.SYSTEM, '💀 Игрок умер от голода!')
       const health = entity.getComponent(HealthComponent)
       if (health && !health.isDead) {
         health.takeDamage(health.hp, 'physical')
@@ -116,13 +151,13 @@ export default class PlayerActions {
 
     const energy = entity.getComponent(EnergyComponent)
     const playerConfig = GameConfig.getPlayer()
-    const regen = playerConfig.energyRegen ?? 0
+    const regen = playerConfig.energyRegen || 15
 
     if (energy) {
       const before = energy.energy
       energy.regen(regen)
       const restored = energy.energy - before
-      logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} отдыхает и восстанавливает ${restored} энергии (${energy.energy}/${energy.maxEnergy})`)
+      logger.info(LOG_MODULES.ACTION, `💤 Отдых: восстановлено ${restored} энергии (${Math.floor(energy.energy)}/${energy.maxEnergy})`)
     } else {
       logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} ждёт`)
     }

@@ -18,11 +18,11 @@
                 <q-btn label="Обновить" icon="refresh" @click="regenerateLevel" dark dense />
                 <q-btn label="Карта" icon="map" @click="revealFullMap" dark dense />
               </q-btn-group>
-              <q-btn-group class="q-mt-xs q-mt-sm-0">
+              <!-- <q-btn-group class="q-mt-xs q-mt-sm-0">
                 <q-btn label="Контент" icon="file_upload" @click="loadContent" dark dense />
                 <q-btn label="Валидация" icon="check_circle" @click="validateContent" dark dense />
                 <q-btn label="Статистика" icon="info" @click="showEntityStats" dark dense />
-              </q-btn-group>
+              </q-btn-group> -->
             </div>
           </q-card-section>
           <q-card-section class="q-pa-none bg-dark" style="flex: 1; display: flex; min-height: 0;">
@@ -59,61 +59,61 @@
               <div class="col-12 col-sm-6 col-md-6" v-if="playerStats">
                 <!-- Здоровье -->
                 <div class="row justify-between q-py-xs">
-                  <span>❤️ Здоровье</span>
+                  <span>Здоровье</span>
                   <span>{{ playerStats.hp }}/{{ playerStats.maxHp }}</span>
                 </div>
 
                 <!-- Энергия -->
                 <div class="row justify-between q-py-xs">
-                  <span>⚡ Энергия</span>
+                  <span>Энергия</span>
                   <span>{{ playerStats.energy }}/{{ playerStats.maxEnergy }}</span>
                 </div>
 
                 <!-- Голод -->
                 <div class="row justify-between q-py-xs">
-                  <span>🍞 Голод</span>
+                  <span>Голод</span>
                   <span>{{ playerStats.hunger }}/{{ playerStats.maxHunger }}</span>
                 </div>
 
                 <!-- Броня -->
                 <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">🛡️ Броня</span>
+                  <span class="text-grey-5">Броня</span>
                   <span>{{ playerStats.armor }} ({{ playerStats.armorType }})</span>
                 </div>
 
                 <!-- Атака -->
                 <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">⚔️ Урон</span>
+                  <span class="text-grey-5">Урон</span>
                   <span>{{ playerStats.damageMin }}-{{ playerStats.damageMax }} ({{ playerStats.damageType }})</span>
                 </div>
 
                 <!-- Точность -->
                 <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">🎯 Точность</span>
+                  <span class="text-grey-5">Точность</span>
                   <span>{{ Math.round(playerStats.accuracy * 100) }}%</span>
                 </div>
 
                 <!-- Дальность -->
                 <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">📏 Дальность</span>
+                  <span class="text-grey-5">Дальность</span>
                   <span>{{ playerStats.attackRange }}</span>
                 </div>
 
                 <!-- Скорость -->
                 <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">⚡ Скорость</span>
+                  <span class="text-grey-5">Скорость</span>
                   <span>{{ playerStats.speed }}</span>
                 </div>
 
                 <!-- Инициатива -->
                 <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">🔄 Инициатива</span>
+                  <span class="text-grey-5">Инициатива</span>
                   <span>{{ playerStats.initiative }}</span>
                 </div>
 
                 <!-- Позиция -->
                 <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">📍 Позиция</span>
+                  <span class="text-grey-5">Позиция</span>
                   <span>{{ playerStats.x }}, {{ playerStats.y }}</span>
                 </div>
               </div>
@@ -158,11 +158,11 @@
 
           <q-card-section class="inventory-section" style="overflow-y: auto;" dark>
             <q-scroll-area v-if="inventoryItems.length > 0" dark style="width: 100%; height: 100%;">
-              <q-item v-for="item in inventoryItems" :key="item.id" dark>
+              <q-item v-for="item in inventoryItems" :key="item.id" clickable dark>
                 <q-item-section avatar>
-                  <q-chip :style="{ backgroundColor: item.color, color: 'white' }">
+                  <span :style="{ backgroundColor: item.bgColor, color: item.color }">
                     {{ item.char }}
-                  </q-chip>
+                  </span>
                 </q-item-section>
                 <q-item-section>
                   <q-item-label>
@@ -173,8 +173,8 @@
                 </q-item-section>
                 <q-item-section side>
                   <div class="row q-gutter-xs">
-                    <q-btn v-if="item.usable" flat dense color="positive" icon="play_arrow" label="Использовать" @click="useItem(item.id)" />
-                    <q-btn flat dense icon="delete" @click="dropItem(item.id)" />
+                    <q-btn v-if="item.usable" dense icon="play_arrow" label="Использовать" @click="useItem(item.id)" />
+                    <q-btn dense icon="delete" label="Выбросить" @click="dropItem(item.id)" />
                   </div>
                 </q-item-section>
               </q-item>
@@ -211,7 +211,7 @@
                   <q-item-label>❤️ {{ ent.hp }}/{{ ent.maxHp }}</q-item-label>
                 </q-item-section>
                 <div class="row q-gutter-sm">
-                  <q-btn icon="center_focus_strong" label="Центр" dense @click.stop="centerOnCharacter(ent.id)" dark />
+                  <q-btn icon="center_focus_strong" label="Найти" dense @click.stop="highlightOnCharacter(ent.id)" dark />
                 </div>
               </q-item>
             </q-scroll-area>
@@ -265,7 +265,6 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue'
-import { useQuasar } from 'quasar'
 import GameLoop from 'src/game/GameLoop.js'
 import { ContentLoader, GameConfig, logger, LOG_LEVEL, isItemUsable, LOG_MODULES } from 'src/game/index.js'
 
@@ -281,7 +280,6 @@ import EnvironmentComponent from 'src/engine/components/EnvironmentComponent'
 import CombatComponent from 'src/engine/components/CombatComponent.js'
 import MovementComponent from 'src/engine/components/MovementComponent.js'
 
-const $q = useQuasar()
 
 const canvasRef = ref(null)
 const consoleScrollAreaRef = ref(null)
@@ -509,11 +507,12 @@ function updateEntitiesList() {
     const inv = selected.getComponent(InventoryComponent)
     if (inv) {
       const displayItems = inv.getDisplayItems()
-      inventoryItems.value = displayItems.map(item => ({
+      inventoryItems.value = displayItems.map((item) => ({
         id: item.id,
         name: item.name || 'Предмет',
         char: item.char || '?',
         color: item.color || '#ffffff',
+        bgColor: item.bgColor || 'black',
         type: item.type || 'generic',
         count: item.count || 1,
         usable: isItemUsable(item)
@@ -623,42 +622,7 @@ function revealFullMap() {
   addConsoleMessage('Карта открыта', 'success')
 }
 
-function centerOnCharacter(entityId) { game?.centerOnCharacter(entityId) }
-
-function showEntityStats() {
-  const stats = {
-    enemies: Object.keys(GameConfig.getAllEnemies()).length,
-    items: Object.keys(GameConfig.getAllItems()).length,
-    biomes: Object.keys(GameConfig.getAllBiomes()).length,
-    environment: Object.keys(GameConfig.getAllEnvironment()).length,
-    mods: ContentLoader.getLoadedMods().length,
-    coreLoaded: ContentLoader.isCoreLoaded()
-  }
-
-  $q.dialog({
-    title: 'Статистика контента',
-    message: `
-      <div style="font-family: monospace; line-height: 1.8;">
-        <div>Врагов: <strong>${stats.enemies}</strong></div>
-        <div>Предметов: <strong>${stats.items}</strong></div>
-        <div>Биомов: <strong>${stats.biomes}</strong></div>
-        <div>Окружение: <strong>${stats.environment}</strong></div>
-        <div>Загружено модов: <strong>${stats.mods}</strong></div>
-        <div>Core загружен: <strong>${stats.coreLoaded ? '✅' : '❌'}</strong></div>
-      </div>
-    `,
-    html: true
-  })
-}
-
-// ===== ЗАГРУЗКА КОНТЕНТА =====
-
-function loadContent() {
-  contentDialog.value = true
-  contentUrl.value = ''
-  contentFile.value = null
-  contentType.value = 'json'
-}
+function highlightOnCharacter(entityId) { game?.highlightOnCharacter(entityId) }
 
 async function doLoadContent() {
   contentLoading.value = true
@@ -716,28 +680,6 @@ async function doLoadContent() {
   contentLoading.value = false
 }
 
-function validateContent() {
-  const result = GameConfig.validate()
-
-  if (result.errors.length === 0 && result.warnings.length === 0) {
-    addConsoleMessage('✅ Конфиг валиден! Ошибок и предупреждений нет.', 'success')
-    return
-  }
-
-  if (result.errors.length > 0) {
-    addConsoleMessage(`❌ Найдено ${result.errors.length} ошибок:`, 'error')
-    for (const err of result.errors) {
-      addConsoleMessage(`  - ${err}`, 'error')
-    }
-  }
-
-  if (result.warnings.length > 0) {
-    addConsoleMessage(`⚠️ Найдено ${result.warnings.length} предупреждений:`, 'warning')
-    for (const warn of result.warnings) {
-      addConsoleMessage(`  - ${warn}`, 'warning')
-    }
-  }
-}
 
 function onCanvasClick(event) { game?.onClick?.(event) }
 function onMouseMove(event) { game?.onMouseMove?.(event) }

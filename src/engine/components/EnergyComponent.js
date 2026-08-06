@@ -69,6 +69,11 @@ export default class EnergyComponent extends Component {
     }
   }
 
+  // Проверяет, истощен ли персонаж (энергия = 0)
+  isExhausted() {
+    return this.energy <= 0
+  }
+
   get isCritical() { return this.energyPercent <= CRITICAL_THRESHOLD }
   get energyPercent() { return this.maxEnergy > 0 ? this.energy / this.maxEnergy : 0 }
 }

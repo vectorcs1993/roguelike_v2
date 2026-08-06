@@ -381,7 +381,7 @@
     "bread": {
       "id": "bread",
       "name": "Хлеб",
-      "char": "🍞",
+      "char": "b",
       "color": "#e8c07a",
       "bgColor": "#3a2a10",
       "layer": 2,
@@ -769,23 +769,13 @@
         "doorChance": 0.3
       },
       "enemyPool": {
-        "crawler": {
-          "chance": 0.35,
-          "countMin": 1,
-          "countMax": 2
-        },
         "runner": {
-          "chance": 0.3,
+          "chance": 0.03,
           "countMin": 1,
           "countMax": 2
         },
         "shadow": {
-          "chance": 0.25,
-          "countMin": 1,
-          "countMax": 1
-        },
-        "brute": {
-          "chance": 0.18,
+          "chance": 0.1,
           "countMin": 1,
           "countMax": 1
         }
