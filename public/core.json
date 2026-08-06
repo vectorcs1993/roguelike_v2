@@ -551,14 +551,22 @@
         "maxRooms": 22,
         "doorChance": 0.6
       },
-      "enemyPool": [
-        "groaner",
-        "crawler",
-        "runner"
-      ],
-      "enemyCount": {
-        "min": 5,
-        "max": 12
+      "enemyPool": {
+        "groaner": {
+          "chance": 0.6,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "crawler": {
+          "chance": 0.5,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "runner": {
+          "chance": 0.4,
+          "countMin": 1,
+          "countMax": 2
+        }
       },
       "itemPool": {
         "ticket": {
@@ -587,10 +595,6 @@
           "countMax": 1
         }
       },
-      "itemCount": {
-        "min": 4,
-        "max": 10
-      },
       "colors": {
         "floor": "#3a3a3a",
         "wall": "#6a6a6a",
@@ -607,15 +611,27 @@
         "maxRooms": 14,
         "doorChance": 0.4
       },
-      "enemyPool": [
-        "brute",
-        "runner",
-        "crawler",
-        "shadow"
-      ],
-      "enemyCount": {
-        "min": 6,
-        "max": 14
+      "enemyPool": {
+        "brute": {
+          "chance": 0.4,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "runner": {
+          "chance": 0.5,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "crawler": {
+          "chance": 0.5,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "shadow": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 2
+        }
       },
       "itemPool": {
         "ticket": {
@@ -649,10 +665,6 @@
           "countMax": 1
         }
       },
-      "itemCount": {
-        "min": 4,
-        "max": 10
-      },
       "colors": {
         "floor": "#443322",
         "wall": "#776644",
@@ -669,15 +681,27 @@
         "maxRooms": 26,
         "doorChance": 0.3
       },
-      "enemyPool": [
-        "crawler",
-        "runner",
-        "shadow",
-        "brute"
-      ],
-      "enemyCount": {
-        "min": 7,
-        "max": 15
+      "enemyPool": {
+        "crawler": {
+          "chance": 0.6,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "runner": {
+          "chance": 0.5,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "shadow": {
+          "chance": 0.4,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "brute": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 2
+        }
       },
       "itemPool": {
         "ticket": {
@@ -706,10 +730,6 @@
           "countMax": 1
         }
       },
-      "itemCount": {
-        "min": 3,
-        "max": 8
-      },
       "colors": {
         "floor": "#333a44",
         "wall": "#556677",
@@ -726,15 +746,27 @@
         "maxRooms": 18,
         "doorChance": 0.5
       },
-      "enemyPool": [
-        "groaner",
-        "shadow",
-        "crawler",
-        "boss"
-      ],
-      "enemyCount": {
-        "min": 5,
-        "max": 12
+      "enemyPool": {
+        "groaner": {
+          "chance": 0.6,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "shadow": {
+          "chance": 0.4,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "crawler": {
+          "chance": 0.5,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "boss": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 1
+        }
       },
       "itemPool": {
         "health": {
@@ -768,10 +800,6 @@
           "countMax": 1
         }
       },
-      "itemCount": {
-        "min": 5,
-        "max": 12
-      },
       "colors": {
         "floor": "#3a3a3a",
         "wall": "#6a6a6a",
@@ -788,16 +816,8 @@
         "maxRooms": 10,
         "doorChance": 1
       },
-      "enemyPool": [],
-      "enemyCount": {
-        "min": 0,
-        "max": 0
-      },
+      "enemyPool": {},
       "itemPool": {},
-      "itemCount": {
-        "min": 0,
-        "max": 0
-      },
       "colors": {
         "floor": "#3a3a3a",
         "wall": "#6a6a6a",
@@ -821,15 +841,27 @@
         "wallSegmentMin": 2,
         "wallSegmentMax": 5
       },
-      "enemyPool": [
-        "runner",
-        "brute",
-        "crawler",
-        "shadow"
-      ],
-      "enemyCount": {
-        "min": 6,
-        "max": 12
+      "enemyPool": {
+        "runner": {
+          "chance": 0.5,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "brute": {
+          "chance": 0.4,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "crawler": {
+          "chance": 0.5,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "shadow": {
+          "chance": 0.3,
+          "countMin": 1,
+          "countMax": 2
+        }
       },
       "itemPool": {
         "ticket": {
@@ -862,10 +894,6 @@
           "countMin": 1,
           "countMax": 2
         }
-      },
-      "itemCount": {
-        "min": 5,
-        "max": 10
       },
       "colors": {
         "floor": "#3a3a3a",

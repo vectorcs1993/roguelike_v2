@@ -334,16 +334,11 @@ export default class ContentLoader {
     if (data.biomes) {
       for (const [id, biome] of Object.entries(data.biomes)) {
         if (!biome.name) errors.push(`Biome "${id}": missing name`)
-        if (biome.enemyPool && !biome.enemyPool.length) {
+        if (biome.enemyPool && Object.keys(biome.enemyPool).length === 0) {
           errors.push(`Biome "${id}": enemyPool is empty`)
         }
         if (biome.itemPool && Object.keys(biome.itemPool).length === 0) {
           errors.push(`Biome "${id}": itemPool is empty`)
-        }
-        if (biome.enemyPool && biome.enemyCount) {
-          if (biome.enemyPool.length < biome.enemyCount.min) {
-            errors.push(`Biome "${id}": not enough enemies in pool (need ${biome.enemyCount.min}, have ${biome.enemyPool.length})`)
-          }
         }
       }
     }

@@ -145,9 +145,26 @@ export const GameConfig = {
     const biome = this.getBiome(biomeId)
     if (!biome) return null
     const pool = biome.enemyPool
-    if (!pool || pool.length === 0) return null
-    const id = pool[Math.floor(Math.random() * pool.length)]
-    return this.getEnemy(id)
+    if (!pool || typeof pool !== 'object' || Object.keys(pool).length === 0) return null
+    const entries = Object.entries(pool)
+    // Сначала пробуем выпасть по шансу каждого врага.
+    for (const [enemyId, cfg] of entries) {
+      const chance = cfg.chance !== undefined ? cfg.chance : 0
+      if (Math.random() < chance) {
+        return this.getEnemy(enemyId)
+      }
+    }
+    // Если ничего не выпало — возвращаем врага с наибольшим шансом.
+    let bestId = entries[0][0]
+    let bestChance = -1
+    for (const [enemyId, cfg] of entries) {
+      const chance = cfg.chance !== undefined ? cfg.chance : 0
+      if (chance > bestChance) {
+        bestChance = chance
+        bestId = enemyId
+      }
+    }
+    return this.getEnemy(bestId)
   },
 
   getRandomItemForBiome(biomeId) {
@@ -590,9 +607,35 @@ export const GameConfig = {
       if (!data.name) warnings.push(`Biome "${id}" missing name`)
 
       if (data.enemyPool) {
-        for (const enemyId of data.enemyPool) {
-          if (!GAME_CONFIG.enemies[enemyId]) {
-            errors.push(`Biome "${id}" references unknown enemy "${enemyId}"`)
+        if (Array.isArray(data.enemyPool)) {
+          // Обратная совместимость: старый формат массива.
+          for (const enemyId of data.enemyPool) {
+            if (!GAME_CONFIG.enemies[enemyId]) {
+              errors.push(`Biome "${id}" references unknown enemy "${enemyId}"`)
+            }
+          }
+        } else if (typeof data.enemyPool === 'object') {
+          // Новый формат: { enemyId: { chance, countMin, countMax } }.
+          for (const [enemyId, cfg] of Object.entries(data.enemyPool)) {
+            if (!GAME_CONFIG.enemies[enemyId]) {
+              errors.push(`Biome "${id}" references unknown enemy "${enemyId}"`)
+            }
+            if (!cfg || typeof cfg !== 'object') {
+              errors.push(`Biome "${id}" enemyPool entry "${enemyId}" must be an object { chance, countMin, countMax }`)
+              continue
+            }
+            if (cfg.chance !== undefined && (typeof cfg.chance !== 'number' || cfg.chance < 0 || cfg.chance > 1)) {
+              errors.push(`Biome "${id}" enemyPool entry "${enemyId}" chance must be a number in [0, 1]`)
+            }
+            if (cfg.countMin !== undefined && typeof cfg.countMin !== 'number') {
+              errors.push(`Biome "${id}" enemyPool entry "${enemyId}" countMin must be a number`)
+            }
+            if (cfg.countMax !== undefined && typeof cfg.countMax !== 'number') {
+              errors.push(`Biome "${id}" enemyPool entry "${enemyId}" countMax must be a number`)
+            }
+            if (cfg.countMin !== undefined && cfg.countMax !== undefined && cfg.countMin > cfg.countMax) {
+              errors.push(`Biome "${id}" enemyPool entry "${enemyId}" countMin (${cfg.countMin}) > countMax (${cfg.countMax})`)
+            }
           }
         }
       }

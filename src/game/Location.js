@@ -349,26 +349,40 @@ export default class Location {
 
   /** Создаёт врагов на свободных клетках и возвращает их позиции. */
   static _createEnemies(entities, biome, available, playerStart) {
-    const enemyPool = biome ? biome.enemyPool : ['groaner', 'crawler', 'runner']
-    const enemyCount = biome ?
-      Math.floor(Math.random() * (biome.enemyCount.max - biome.enemyCount.min + 1)) + biome.enemyCount.min :
-      8
+    const enemyPool = biome && biome.enemyPool ? biome.enemyPool : {
+      groaner: { chance: 0.6, countMin: 1, countMax: 3 },
+      crawler: { chance: 0.5, countMin: 1, countMax: 2 },
+      runner: { chance: 0.4, countMin: 1, countMax: 2 }
+    }
 
-    const enemyPositions = available
-      .filter(c => {
-        const [x, y] = c.split(',').map(Number)
-        return Math.abs(x - playerStart.x) + Math.abs(y - playerStart.y) > 5
-      })
-      .slice(0, enemyCount)
+    // Клетки, удалённые от старта игрока.
+    let freeCells = shuffle(available.filter(c => {
+      const [x, y] = c.split(',').map(Number)
+      return Math.abs(x - playerStart.x) + Math.abs(y - playerStart.y) > 5
+    }))
 
-    for (const pos of enemyPositions) {
-      const [x, y] = pos.split(',').map(Number)
-      const type = enemyPool[Math.floor(Math.random() * enemyPool.length)]
-      const enemyData = GameConfig.getEnemy(type)
-      if (enemyData) {
-        const enemy = EntityFactory.createEnemy(x, y, type, enemyData)
-        if (enemy) entities.push(enemy)
+    const enemyPositions = []
+
+    // Бросаем пул на каждой клетке; плотность врагов регулируется только
+    // вероятностями в enemyPool. Выпавший тип размещается в количестве count
+    // на последовательных свободных клетках.
+    for (let idx = 0; idx < freeCells.length; idx++) {
+      const drop = rollLoot(enemyPool)
+      if (!drop) continue
+
+      const count = Math.min(drop.count, freeCells.length)
+      for (let i = 0; i < count; i++) {
+        const [x, y] = freeCells[i].split(',').map(Number)
+        const enemyData = GameConfig.getEnemy(drop.type)
+        if (enemyData) {
+          const enemy = EntityFactory.createEnemy(x, y, drop.type, enemyData)
+          if (enemy) {
+            entities.push(enemy)
+            enemyPositions.push(freeCells[i])
+          }
+        }
       }
+      freeCells = freeCells.slice(count)
     }
 
     return enemyPositions
@@ -396,17 +410,13 @@ export default class Location {
       bread: { chance: 0.15, countMin: 1, countMax: 2 },
       potion: { chance: 0.15, countMin: 1, countMax: 2 }
     }
-    const itemCount = biome && biome.itemCount ?
-      Math.floor(Math.random() * (biome.itemCount.max - biome.itemCount.min + 1)) + biome.itemCount.min :
-      6
 
     const occupiedByEntities = new Set([`${playerStart.x},${playerStart.y}`, ...enemyPositions])
     const freeCells = available.filter(c => !occupiedByEntities.has(c))
 
-    const numItems = Math.min(itemCount, freeCells.length)
-    const selectedCells = shuffle(freeCells).slice(0, numItems)
-
-    for (const cell of selectedCells) {
+    // Бросаем лут на каждой свободной клетке; плотность регулируется только
+    // вероятностями в itemPool. Порядок обхода перемешиваем для случайности.
+    for (const cell of shuffle(freeCells)) {
       const [x, y] = cell.split(',').map(Number)
 
       // Бросаем лут из пула; если ничего не выпало — клетка остаётся пустой.
