@@ -8,9 +8,135 @@ export default class BiomeGenerator {
     this.roomSpacing = config.roomSpacing !== undefined ? config.roomSpacing : 1
     this.doorChance = config.doorChance !== undefined ? config.doorChance : 0.5
     this.padding = config.padding !== undefined ? config.padding : 2
+
+    // Параметры арены (layout === 'arena')
+    this.layout = config.layout || 'dungeon'
+    this.columnCount = config.columnCount !== undefined ? config.columnCount : 14
+    this.wallSegmentCount = config.wallSegmentCount !== undefined ? config.wallSegmentCount : 6
+    this.wallSegmentMin = config.wallSegmentMin !== undefined ? config.wallSegmentMin : 2
+    this.wallSegmentMax = config.wallSegmentMax !== undefined ? config.wallSegmentMax : 5
   }
 
   generate() {
+    if (this.layout === 'arena') {
+      return this.generateArena()
+    }
+    return this.generateDungeon()
+  }
+
+  /**
+   * Генерирует огороженную стенами арену с колоннами и случайными стенами.
+   * Вся внутренняя область проходима, кроме колонн/стен-препятствий.
+   */
+  generateArena() {
+    const map = Array(this.height).fill().map(() => Array(this.width).fill(false))
+
+    // Огораживаем периметр стенами (внешняя граница).
+    for (let x = 0; x < this.width; x++) {
+      map[0][x] = true
+      map[this.height - 1][x] = true
+    }
+    for (let y = 0; y < this.height; y++) {
+      map[y][0] = true
+      map[y][this.width - 1] = true
+    }
+
+    // Внутренняя область (без границы). Паддинг отодвигает препятствия
+    // (колонны/стены/ящики) от внешних стен, оставляя свободный проход.
+    const pad = Math.max(1, this.padding)
+    const innerMinX = pad
+    const innerMaxX = this.width - 1 - pad
+    const innerMinY = pad
+    const innerMaxY = this.height - 1 - pad
+
+    // Размещаем колонны (одиночные стены) в случайных местах.
+    let placedColumns = 0
+    let attempts = 0
+    const maxAttempts = this.columnCount * 20
+    while (placedColumns < this.columnCount && attempts < maxAttempts) {
+      attempts++
+      const x = this.rand(innerMinX, innerMaxX)
+      const y = this.rand(innerMinY, innerMaxY)
+      if (map[y][x]) continue
+      // Не ставим колонну вплотную к границе, чтобы не блокировать проход.
+      if (x === innerMinX || x === innerMaxX || y === innerMinY || y === innerMaxY) continue
+      map[y][x] = true
+      placedColumns++
+    }
+
+    // Размещаем случайные отрезки стен (обломки).
+    let placedSegments = 0
+    attempts = 0
+    const maxSegAttempts = this.wallSegmentCount * 30
+    while (placedSegments < this.wallSegmentCount && attempts < maxSegAttempts) {
+      attempts++
+      const len = this.rand(this.wallSegmentMin, this.wallSegmentMax)
+      const horizontal = Math.random() < 0.5
+      const x = this.rand(innerMinX, innerMaxX)
+      const y = this.rand(innerMinY, innerMaxY)
+
+      let ok = true
+      const cells = []
+      for (let i = 0; i < len; i++) {
+        const cx = horizontal ? x + i : x
+        const cy = horizontal ? y : y + i
+        if (cx < innerMinX || cx > innerMaxX || cy < innerMinY || cy > innerMaxY) {
+          ok = false
+          break
+        }
+        if (map[cy][cx]) { ok = false; break }
+        cells.push([cx, cy])
+      }
+      if (!ok) continue
+
+      for (const [cx, cy] of cells) {
+        map[cy][cx] = true
+      }
+      placedSegments++
+    }
+
+    // Собираем стены.
+    const walls = []
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (map[y][x]) walls.push([x, y])
+      }
+    }
+
+    // Пол внутренней области — от границы стен (x=1..width-2), чтобы пол
+    // покрывал всю арену. Паддинг влияет только на размещение препятствий.
+    const floorMinX = 1
+    const floorMaxX = this.width - 2
+    const floorMinY = 1
+    const floorMaxY = this.height - 2
+
+    // Проходимые клетки — вся внутренняя область без препятствий.
+    const walkableCells = []
+    for (let y = floorMinY; y <= floorMaxY; y++) {
+      for (let x = floorMinX; x <= floorMaxX; x++) {
+        if (!map[y][x]) walkableCells.push([x, y])
+      }
+    }
+
+    // Единая "комната" — вся внутренняя область арены.
+    const rooms = [{
+      x: floorMinX,
+      y: floorMinY,
+      w: floorMaxX - floorMinX + 1,
+      h: floorMaxY - floorMinY + 1
+    }]
+
+    return {
+      walls,
+      width: this.width,
+      height: this.height,
+      rooms,
+      doors: [],
+      walkableCells
+    }
+  }
+
+  generateDungeon() {
     const map = Array(this.height).fill().map(() => Array(this.width).fill(true))
     const rooms = []
 

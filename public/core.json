@@ -626,6 +626,57 @@
         "wall": "#6a6a6a",
         "background": "#0d0d0d"
       }
+    },
+    "arena": {
+      "id": "arena",
+      "name": "Арена",
+      "description": "Огороженная стенами боевая площадка Гигахруща. Колонны, обломки стен и ящики, за которыми можно укрыться.",
+      "generation": {
+        "layout": "arena",
+        "minRoomSize": 4,
+        "maxRoomSize": 8,
+        "maxRooms": 1,
+        "doorChance": 0,
+        "padding": 2,
+        "crateChance": 0.01,
+        "columnCount": 14,
+        "wallSegmentCount": 6,
+        "wallSegmentMin": 2,
+        "wallSegmentMax": 5
+      },
+      "enemyPool": [
+        "runner",
+        "brute",
+        "crawler",
+        "shadow"
+      ],
+      "enemyCount": {
+        "min": 6,
+        "max": 12
+      },
+      "itemPool": [
+        "gold",
+        "health",
+        "weapon",
+        "armor",
+        "potion"
+      ],
+      "itemWeights": [
+        20,
+        20,
+        15,
+        15,
+        15
+      ],
+      "itemCount": {
+        "min": 5,
+        "max": 10
+      },
+      "colors": {
+        "floor": "#3a3a3a",
+        "wall": "#6a6a6a",
+        "background": "#0d0d0d"
+      }
     }
   },
   "world": {

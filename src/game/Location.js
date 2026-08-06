@@ -121,7 +121,7 @@ export default class Location {
 
   setWalls(pillars) {
     for (const [x, y] of pillars) {
-      if (y > 0 && y < this.rows - 1 && x > 0 && x < this.cols - 1) {
+      if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
         const wallEntity = EntityFactory.createWall(x, y)
         wallEntity.engine = this.engine
         this.engine.addEntity(wallEntity)
@@ -210,6 +210,8 @@ export default class Location {
       const door = cell.entity.getComponent(DoorComponent)
       if (door) {
         door.isOpen = isOpen
+        // Изменение состояния двери влияет на видимость — инвалидируем кэш FOV
+        this.fov.invalidate()
       }
     }
   }
@@ -224,15 +226,17 @@ export default class Location {
       }
     }
 
-    const onVisibleCell = (x, y) => {
+    // Используем кэшированный набор видимых клеток (если позиция уже посещалась
+    // и карта не менялась — вычисление пропускается).
+    const visibleCells = this.fov.computeVisibleCells(originX, originY, radius)
+
+    for (const { x, y } of visibleCells) {
       const entitiesAt = this.getEntitiesAt(x, y)
       for (const entity of entitiesAt) {
         const render = entity.getComponent(RenderComponent)
         if (render) render.visible = true
       }
     }
-
-    this.fov.compute(originX, originY, radius, onVisibleCell)
 
     const all = engine.getEntitiesWithComponents([RenderComponent])
     for (const entity of all) {
@@ -284,7 +288,12 @@ export default class Location {
       maxRooms: genConfig.maxRooms || worldConfig.maxRooms,
       roomSpacing: genConfig.roomSpacing || worldConfig.roomSpacing || 1,
       doorChance: genConfig.doorChance || worldConfig.doorChance || 0.5,
-      padding: worldConfig.padding || 2
+      padding: genConfig.padding !== undefined ? genConfig.padding : (worldConfig.padding || 2),
+      layout: genConfig.layout || 'dungeon',
+      columnCount: genConfig.columnCount,
+      wallSegmentCount: genConfig.wallSegmentCount,
+      wallSegmentMin: genConfig.wallSegmentMin,
+      wallSegmentMax: genConfig.wallSegmentMax
     })
 
     const { walls, width, height, rooms, doors: doorData, walkableCells } = generator.generate()
@@ -293,12 +302,19 @@ export default class Location {
     const roomCells = this._collectRoomCells(rooms)
     const isFree = (x, y) => !wallSet.has(`${x},${y}`)
 
+    // Для арены внутренние клетки могут содержать колонны/стены-препятствия,
+    // поэтому отфильтровываем их перед размещением ящиков и предметов.
+    const freeRoomCells = roomCells.filter(c => {
+      const [x, y] = c.split(',').map(Number)
+      return isFree(x, y)
+    })
+
     // Определяем ящики и свободные клетки
-    const crateChance = worldConfig.crateChance || 0.3
-    const crateCount = Math.min(Math.floor(roomCells.length * crateChance), roomCells.length)
-    const crates = roomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
+    const crateChance = genConfig.crateChance !== undefined ? genConfig.crateChance : (worldConfig.crateChance || 0.3)
+    const crateCount = Math.min(Math.floor(freeRoomCells.length * crateChance), freeRoomCells.length)
+    const crates = freeRoomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
     const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`))
-    const available = roomCells.filter(c => !crateSet.has(c))
+    const available = freeRoomCells.filter(c => !crateSet.has(c))
 
     const playerStart = this.findStartInRoom(rooms, isFree, crateSet)
 
