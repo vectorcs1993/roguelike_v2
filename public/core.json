@@ -176,7 +176,7 @@
         "visibleByDefault": false,
         "exploredByDefault": false,
         "showWhenVisible": true,
-        "showWhenExplored": false
+        "showWhenExplored": true
       }
     },
     "wall": {

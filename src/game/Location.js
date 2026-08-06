@@ -462,9 +462,14 @@ export default class Location {
           const render = cell.entity.getComponent(RenderComponent)
           const env = cell.entity.getComponent(EnvironmentComponent)
           if (render && env) {
-            // Стены и пол - всегда explored (базовый слой карты)
+            // Стены и пол - explored определяется настройкой exploredByDefault.
+            // Если exploredByDefault = false, они остаются скрытыми, пока FOV
+            // не отметит их как исследованные при первом обзоре.
             if (env.type === 'floor' || env.type === 'wall') {
-              render.explored = true
+              const visConfig = render._visibilityConfig || {}
+              if (visConfig.exploredByDefault) {
+                render.explored = true
+              }
               // visible остается false, пока FOV не покажет
             }
             // Для дверей, ящиков, предметов - explored определяется настройками

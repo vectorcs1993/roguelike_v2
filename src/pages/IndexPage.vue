@@ -1,37 +1,39 @@
 <!-- src/pages/IndexPage.vue -->
 
 <template>
-  <q-page class="q-pa-md text-h6" style="background: #121212; height: 100vh; display: flex; flex-direction: column;" ref="pageRef">
+  <q-page class="q-pa-xs q-pa-sm-sm q-pa-md-md text-h6 game-page"
+    style="background: #121212; height: 100vh; height: 100dvh; display: flex; flex-direction: column;" ref="pageRef">
 
-    <div class="row q-col-gutter-md" style="flex: 1; min-height: 0;">
+    <div class="row q-col-gutter-xs q-col-gutter-sm-md" style="flex: 1; min-height: 0;">
+
       <!-- Canvas -->
-      <div class="col-8" style="display: flex; flex-direction: column;">
-        <q-card flat square bordered dark class="full-height" style="display: flex; flex-direction: column;">
-          <q-card-section class="bg-grey-9">
-            <div class="text-h6 flex items-center">
-              <q-icon name="fmd_good" class="q-mr-sm" />
-              <div class="text-h6">Локация: {{ locationName }} — Ход {{ turnCount }}</div>
+      <div class="col-12 col-md-8 col-lg-8 canvas-col" style="display: flex; flex-direction: column; min-height: 0;">
+        <q-card flat square bordered dark class="full-height" style="display: flex; flex-direction: column; min-height: 0;">
+          <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
+            <div class="text-subtitle1 text-sm-h6 flex items-center flex-wrap" style="gap: 8px;">
+              <q-icon name="fmd_good" class="q-mr-xs" />
+              <div class="text-subtitle1 text-sm-h6 ellipsis">Локация: {{ locationName }} — Ход {{ turnCount }}</div>
               <q-space />
-              <q-btn-group>
-                <q-btn label="Обновить" icon="refresh" @click="regenerateLevel" dark />
-                <q-btn label="Открыть карту" icon="map" @click="revealFullMap" dark />
+              <q-btn-group class="q-mt-xs q-mt-sm-0">
+                <q-btn label="Обновить" icon="refresh" @click="regenerateLevel" dark dense />
+                <q-btn label="Карта" icon="map" @click="revealFullMap" dark dense />
               </q-btn-group>
-              <q-btn-group class="q-ml-sm">
-                <q-btn label="Загрузить контент" icon="file_upload" @click="loadContent" dark />
-                <q-btn label="Валидация" icon="check_circle" @click="validateContent" dark />
-                <q-btn label="Статистика" icon="info" @click="showEntityStats" dark />
+              <q-btn-group class="q-mt-xs q-mt-sm-0">
+                <q-btn label="Контент" icon="file_upload" @click="loadContent" dark dense />
+                <q-btn label="Валидация" icon="check_circle" @click="validateContent" dark dense />
+                <q-btn label="Статистика" icon="info" @click="showEntityStats" dark dense />
               </q-btn-group>
             </div>
           </q-card-section>
-          <q-card-section class="q-pa-none bg-dark" style="flex: 1; display: flex;">
+          <q-card-section class="q-pa-none bg-dark" style="flex: 1; display: flex; min-height: 0;">
             <canvas ref="canvasRef" class="full-width" style="background: #0a0a0a; border-radius: 4px; width: 100%; height: 100%; outline: none;"
               @click="onCanvasClick" @mousemove="onMouseMove" @mouseleave="onMouseLeave" @touchstart.prevent="onTouchStart"
               @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd">
             </canvas>
           </q-card-section>
-          <div class="absolute-bottom full-width q-pa-sm">
-            <q-card-section flat bordered class="row bg-grey-9 justify-center">
-              <div class="row q-gutter-sm">
+          <div class="absolute-bottom full-width q-pa-xs q-pa-sm-sm">
+            <q-card-section flat bordered class="row bg-grey-9 justify-center q-pa-xs q-pa-sm-sm">
+              <div class="row q-gutter-xs q-gutter-sm-sm">
                 Здесь инфа о предмете (тултип)
               </div>
             </q-card-section>
@@ -40,118 +42,115 @@
       </div>
 
       <!-- Правая панель -->
-      <div class="col-4" style="display: flex; flex-direction: column; gap: 16px; min-height: 0;">
+      <div class="col-12 col-md-4 col-lg-4 right-panel" style="display: flex; flex-direction: column; gap: 8px; min-height: 0;">
+
         <!-- Игрок -->
-        <q-card flat square bordered dark style="flex-shrink: 0;">
-          <q-card-section class="bg-grey-9">
-            <div class="text-h6 flex items-center">
-              <q-icon name="person" class="q-mr-sm" />
+        <q-card flat square bordered dark class="player-card" style="display: flex; flex-direction: column; min-height: 0;">
+          <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
+            <div class="text-subtitle1 text-sm-h6 flex items-center">
+              <q-icon name="person" class="q-mr-xs" />
               Персонаж
-              <q-badge color="blue" :label="playerStats?.name || '—'" class="q-ml-sm" />
+              <q-badge color="blue" :label="playerStats?.name || '—'" class="q-ml-xs" />
             </div>
           </q-card-section>
           <q-separator dark />
-          <q-card-section class="row" dark>
-            <div class="col" v-if="playerStats">
-              <!-- Здоровье -->
-              <div>
-                <div class="row justify-between">
+          <q-scroll-area class="player-body" dark style="width: 100%;">
+            <div class="row q-pa-xs q-pa-sm-sm">
+              <div class="col-12 col-sm-6 col-md-6" v-if="playerStats">
+                <!-- Здоровье -->
+                <div class="row justify-between q-py-xs">
                   <span>❤️ Здоровье</span>
                   <span>{{ playerStats.hp }}/{{ playerStats.maxHp }}</span>
                 </div>
-              </div>
 
-              <!-- Энергия -->
-              <div>
-                <div class="row justify-between ">
+                <!-- Энергия -->
+                <div class="row justify-between q-py-xs">
                   <span>⚡ Энергия</span>
                   <span>{{ playerStats.energy }}/{{ playerStats.maxEnergy }}</span>
                 </div>
-              </div>
 
-              <!-- Броня -->
-              <div class="row justify-between">
-                <span class="text-grey-5">🛡️ Броня</span>
-                <span>{{ playerStats.armor }} ({{ playerStats.armorType }})</span>
-              </div>
+                <!-- Броня -->
+                <div class="row justify-between q-py-xs">
+                  <span class="text-grey-5">🛡️ Броня</span>
+                  <span>{{ playerStats.armor }} ({{ playerStats.armorType }})</span>
+                </div>
 
-              <!-- Атака -->
-              <div class="row justify-between ">
-                <span class="text-grey-5">⚔️ Урон</span>
-                <span>{{ playerStats.damageMin }}-{{ playerStats.damageMax }} ({{ playerStats.damageType }})</span>
-              </div>
+                <!-- Атака -->
+                <div class="row justify-between q-py-xs">
+                  <span class="text-grey-5">⚔️ Урон</span>
+                  <span>{{ playerStats.damageMin }}-{{ playerStats.damageMax }} ({{ playerStats.damageType }})</span>
+                </div>
 
-              <!-- Точность -->
-              <div class="row justify-between">
-                <span class="text-grey-5">🎯 Точность</span>
-                <span>{{ Math.round(playerStats.accuracy * 100) }}%</span>
-              </div>
+                <!-- Точность -->
+                <div class="row justify-between q-py-xs">
+                  <span class="text-grey-5">🎯 Точность</span>
+                  <span>{{ Math.round(playerStats.accuracy * 100) }}%</span>
+                </div>
 
-              <!-- Дальность -->
-              <div class="row justify-between">
-                <span class="text-grey-5">📏 Дальность</span>
-                <span>{{ playerStats.attackRange }}</span>
-              </div>
+                <!-- Дальность -->
+                <div class="row justify-between q-py-xs">
+                  <span class="text-grey-5">📏 Дальность</span>
+                  <span>{{ playerStats.attackRange }}</span>
+                </div>
 
-              <!-- Скорость -->
-              <div class="row justify-between">
-                <span class="text-grey-5">⚡ Скорость</span>
-                <span>{{ playerStats.speed }}</span>
-              </div>
+                <!-- Скорость -->
+                <div class="row justify-between q-py-xs">
+                  <span class="text-grey-5">⚡ Скорость</span>
+                  <span>{{ playerStats.speed }}</span>
+                </div>
 
-              <!-- Инициатива -->
-              <div class="row justify-between">
-                <span class="text-grey-5">🔄 Инициатива</span>
-                <span>{{ playerStats.initiative }}</span>
-              </div>
+                <!-- Инициатива -->
+                <div class="row justify-between q-py-xs">
+                  <span class="text-grey-5">🔄 Инициатива</span>
+                  <span>{{ playerStats.initiative }}</span>
+                </div>
 
-              <!-- Позиция -->
-              <div class="row justify-between">
-                <span class="text-grey-5">📍 Позиция</span>
-                <span>{{ playerStats.x }}, {{ playerStats.y }}</span>
+                <!-- Позиция -->
+                <div class="row justify-between q-py-xs">
+                  <span class="text-grey-5">📍 Позиция</span>
+                  <span>{{ playerStats.x }}, {{ playerStats.y }}</span>
+                </div>
+              </div>
+              <div v-else class="col text-center text-grey-5 q-py-md">Игрок не найден</div>
+              <div class="col-12 col-sm-6 col-md-6 q-pa-xs q-pa-sm-sm q-gutter-sm">
+                <!-- Сетка перемещения -->
+                <div class="row" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                  <q-btn label="↖" @click="move(-1, -1)" class="full-width" dense />
+                  <q-btn label="⬆" @click="move(0, -1)" class="full-width" dense />
+                  <q-btn label="↗" @click="move(1, -1)" class="full-width" dense />
+                  <q-btn label="⬅" @click="move(-1, 0)" class="full-width" dense />
+                  <q-btn label="🖱" @click="interact" class="full-width" dense />
+                  <q-btn label="➡" @click="move(1, 0)" class="full-width" dense />
+                  <q-btn label="↙" @click="move(-1, 1)" class="full-width" dense />
+                  <q-btn label="⬇" @click="move(0, 1)" class="full-width" dense />
+                  <q-btn label="↘" @click="move(1, 1)" class="full-width" dense />
+                </div>
+
+                <!-- Действия -->
+                <div class="row q-gutter-xs">
+                  <q-btn label="Ждать" @click="waitTurn" class="col" dense />
+                  <q-btn label="Атака" @click="attack" class="col" dense />
+                  <q-btn label="Поднять" @click="pickup" class="col" dense />
+                </div>
               </div>
             </div>
-            <div v-else class="col text-center text-grey-5 q-py-md">Игрок не найден</div>
-            <div class="col q-pa-md q-gutter-sm">
-              <!-- Сетка перемещения -->
-              <div class="row" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
-                <q-btn label="↖" @click="move(-1, -1)" class="full-width" />
-                <q-btn label="⬆" @click="move(0, -1)" class="full-width" />
-                <q-btn label="↗" @click="move(1, -1)" class="full-width" />
-                <q-btn label="⬅" @click="move(-1, 0)" class="full-width" />
-                <q-btn label="🖱" @click="interact" class="full-width" />
-                <q-btn label="➡" @click="move(1, 0)" class="full-width" />
-                <q-btn label="↙" @click="move(-1, 1)" class="full-width" />
-                <q-btn label="⬇" @click="move(0, 1)" class="full-width" />
-                <q-btn label="↘" @click="move(1, 1)" class="full-width" />
-              </div>
-
-              <!-- Действия -->
-              <div class="row">
-                <q-btn label="Ждать" @click="waitTurn" class="col" />
-                <q-btn label="Атака" @click="attack" class="col" />
-                <q-btn label="Поднять" @click="pickup" class="col" />
-              </div>
-            </div>
-          </q-card-section>
+          </q-scroll-area>
         </q-card>
 
-
-
         <!-- Инвентарь -->
-        <q-card flat square bordered dark style="flex-shrink: 0;">
-          <q-card-section class="bg-grey-9">
-            <div class="text-h6 flex items-center">
-              <q-icon name="inventory" class="q-mr-sm" />
+        <q-card flat square bordered dark class="inventory-card" style="display: flex; flex-direction: column; min-height: 0;">
+          <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
+            <div class="text-subtitle1 text-sm-h6 flex items-center">
+              <q-icon name="inventory" class="q-mr-xs" />
               Инвентарь
-              <q-badge color="grey-7" :label="totalItems" class="q-ml-sm" />
+              <q-badge color="grey-7" :label="totalItems" class="q-ml-xs" />
               <q-space />
               <q-btn flat dense icon="delete_sweep" @click="dropAllItems" label="Выбросить всё" />
             </div>
           </q-card-section>
           <q-separator dark />
 
-          <q-card-section style="height: 150px; overflow-y: auto;" dark>
+          <q-card-section class="inventory-section" style="overflow-y: auto;" dark>
             <q-scroll-area v-if="inventoryItems.length > 0" dark style="width: 100%; height: 100%;">
               <q-item v-for="item in inventoryItems" :key="item.id" dark>
                 <q-item-section avatar>
@@ -179,16 +178,16 @@
         </q-card>
 
         <!-- Сущности -->
-        <q-card flat square bordered dark style="flex-shrink: 0;">
-          <q-card-section class="bg-grey-9">
-            <div class="text-h6 flex items-center">
-              <q-icon name="groups" class="q-mr-sm" />
+        <q-card flat square bordered dark class="entities-card" style="display: flex; flex-direction: column; min-height: 0;">
+          <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
+            <div class="text-subtitle1 text-sm-h6 flex items-center">
+              <q-icon name="groups" class="q-mr-xs" />
               Сущности
-              <q-badge color="grey-7" :label="entitiesList.length" class="q-ml-sm" />
+              <q-badge color="grey-7" :label="entitiesList.length" class="q-ml-xs" />
             </div>
           </q-card-section>
           <q-separator dark />
-          <q-card-section style="height: 200px; overflow-y: auto;" dark>
+          <q-card-section class="entities-section" style="overflow-y: auto;" dark>
             <q-scroll-area v-if="entitiesList.length > 0" dark style="width: 100%; height: 100%;">
               <q-item v-for="(ent) in entitiesList" :key="ent.id" :active="ent.id === selectedEntityId" clickable dark>
                 <q-item-section avatar dark>
@@ -215,12 +214,12 @@
         </q-card>
 
         <!-- Лог игры -->
-        <q-card flat square bordered dark style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
-          <q-card-section class="bg-grey-9">
-            <div class="text-h6 flex items-center">
-              <q-icon name="terminal" class="q-mr-sm" />
+        <q-card flat square bordered dark class="log-card" style="display: flex; flex-direction: column; min-height: 0;">
+          <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
+            <div class="text-subtitle1 text-sm-h6 flex items-center">
+              <q-icon name="terminal" class="q-mr-xs" />
               Лог игры
-              <q-badge color="grey-7" :label="consoleLogs.length" class="q-ml-sm" />
+              <q-badge color="grey-7" :label="consoleLogs.length" class="q-ml-xs" />
               <q-space />
               <q-btn flat dense icon="delete_sweep" @click="clearConsole" />
             </div>
@@ -240,7 +239,7 @@
 
     <!-- Диалог загрузки контента -->
     <q-dialog v-model="contentDialog" persistent>
-      <q-card style="min-width: 500px;">
+      <q-card style="min-width: 90vw; max-width: 500px; width: 100%;">
         <q-card-section>
           <div class="text-h6">Загрузка контента</div>
         </q-card-section>
@@ -731,28 +730,43 @@ function onTouchStart(event) { game?.onTouchStart?.(event) }
 function onTouchMove(event) { game?.onTouchMove?.(event) }
 function onTouchEnd(event) { game?.onTouchEnd?.(event) }
 
+let resizeObserver = null
+
+function resizeCanvas() {
+  if (!game || !canvasRef.value) return
+  const rect = canvasRef.value.getBoundingClientRect()
+  const dpr = window.devicePixelRatio || 1
+  const w = Math.max(rect.width, 50)
+  const h = Math.max(rect.height, 50)
+  canvasRef.value.width = w * dpr
+  canvasRef.value.height = h * dpr
+  canvasRef.value.style.width = `${w}px`
+  canvasRef.value.style.height = `${h}px`
+  game.resize?.(w, h, dpr)
+}
+
 onMounted(() => {
   nextTick(initGame)
 
+  // Наблюдаем за изменением размеров контейнера (адаптив под любые экраны)
+  if (canvasRef.value && typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(() => {
+      if (resizeTimeout) clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(resizeCanvas, 100)
+    })
+    resizeObserver.observe(canvasRef.value)
+  }
+
   window.addEventListener('resize', () => {
     if (resizeTimeout) clearTimeout(resizeTimeout)
-    resizeTimeout = setTimeout(() => {
-      if (game && canvasRef.value) {
-        const rect = canvasRef.value.getBoundingClientRect()
-        const dpr = window.devicePixelRatio || 1
-        canvasRef.value.width = rect.width * dpr
-        canvasRef.value.height = rect.height * dpr
-        canvasRef.value.style.width = `${rect.width}px`
-        canvasRef.value.style.height = `${rect.height}px`
-        game.resize?.(rect.width, rect.height, dpr)
-      }
-    }, 200)
+    resizeTimeout = setTimeout(resizeCanvas, 100)
   })
 })
 
 onUnmounted(() => {
   game?.stop?.()
   if (updateInterval) clearInterval(updateInterval)
+  if (resizeObserver) resizeObserver.disconnect()
   document.removeEventListener('keydown', onGlobalKeyDown)
   document.removeEventListener('keyup', onGlobalKeyUp)
 })
@@ -767,5 +781,99 @@ canvas {
 
 :deep(.q-page) {
   outline: none;
+}
+
+/* ===== Адаптив под любые экраны ===== */
+
+/* На маленьких и средних экранах (до md) панели складываются вертикально,
+   страница становится прокручиваемой, канвас получает фиксированную высоту */
+@media (max-width: 1023px) {
+  .game-page {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  /* Канвас-колонка: задаём высоту, чтобы канвас не схлопывался */
+  .game-page :deep(.canvas-col) {
+    height: 60vh;
+    min-height: 320px;
+    flex-shrink: 0;
+  }
+
+  /* На маленьких экранах секции получают фиксированные высоты */
+  .inventory-section {
+    height: 120px;
+  }
+
+  .entities-section {
+    height: 160px;
+  }
+
+  .log-card {
+    flex: 0 0 auto;
+    height: 220px;
+  }
+
+  /* Тело карточки игрока не сжимается на маленьких экранах */
+  .player-card {
+    flex: 0 0 auto;
+  }
+
+  /* q-scroll-area требует высоту — задаём фиксированную на маленьких экранах,
+     переопределяя inline flex:1, который схлопывает контент */
+  .player-body {
+    flex: 0 0 auto;
+    height: 320px;
+  }
+}
+
+/* Очень маленькие экраны (телефоны) */
+@media (max-width: 599px) {
+  .game-page :deep(.canvas-col) {
+    height: 55vh;
+    min-height: 280px;
+  }
+}
+
+/* На больших экранах (md+) страница не прокручивается, всё вписывается в экран */
+@media (min-width: 1024px) {
+  .game-page {
+    overflow: hidden;
+  }
+
+  /* Правая колонка растягивается на всю высоту */
+  .game-page :deep(.right-panel) {
+    height: 100%;
+  }
+
+  /* Пропорциональное распределение высоты между карточками правой панели.
+     Лог получает наибольшую долю и всегда остаётся видимым. */
+  .player-card {
+    flex: 2 1 0;
+  }
+
+  .inventory-card {
+    flex: 2 1 0;
+  }
+
+  .entities-card {
+    flex: 2 1 0;
+  }
+
+  .log-card {
+    flex: 3 1 0;
+  }
+
+  /* Внутренние секции заполняют карточку и прокручиваются при нехватке места */
+  .inventory-section,
+  .entities-section {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .player-body {
+    flex: 1 1 0;
+    min-height: 0;
+  }
 }
 </style>
