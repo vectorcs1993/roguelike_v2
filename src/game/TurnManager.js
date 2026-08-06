@@ -4,12 +4,10 @@
 // обработку очереди врагов и завершение ходов.
 
 import HealthComponent from '../engine/components/HealthComponent.js'
-import HungerComponent from '../engine/components/HungerComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
 import MovementComponent from '../engine/components/MovementComponent.js'
 import { logger, LOG_MODULES } from './Logger.js'
-import { GameConfig } from './GameConfig.js'
 
 export default class TurnManager {
   constructor(gameLoop) {
@@ -133,15 +131,7 @@ export default class TurnManager {
     this.enemyTurnIndex = 0
     this.isProcessingEnemyTurn = false
 
-    // Сбрасываем счётчик действий игрока для нового хода.
-    if (this.gameLoop.playerActions) {
-      this.gameLoop.playerActions.resetActions()
-    }
-
     this.gameLoop.initializeFovForAllAllies()
-
-    // Голод растёт на 1 каждый ход; при достижении максимума игрок умирает.
-    this._applyHunger()
 
     const playerEntities = this.gameLoop.getPlayerEntities()
     if (playerEntities.length === 0) {
@@ -155,38 +145,12 @@ export default class TurnManager {
     logger.info(LOG_MODULES.TURN, `${locationName}: Ход ${this.turnCount}`)
   }
 
-  /** Увеличивает голод игрока за ход и убивает при достижении максимума. */
-  _applyHunger() {
-    const playerEntities = this.gameLoop.getPlayerEntities()
-    const playerConfig = GameConfig.getPlayer()
-    const hungerPerTurn = playerConfig.hungerPerTurn ?? 1
-
-    for (const entity of playerEntities) {
-      const hunger = entity.getComponent(HungerComponent)
-      if (!hunger) continue
-
-      const starved = hunger.increase(hungerPerTurn)
-      if (starved) {
-        logger.info(LOG_MODULES.SYSTEM, 'Игрок умер от голода!')
-        const health = entity.getComponent(HealthComponent)
-        if (health) {
-          health.takeDamage(health.hp, 'physical')
-        }
-      }
-    }
-  }
-
   /** Сбрасывает состояние хода (при перезагрузке локации). */
   reset() {
     this.isPlayerTurn = true
     this.enemyTurnIndex = 0
     this.isProcessingEnemyTurn = false
     this.turnCount = 0
-
-    // Сбрасываем счётчик действий игрока.
-    if (this.gameLoop.playerActions) {
-      this.gameLoop.playerActions.resetActions()
-    }
 
     this.updateEnemyList()
   }

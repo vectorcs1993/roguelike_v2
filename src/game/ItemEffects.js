@@ -28,6 +28,7 @@
 
 import HealthComponent from '../engine/components/HealthComponent.js'
 import HungerComponent from '../engine/components/HungerComponent.js'
+import EnergyComponent from '../engine/components/EnergyComponent.js'
 import CombatComponent from '../engine/components/CombatComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
 import { logger, LOG_MODULES } from './Logger.js'
@@ -77,17 +78,18 @@ export const EFFECT_HANDLERS = {
   restoreEnergy(ctx) {
     const entity = ctx.entity
     if (!entity) return false
-    // Энергия хранится в произвольном поле сущности (по умолчанию energy).
-    const maxEnergy = entity.maxEnergy || 100
-    const current = entity.energy ?? 0
-    if (current >= maxEnergy) {
+    const energy = entity.getComponent(EnergyComponent)
+    if (!energy) return false
+    if (energy.energy >= energy.maxEnergy) {
       logger.info(LOG_MODULES.ACTION, 'Энергия уже полная')
       return false
     }
     const amount = Number(ctx.value) || 0
     if (amount <= 0) return false
-    entity.energy = Math.min(maxEnergy, current + amount)
-    return `Восстановлено ${amount} энергии (${entity.energy}/${maxEnergy})`
+    const before = energy.energy
+    energy.regen(amount)
+    const restored = energy.energy - before
+    return `Восстановлено ${restored} энергии (${energy.energy}/${energy.maxEnergy})`
   },
 
   // Утоление голода: { "restoreHunger": 20 }

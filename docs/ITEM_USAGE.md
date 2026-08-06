@@ -138,8 +138,9 @@ ItemEffects.applyItemEffects() → для каждого эффекта вызы
 "effects": { "restoreEnergy": 10 }
 ```
 
-Восстанавливает энергию. Энергия хранится в полях `entity.energy` и
-`entity.maxEnergy` (по умолчанию `maxEnergy = 100`).
+Восстанавливает энергию. Энергия хранится в компоненте `EnergyComponent`
+(поля `energy` и `maxEnergy`, по умолчанию `maxEnergy = 100`). Восстановление
+происходит через метод `regen(amount)` компонента.
 
 ### 3.4. `damageBonus` — постоянный бонус к урону
 

@@ -5,23 +5,22 @@
 
 import PositionComponent from '../engine/components/PositionComponent.js'
 import HealthComponent from '../engine/components/HealthComponent.js'
+import HungerComponent from '../engine/components/HungerComponent.js'
 import CombatComponent from '../engine/components/CombatComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
 import RenderComponent from '../engine/components/RenderComponent.js'
 import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
 import ItemComponent from '../engine/components/ItemComponent.js'
 import InventoryComponent from '../engine/components/InventoryComponent.js'
-import MovementComponent from '../engine/components/MovementComponent.js'
 import EntityFactory from '../engine/EntityFactory.js'
+import EnergyComponent from '../engine/components/EnergyComponent.js'
 import { logger, LOG_MODULES } from './Logger.js'
+import { GameConfig } from './GameConfig.js'
 import { applyItemEffects, isItemUsable } from './ItemEffects.js'
 
 export default class PlayerActions {
   constructor(gameLoop) {
     this.gameLoop = gameLoop
-    // Количество оставшихся действий игрока за текущий ход.
-    // null — ещё не инициализировано (инициализируется при первом действии).
-    this._remainingActions = null
   }
 
   get location() {
@@ -44,39 +43,74 @@ export default class PlayerActions {
     return this.gameLoop.combatSystem
   }
 
+  /** Возвращает стоимость действия из конфига игрока. */
+  _getEnergyCost(actionType) {
+    const playerConfig = GameConfig.getPlayer()
+    const costs = playerConfig.energyCosts || {}
+    return costs[actionType] ?? 0
+  }
+
   /**
-   * Сбрасывает счётчик действий игрока. Вызывается в начале хода игрока,
-   * чтобы следующее действие заново инициализировалось от текущей скорости.
+   * Проверяет, достаточно ли энергии для действия. Если не хватает —
+   * игрок автоматически ждёт (пропускает ход), возвращается false.
+   */
+  _canAfford(actionType) {
+    const entity = this.gameLoop.selectedEntity
+    const energy = entity?.getComponent(EnergyComponent)
+    if (!energy) return true
+
+    const cost = this._getEnergyCost(actionType)
+    if (!energy.isSufficient(cost)) {
+      logger.info(LOG_MODULES.ACTION, `Недостаточно энергии для действия (нужно ${cost}, есть ${energy.energy}). Игрок автоматически ждёт.`)
+      this.wait()
+      return false
+    }
+    return true
+  }
+
+  /** Тратит энергию на действие, увеличивает голод и передаёт ход врагам. */
+  _spendEnergy(actionType) {
+    const entity = this.gameLoop.selectedEntity
+    const energy = entity?.getComponent(EnergyComponent)
+    if (!energy) return
+
+    const cost = this._getEnergyCost(actionType)
+    energy.spend(cost)
+    this._applyHunger()
+    // После каждого действия ход передаётся врагам, чтобы они могли действовать.
+    this.turnManager.endPlayerTurn()
+  }
+
+  /** Увеличивает голод за действие и убивает игрока при достижении максимума. */
+  _applyHunger() {
+    const entity = this.gameLoop.selectedEntity
+    const hunger = entity?.getComponent(HungerComponent)
+    if (!hunger) return
+
+    const playerConfig = GameConfig.getPlayer()
+    const hungerPerTurn = playerConfig.hungerPerTurn ?? 1
+
+    const starved = hunger.increase(hungerPerTurn)
+    if (starved) {
+      logger.info(LOG_MODULES.SYSTEM, 'Игрок умер от голода!')
+      const health = entity.getComponent(HealthComponent)
+      if (health && !health.isDead) {
+        health.takeDamage(health.hp, 'physical')
+      }
+    }
+  }
+
+  /**
+   * Сбрасывает счётчик действий игрока. Оставлено для обратной совместимости
+   * (в энергетической системе счётчик действий не используется).
    */
   resetActions() {
-    this._remainingActions = null
+    // no-op
   }
 
   /**
-   * Расходует одно действие игрока. Количество действий за ход равно
-   * значению `speed` (MovementComponent). Когда действия заканчиваются —
-   * ход игрока завершается и передаётся врагам.
-   */
-  consumeAction() {
-    const entity = this.gameLoop.selectedEntity
-    const movement = entity?.getComponent(MovementComponent)
-    const speed = Math.max(1, movement?.speed || 1)
-
-    if (this._remainingActions === null || this._remainingActions === undefined) {
-      this._remainingActions = speed
-    }
-
-    this._remainingActions--
-
-    if (this._remainingActions <= 0) {
-      this._remainingActions = null
-      this.turnManager.endPlayerTurn()
-    }
-  }
-
-  /**
-   * Пропускает ход игрока: расходует одно действие, ничего не делая.
-   * Когда действия заканчиваются — ход передаётся врагам.
+   * Ожидание: восстанавливает энергию на energyRegen из конфига и
+   * передаёт ход врагам.
    */
   wait() {
     if (!this.turnManager.isPlayerTurn) return false
@@ -87,8 +121,23 @@ export default class PlayerActions {
     const health = entity.getComponent(HealthComponent)
     if (!health || health.isDead) return false
 
-    logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} ждёт`)
-    this.consumeAction()
+    const energy = entity.getComponent(EnergyComponent)
+    const playerConfig = GameConfig.getPlayer()
+    const regen = playerConfig.energyRegen ?? 0
+
+    if (energy) {
+      const before = energy.energy
+      energy.regen(regen)
+      const restored = energy.energy - before
+      logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} отдыхает и восстанавливает ${restored} энергии (${energy.energy}/${energy.maxEnergy})`)
+    } else {
+      logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} ждёт`)
+    }
+
+    // При ожидании голод тоже растёт.
+    this._applyHunger()
+
+    this.turnManager.endPlayerTurn()
     return true
   }
 
@@ -114,8 +163,9 @@ export default class PlayerActions {
     // Разбитие занимает целый ход — игрок остаётся на месте.
     const targetCell = this.location.grid[newY]?.[newX]
     if (targetCell && targetCell.type === 'crate' && targetCell.entity) {
+      if (!this._canAfford('move')) return false
       this.interactionSystem.breakCrate(entity, targetCell.entity)
-      this.consumeAction()
+      this._spendEnergy('move')
       return true
     }
 
@@ -125,9 +175,10 @@ export default class PlayerActions {
       if (targetEntity) {
         const env = targetEntity.getComponent(EnvironmentComponent)
         if (env && env.isInteractive) {
+          if (!this._canAfford('interact')) return false
           const success = this.interactionSystem.interact(entity, targetEntity, newX, newY)
           if (success) {
-            this.consumeAction()
+            this._spendEnergy('interact')
             return true
           }
         }
@@ -143,6 +194,7 @@ export default class PlayerActions {
 
       if (targetAI && targetHealth && !targetHealth.isDead) {
         if (this.combatSystem) {
+          if (!this._canAfford('attack')) return false
           const damage = this.combatSystem.attack(entity, targetEntity)
           const attackerName = this.gameLoop.getEntityName(entity)
           const targetName = this.gameLoop.getEntityName(targetEntity)
@@ -155,7 +207,7 @@ export default class PlayerActions {
           if (targetHealth.isDead) {
             this._spawnEnemyDrop(targetEntity)
           }
-          this.consumeAction()
+          this._spendEnergy('attack')
           return true
         }
       }
@@ -173,8 +225,9 @@ export default class PlayerActions {
       logger.info(LOG_MODULES.ACTION, `На земле лежит ${env.name || 'предмет'}`)
     }
 
+    if (!this._canAfford('move')) return false
     pos.moveTo(newX, newY)
-    this.consumeAction()
+    this._spendEnergy('move')
     return true
   }
 
@@ -207,9 +260,10 @@ export default class PlayerActions {
       return false
     }
 
+    if (!this._canAfford('pickup')) return false
     const success = this.interactionSystem.pickupItem(entity, itemEntity)
     if (success) {
-      this.consumeAction()
+      this._spendEnergy('pickup')
     }
     return success
   }
@@ -345,6 +399,8 @@ export default class PlayerActions {
       return false
     }
 
+    if (!this._canAfford('useItem')) return false
+
     // Применяем эффекты предмета.
     const result = applyItemEffects(entity, itemData, this.gameLoop)
 
@@ -365,7 +421,7 @@ export default class PlayerActions {
     const countMsg = remaining > 0 ? ` (осталось ${remaining})` : ''
     logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} использовал ${item.name}${countMsg}`)
 
-    this.consumeAction()
+    this._spendEnergy('useItem')
     return true
   }
 
@@ -403,6 +459,8 @@ export default class PlayerActions {
 
     if (!this.combatSystem) return false
 
+    if (!this._canAfford('attack')) return false
+
     const damage = this.combatSystem.attack(entity, nearest)
     const attackerName = this.gameLoop.getEntityName(entity)
     const targetName = this.gameLoop.getEntityName(nearest)
@@ -411,7 +469,7 @@ export default class PlayerActions {
     } else {
       logger.info(LOG_MODULES.COMBAT, `${attackerName} промахивается по ${targetName}.`)
     }
-    this.consumeAction()
+    this._spendEnergy('attack')
     return true
   }
 
@@ -437,9 +495,10 @@ export default class PlayerActions {
         if (target) {
           const env = target.getComponent(EnvironmentComponent)
           if (env && env.isInteractive) {
+            if (!this._canAfford('interact')) return false
             const success = this.interactionSystem.interact(entity, target)
             if (success) {
-              this.consumeAction()
+              this._spendEnergy('interact')
               return true
             }
           }

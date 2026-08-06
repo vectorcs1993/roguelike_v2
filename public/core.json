@@ -23,6 +23,17 @@
     "speed": 1,
     "xpPerLevel": 20,
     "maxLevel": 20,
+    "energy": 100,
+    "maxEnergy": 100,
+    "energyRegen": 15,
+    "energyCosts": {
+      "move": 1,
+      "attack": 1,
+      "useItem": 2,
+      "pickup": 2,
+      "wait": 0,
+      "interact": 2
+    },
     "levelBonuses": {
       "hp": 5,
       "damage": 1,
@@ -125,7 +136,7 @@
           "countMin": 1,
           "countMax": 2
         },
-        "energy": {
+        "coffee": {
           "chance": 0.1,
           "countMin": 1,
           "countMax": 1
@@ -203,7 +214,7 @@
           "countMin": 1,
           "countMax": 1
         },
-        "energy": {
+        "coffee": {
           "chance": 0.15,
           "countMin": 1,
           "countMax": 2
@@ -413,12 +424,12 @@
         "showWhenExplored": false
       }
     },
-    "energy": {
-      "id": "energy",
-      "name": "Батарея",
-      "char": "♦",
-      "color": "#4444ff",
-      "bgColor": "#0a0a2a",
+    "coffee": {
+      "id": "coffee",
+      "name": "Кофе",
+      "char": "☕",
+      "color": "#c8a06a",
+      "bgColor": "#2a1a0a",
       "layer": 2,
       "type": "consumable",
       "category": "energy",
@@ -617,7 +628,7 @@
           "countMin": 1,
           "countMax": 2
         },
-        "energy": {
+        "coffee": {
           "chance": 0.2,
           "countMin": 1,
           "countMax": 2
@@ -679,7 +690,7 @@
           "countMin": 1,
           "countMax": 2
         },
-        "energy": {
+        "coffee": {
           "chance": 0.25,
           "countMin": 1,
           "countMax": 2

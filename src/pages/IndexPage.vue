@@ -273,6 +273,7 @@ import PositionComponent from 'src/engine/components/PositionComponent.js'
 import RenderComponent from 'src/engine/components/RenderComponent.js'
 import HealthComponent from 'src/engine/components/HealthComponent.js'
 import HungerComponent from 'src/engine/components/HungerComponent.js'
+import EnergyComponent from 'src/engine/components/EnergyComponent.js'
 import PlayerComponent from 'src/engine/components/PlayerComponent.js'
 import AIComponent from 'src/engine/components/AIComponent.js'
 import InventoryComponent from 'src/engine/components/InventoryComponent.js'
@@ -404,8 +405,9 @@ function updateEntitiesList() {
       const position = entity.getComponent(PositionComponent)
       const playerConfig = GameConfig.getPlayer()
 
-      const maxEnergy = entity.maxEnergy ?? 100
-      const energy = entity.energy ?? maxEnergy
+      const energyComp = entity.getComponent(EnergyComponent)
+      const maxEnergy = energyComp ? energyComp.maxEnergy : 100
+      const energy = energyComp ? energyComp.energy : maxEnergy
 
       const hungerComp = entity.getComponent(HungerComponent)
       const hunger = hungerComp ? hungerComp.hunger : 0
