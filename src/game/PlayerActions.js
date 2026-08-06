@@ -158,15 +158,15 @@ export default class PlayerActions {
     }
 
     // Логирование предмета на земле (без действия)
-    const itemEntity = this.engine.getFirstEntityAt(newX, newY)
-    if (itemEntity && itemEntity.active) {
+    const itemEntity = this.engine.getEntitiesAt(newX, newY)
+      .find(e => {
+        const env = e.getComponent(EnvironmentComponent)
+        const itemComp = e.getComponent(ItemComponent)
+        return env && env.isCollectible && itemComp && !itemComp.collected
+      })
+    if (itemEntity) {
       const env = itemEntity.getComponent(EnvironmentComponent)
-      if (env && env.isCollectible) {
-        const itemComp = itemEntity.getComponent(ItemComponent)
-        if (itemComp && !itemComp.collected) {
-          logger.info(LOG_MODULES.ACTION, `На земле лежит ${env.name || 'предмет'}`)
-        }
-      }
+      logger.info(LOG_MODULES.ACTION, `На земле лежит ${env.name || 'предмет'}`)
     }
 
     pos.moveTo(newX, newY)
@@ -187,7 +187,7 @@ export default class PlayerActions {
     const cx = pos.tileX
     const cy = pos.tileY
 
-    // Ищем предмет на клетке игрока
+    // Ищем предмет на клетке игрока (предметы лежат на своём слое поверх пола)
     let itemEntity = null
     const entitiesAt = this.engine.getEntitiesAt(cx, cy)
     for (const e of entitiesAt) {
@@ -195,14 +195,6 @@ export default class PlayerActions {
       if (itemComp && !itemComp.collected) {
         itemEntity = e
         break
-      }
-    }
-
-    // Если не нашли, проверяем grid
-    if (!itemEntity) {
-      const cell = this.location.grid[cy]?.[cx]
-      if (cell && cell.type === 'item') {
-        itemEntity = cell.entity
       }
     }
 
@@ -304,8 +296,10 @@ export default class PlayerActions {
           if (nx >= 0 && nx < this.location.cols &&
             ny >= 0 && ny < this.location.rows &&
             this.location.isTileWalkable(nx, ny)) {
-            const existing = this.location.getEntityAt(nx, ny)
-            if (!existing || !existing.getComponent(ItemComponent)) {
+            // Проверяем, нет ли уже предмета на клетке (предметы лежат на своём слое)
+            const hasItem = this.engine.getEntitiesAt(nx, ny)
+              .some(e => e.getComponent(ItemComponent))
+            if (!hasItem) {
               this._createItemEntity(nx, ny, itemData)
               placed = true
               break
@@ -449,18 +443,9 @@ export default class PlayerActions {
     return false
   }
 
-  /** Создаёт сущность предмета на указанной клетке. */
+  /** Создаёт сущность предмета на указанной клетке (поверх существующего пола). */
   _createItemEntity(x, y, itemData) {
-    // Сначала удаляем пол на этой клетке
-    const cell = this.location.grid[y]?.[x]
-    if (cell && cell.entity) {
-      const env = cell.entity.getComponent(EnvironmentComponent)
-      if (env && env.type === 'floor') {
-        this.engine.removeEntity(cell.entity)
-      }
-    }
-
-    // Создаем предмет
+    // Предмет лежит на своём слое поверх пола — пол на клетке не трогаем.
     const itemEntity = EntityFactory.createItem(x, y, itemData.type || 'generic', {
       name: itemData.name,
       char: itemData.char,
@@ -486,6 +471,5 @@ export default class PlayerActions {
 
     itemEntity.engine = this.engine
     this.engine.addEntity(itemEntity)
-    this.location.grid[y][x] = { type: 'item', entity: itemEntity }
   }
 }

@@ -95,11 +95,6 @@ export default class InteractionSystem extends System {
         itemEntity.engine = this.engine
         this.engine.addEntity(itemEntity)
 
-        const loc = this.engine.currentLocation
-        if (loc) {
-          loc.grid[tileY][tileX] = { type: 'item', entity: itemEntity }
-        }
-
         const itemRender = itemEntity.getComponent(RenderComponent)
         if (itemRender) {
           itemRender.visible = true
@@ -114,8 +109,8 @@ export default class InteractionSystem extends System {
   }
 
   /**
-   * Подбирает предмет: добавляет его в инвентарь актора,
-   * удаляет сущность с уровня и создаёт пол на её месте.
+   * Подбирает предмет: добавляет его в инвентарь актора и
+   * удаляет сущность с уровня (пол на клетке остаётся нетронутым).
    */
   pickupItem(actor, target) {
     const item = target.getComponent(ItemComponent)
@@ -158,22 +153,15 @@ export default class InteractionSystem extends System {
 
     item.collected = true
 
-    // Получаем позицию предмета
-    const pos = target.getComponent(PositionComponent)
-    if (pos) {
-      const tileX = pos.tileX
-      const tileY = pos.tileY
-
-      // Удаляем предмет из engine и создаём пол на его месте
-      this.engine.removeEntity(target)
-      this._createFloorAt(tileX, tileY)
-    }
+    // Предмет лежит на своём слое поверх пола — просто удаляем его сущность,
+    // пол на клетке остаётся нетронутым.
+    this.engine.removeEntity(target)
 
     logger.info(LOG_MODULES.ACTION, `Подобран предмет: ${env.name}`)
     return true
   }
 
-  /** Создаёт пол на клетке (x, y) и делает его видимым. */
+  /** Создаёт пол на клетке (x, y) и делает его видимым (используется при разбитии ящика). */
   _createFloorAt(x, y) {
     const loc = this.engine.currentLocation
     const floorEntity = EntityFactory.createFloor(x, y)

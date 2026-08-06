@@ -442,12 +442,6 @@ export default class Location {
       const itemEntity = EntityFactory.createItem(x, y, type)
       itemEntity.engine = location.engine
       location.engine.addEntity(itemEntity)
-
-      const oldCell = location.grid[y][x]
-      if (oldCell && oldCell.entity) {
-        location.engine.removeEntity(oldCell.entity)
-      }
-      location.grid[y][x] = { type: 'item', entity: itemEntity }
     }
   }
 
