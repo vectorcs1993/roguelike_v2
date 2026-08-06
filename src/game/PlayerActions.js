@@ -243,7 +243,7 @@ export default class PlayerActions {
       })
     if (itemEntity) {
       const env = itemEntity.getComponent(EnvironmentComponent)
-      logger.info(LOG_MODULES.ACTION, `На земле лежит ${env.name || 'предмет'}`)
+      logger.info(LOG_MODULES.SYSTEM, `Игрок видит ${env.name || 'предмет'}`)
     }
 
     if (!this._canAfford('move')) return false

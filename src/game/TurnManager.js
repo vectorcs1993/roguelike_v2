@@ -41,7 +41,7 @@ export default class TurnManager {
   /** Завершает ход игрока и запускает ход врагов. */
   endPlayerTurn() {
     if (!this.isPlayerTurn) return
-    logger.info(LOG_MODULES.TURN, 'Игрок завершил ход')
+    // logger.info(LOG_MODULES.TURN, 'Игрок завершил ход')
     this.isPlayerTurn = false
     this.enemyTurnIndex = 0
     this.updateEnemyList()
@@ -59,7 +59,7 @@ export default class TurnManager {
       return
     }
 
-    logger.info(LOG_MODULES.TURN, `Ход врагов (${this.enemyList.length})`)
+    // logger.info(LOG_MODULES.TURN, `Ход врагов (${this.enemyList.length})`)
     this.isProcessingEnemyTurn = true
     this.enemyTurnIndex = 0
     this.processNextEnemy()
@@ -114,7 +114,7 @@ export default class TurnManager {
 
   /** Завершает ход врагов и возвращает ход игроку. */
   endEnemyTurn() {
-    logger.info(LOG_MODULES.TURN, 'Враги завершили ход')
+    // logger.info(LOG_MODULES.TURN, 'Враги завершили ход')
     this.isPlayerTurn = true
     this.enemyTurnIndex = 0
     this.isProcessingEnemyTurn = false

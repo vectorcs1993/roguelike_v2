@@ -18,11 +18,6 @@
                 <q-btn label="Обновить" icon="refresh" @click="regenerateLevel" dark dense />
                 <q-btn label="Карта" icon="map" @click="revealFullMap" dark dense />
               </q-btn-group>
-              <!-- <q-btn-group class="q-mt-xs q-mt-sm-0">
-                <q-btn label="Контент" icon="file_upload" @click="loadContent" dark dense />
-                <q-btn label="Валидация" icon="check_circle" @click="validateContent" dark dense />
-                <q-btn label="Статистика" icon="info" @click="showEntityStats" dark dense />
-              </q-btn-group> -->
             </div>
           </q-card-section>
           <q-card-section class="q-pa-none bg-dark" style="flex: 1; display: flex; min-height: 0;">
@@ -56,7 +51,7 @@
           <q-separator dark />
           <q-scroll-area class="player-body" dark style="width: 100%;">
             <div class="row q-pa-xs q-pa-sm-sm">
-              <div class="col-12 col-sm-6 col-md-6" v-if="playerStats">
+              <div class="col-12 col-sm-6 col-md-6 q-pa-xs q-pa-sm-sm q-gutter-xs" v-if="playerStats">
                 <!-- Здоровье -->
                 <div class="row justify-between q-py-xs">
                   <span>Здоровье</span>
@@ -197,18 +192,18 @@
             <q-scroll-area v-if="entitiesList.length > 0" dark style="width: 100%; height: 100%;">
               <q-item v-for="(ent) in entitiesList" :key="ent.id" :active="ent.id === selectedEntityId" clickable dark>
                 <q-item-section avatar dark>
-                  <q-chip :style="{ backgroundColor: ent.teamColor, color: 'white' }">
+                  <q-chip :style="{ backgroundColor: ent.bgColor, color: ent.color }">
                     {{ ent.char }}
                   </q-chip>
                 </q-item-section>
                 <q-item-section>
                   <q-item-label>
                     {{ ent.name }}
+                    {{ ent.hp }}/{{ ent.maxHp }}
                     <q-badge :color="ent.isEnemy ? 'red' : 'grey'" flat>
                       {{ ent.isEnemy ? 'Враг' : ent.isEnvironment ? 'Окр.' : 'Предм.' }}
                     </q-badge>
                   </q-item-label>
-                  <q-item-label>❤️ {{ ent.hp }}/{{ ent.maxHp }}</q-item-label>
                 </q-item-section>
                 <div class="row q-gutter-sm">
                   <q-btn icon="center_focus_strong" label="Найти" dense @click.stop="highlightOnCharacter(ent.id)" dark />
@@ -442,13 +437,15 @@ function updateEntitiesList() {
     // Показываем только сущности, видимые игроку
     if (!render.visible) continue
 
-    let teamColor = '#666666'
+    let color = '#666666'
+    let bgColor = '#666666'
     let teamName = 'Нейтральный'
     let displayName
 
     // Определяем имя
     if (ai) {
-      teamColor = '#ff4444'
+      color = entity.enemyData.color
+      bgColor = entity.enemyData.bgColor
       teamName = 'Враг'
       // Берем имя из enemyData или из конфига
       if (entity.enemyData?.name) {
@@ -461,7 +458,7 @@ function updateEntitiesList() {
       }
     } else if (env) {
       // Для окружения (пол, стена, дверь, ящик)
-      teamColor = '#888888'
+      bgColor = '#888888'
       teamName = 'Окружение'
       displayName = env.name || entity.tag || 'Объект'
     } else {
@@ -480,7 +477,8 @@ function updateEntitiesList() {
       id: entity.id,
       name: displayName,
       char: render.char,
-      teamColor: teamColor,
+      bgColor: bgColor,
+      color: color,
       teamName: teamName,
       hp: health.hp,
       maxHp: health.maxHp,
@@ -622,7 +620,9 @@ function revealFullMap() {
   addConsoleMessage('Карта открыта', 'success')
 }
 
-function highlightOnCharacter(entityId) { game?.highlightOnCharacter(entityId) }
+function highlightOnCharacter(entityId) {
+  game?.highlightOnCharacter(entityId)
+}
 
 async function doLoadContent() {
   contentLoading.value = true

@@ -122,6 +122,20 @@ export default class GameLoop {
     }
   }
 
+  /**
+   * Подсвечивает персонажа желтой вспышкой (для выделения в списке сущностей)
+   */
+  highlightOnCharacter(entityId) {
+    const engine = this.currentLocation.engine
+    const entity = engine.getEntity(entityId)
+    if (!entity) return
+
+    const render = entity.getComponent(RenderComponent)
+    if (render) {
+      render.flash('#ffdd00', 150)
+    }
+  }
+
   initializeFovForAllAllies() {
     const engine = this.currentLocation.engine
     const allies = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
