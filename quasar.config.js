@@ -37,22 +37,15 @@ export default defineConfig((/* ctx */) => {
         node: 'node22',
       },
 
-<<<<<<< Updated upstream
-      vueRouterMode: 'history', // available values: 'hash', 'history'
-=======
       vueRouterMode: 'hash', // available values: 'hash', 'history'
->>>>>>> Stashed changes
       // vueRouterBase,
       // vueDevtools,
       // vueOptionsAPI: false,
 
       // rebuildCache: true, // rebuilds Vite/linter/etc cache on startup
 
-<<<<<<< Updated upstream
       // publicPath: '/',
-=======
       publicPath: '/roguelike_v2/',
->>>>>>> Stashed changes
       // analyze: true,
       // env: {},
       // rawDefine: {}

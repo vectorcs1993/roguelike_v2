@@ -12,10 +12,7 @@
     "test": "echo \"No test specified\" && exit 0",
     "dev": "quasar dev",
     "build": "quasar build",
-<<<<<<< Updated upstream
-=======
     "deploy:gh": "npm run build && gh-pages -d dist/spa",
->>>>>>> Stashed changes
     "postinstall": "quasar prepare"
   },
   "dependencies": {
@@ -33,10 +30,7 @@
     "autoprefixer": "^10.4.27",
     "eslint": "^10.3.0",
     "eslint-plugin-vue": "^10.8.0",
-<<<<<<< Updated upstream
-=======
     "gh-pages": "^6.3.0",
->>>>>>> Stashed changes
     "globals": "^17.4.0",
     "postcss": "^8.5.8",
     "prettier": "^3.8.1",

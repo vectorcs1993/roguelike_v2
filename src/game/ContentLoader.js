@@ -23,12 +23,6 @@ export default class ContentLoader {
     }
 
     try {
-<<<<<<< Updated upstream
-      // Загружаем core.json из public
-      const response = await fetch('/core.json')
-
-      if (!response.ok) {
-=======
       // Пробуем разные пути
       const paths = [
         '/core.json',
@@ -47,17 +41,11 @@ export default class ContentLoader {
       }
 
       if (!response || !response.ok) {
->>>>>>> Stashed changes
         logger.warn(LOG_MODULES.SYSTEM, 'core.json не найден, используем встроенный конфиг')
         return false
       }
 
       const coreData = await response.json()
-<<<<<<< Updated upstream
-
-      // Загружаем данные
-=======
->>>>>>> Stashed changes
       const success = this.loadFromJSON(coreData)
 
       if (success) {
