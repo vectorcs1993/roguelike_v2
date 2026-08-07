@@ -16,13 +16,13 @@ import DoorComponent from './components/DoorComponent.js'
 import ItemComponent from './components/ItemComponent.js'
 import StairComponent from './components/StairComponent.js'
 import Item from './Item.js'
-import { GameConfig } from '../game/GameConfig.js'
+import ContentLoader from '../game/ContentLoader.js'
 import { logger, LOG_MODULES } from '../game/Logger.js'
 
 export default class EntityFactory {
 
   static createPlayer(x, y) {
-    const playerData = GameConfig.getPlayer()
+    const playerData = ContentLoader.getPlayer()
 
     const entity = new Entity('player')
     const render = new RenderComponent(
@@ -74,7 +74,7 @@ export default class EntityFactory {
   }
 
   static createEnemy(x, y, type, enemyData, biomeId = null) {
-    const data = enemyData || GameConfig.getEnemy(type)
+    const data = enemyData || ContentLoader.getEnemy(type)
     if (!data) {
       logger.warn(LOG_MODULES.SYSTEM, `[EntityFactory] Неизвестный тип врага: ${type}`)
       return null
@@ -89,7 +89,6 @@ export default class EntityFactory {
     const render = new RenderComponent(char, color, bgColor)
     render.layer = layer
 
-    // Применяем настройки видимости из биома (или мира)
     this._applyVisibility(render, 'enemy', biomeId)
 
     entity
@@ -124,7 +123,7 @@ export default class EntityFactory {
   }
 
   static createFloor(x, y, biomeId = null) {
-    const envData = GameConfig.getEnvironment('floor')
+    const envData = ContentLoader.getEnvironment('floor')
     const entity = new Entity('floor')
     const render = new RenderComponent(
       envData.char,
@@ -150,7 +149,7 @@ export default class EntityFactory {
   }
 
   static createWall(x, y, biomeId = null) {
-    const envData = GameConfig.getEnvironment('wall')
+    const envData = ContentLoader.getEnvironment('wall')
     const entity = new Entity('wall')
     const render = new RenderComponent(
       envData.char,
@@ -176,7 +175,7 @@ export default class EntityFactory {
   }
 
   static createDoor(x, y, locked = false, options = {}, biomeId = null) {
-    const envData = GameConfig.getEnvironment('door')
+    const envData = ContentLoader.getEnvironment('door')
     const closedState = envData.states?.closed || { char: '+', color: '#aa8866', bgColor: '#332211', solid: true, blocksSight: true }
     const openState = envData.states?.open || { char: '/', color: '#88cc88', bgColor: '#112211', solid: false, blocksSight: false }
 
@@ -221,7 +220,7 @@ export default class EntityFactory {
   }
 
   static createCrate(x, y, biomeId = null) {
-    const envData = GameConfig.getEnvironment('crate')
+    const envData = ContentLoader.getEnvironment('crate')
     const entity = new Entity('crate')
     const render = new RenderComponent(
       envData.char || '■',
@@ -247,7 +246,7 @@ export default class EntityFactory {
   }
 
   static createItem(x, y, itemType, config = {}, biomeId = null) {
-    const baseData = GameConfig.getItem(itemType) || GameConfig.getItem('generic')
+    const baseData = ContentLoader.getItem(itemType) || ContentLoader.getItem('generic')
 
     const char = config.char || baseData.char || '?'
     const color = config.color || baseData.color || '#ffffff'
@@ -275,7 +274,6 @@ export default class EntityFactory {
     const render = new RenderComponent(char, color, bgColor)
     render.layer = layer
 
-    // Применяем настройки видимости из биома
     this._applyVisibility(render, 'item', biomeId)
 
     entity
@@ -324,7 +322,7 @@ export default class EntityFactory {
    * Настройки берутся ТОЛЬКО из биома (или мира), НЕ из самой сущности.
    */
   static _applyVisibility(render, entityType, biomeId) {
-    const visibilityConfig = GameConfig.getVisibilityConfig(entityType, biomeId)
+    const visibilityConfig = ContentLoader.getVisibilityConfig(entityType, biomeId)
     render.visible = visibilityConfig.visibleByDefault || false
     render.explored = visibilityConfig.exploredByDefault || false
     render._visibilityConfig = visibilityConfig

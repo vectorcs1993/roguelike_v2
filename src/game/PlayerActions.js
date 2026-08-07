@@ -16,8 +16,8 @@ import EntityFactory from '../engine/EntityFactory.js'
 import StairComponent from '../engine/components/StairComponent.js'
 import Item from '../engine/Item.js'
 import EnergyComponent from '../engine/components/EnergyComponent.js'
+import ContentLoader from './ContentLoader.js'
 import { logger, LOG_MODULES } from './Logger.js'
-import { GameConfig } from './GameConfig.js'
 import { applyItemEffects, isItemUsable } from './ItemEffects.js'
 import { rollLoot } from './utils.js'
 
@@ -47,18 +47,12 @@ export default class PlayerActions {
     return this.gameLoop.combatSystem
   }
 
-  /** Возвращает стоимость действия из конфига игрока. */
   _getEnergyCost(actionType) {
-    const playerConfig = GameConfig.getPlayer()
+    const playerConfig = ContentLoader.getPlayer()
     const costs = playerConfig.energyCosts || {}
     return costs[actionType] ?? 0
   }
 
-  /**
-   * Проверяет, достаточно ли энергии для действия.
-   * Если энергии нет - принудительный отдых.
-   * Возвращает true, если действие можно выполнить.
-   */
   _canAfford(actionType) {
     const entity = this.gameLoop.selectedEntity
     const energy = entity?.getComponent(EnergyComponent)
@@ -84,7 +78,7 @@ export default class PlayerActions {
     const energy = entity?.getComponent(EnergyComponent)
     if (!energy) return
 
-    const playerConfig = GameConfig.getPlayer()
+    const playerConfig = ContentLoader.getPlayer()
     const regen = playerConfig.energyRegen || 15
 
     const before = energy.energy
@@ -114,7 +108,7 @@ export default class PlayerActions {
     const hunger = entity?.getComponent(HungerComponent)
     if (!hunger) return
 
-    const playerConfig = GameConfig.getPlayer()
+    const playerConfig = ContentLoader.getPlayer()
     const hungerPerTurn = playerConfig.hungerPerTurn ?? 1
     hunger.damagePerTurn = playerConfig.hungerDamagePerTurn ?? 1
 
@@ -157,7 +151,7 @@ export default class PlayerActions {
     const overloaded = inv && inv.isOverweight()
 
     const energy = entity.getComponent(EnergyComponent)
-    const playerConfig = GameConfig.getPlayer()
+    const playerConfig = ContentLoader.getPlayer()
 
     const baseRegen = playerConfig.energyRegen || 15
     let regen = baseRegen
@@ -206,7 +200,6 @@ export default class PlayerActions {
 
     const targetCell = this.location.grid[newY]?.[newX]
 
-    // === НЕПРОХОДИМАЯ КЛЕТКА (дверь, стена) ===
     if (!this.location.isTileWalkable(newX, newY)) {
       const targetEntity = this.location.getEntityAt(newX, newY)
       if (targetEntity) {
@@ -223,8 +216,6 @@ export default class PlayerActions {
       return false
     }
 
-
-    // === ВРАГ ===
     const targetEntity = this.engine.getFirstEntityAt(newX, newY)
     if (targetEntity && targetEntity.active) {
       const targetHealth = targetEntity.getComponent(HealthComponent)
@@ -243,7 +234,6 @@ export default class PlayerActions {
       }
     }
 
-    // === ЛЕСТНИЦА - проверяем в первую очередь ===
     if (targetCell && targetCell.type === 'stair') {
       const stairEntity = targetCell.entity
       const stairComp = stairEntity?.getComponent(StairComponent)
@@ -253,7 +243,6 @@ export default class PlayerActions {
         const direction = stairComp.direction === 'up' ? 'вверх' : 'вниз'
         logger.info(LOG_MODULES.ACTION, `Подъём по лестнице ${direction}...`)
 
-        // Перемещаем игрока на клетку с лестницей
         pos.moveTo(newX, newY)
 
         const success = stairComp.use(entity, this.gameLoop)
@@ -267,7 +256,6 @@ export default class PlayerActions {
       }
     }
 
-    // === ЯЩИК ===
     if (targetCell && targetCell.type === 'crate' && targetCell.entity) {
       if (!this._canAfford('move')) return false
       this.interactionSystem.breakCrate(entity, targetCell.entity)
@@ -275,7 +263,6 @@ export default class PlayerActions {
       return true
     }
 
-    // === ПРЕДМЕТ (просто видим) ===
     const itemEntity = this.engine.getEntitiesAt(newX, newY)
       .find(e => {
         const env = e.getComponent(EnvironmentComponent)
@@ -287,14 +274,12 @@ export default class PlayerActions {
       logger.info(LOG_MODULES.SYSTEM, `Игрок видит ${env.name || 'предмет'}`)
     }
 
-    // === ПРОСТО ДВИЖЕНИЕ ===
     if (!this._canAfford('move')) return false
     pos.moveTo(newX, newY)
     this._spendEnergy('move')
     return true
   }
 
-  /** Подбирает предмет с клетки выбранного персонажа. */
   pickupItem() {
     if (!this.turnManager.isPlayerTurn) return false
 
@@ -304,7 +289,6 @@ export default class PlayerActions {
     const pos = entity.getComponent(PositionComponent)
     if (!pos) return false
 
-    // Только проверка перегруза перед подбором
     const inv = entity.getComponent(InventoryComponent)
     if (inv && inv.isOverweight()) {
       this._checkOverweight()
@@ -331,7 +315,6 @@ export default class PlayerActions {
 
     if (!this._canAfford('pickup')) return false
 
-    // Вся логика проверки веса теперь в InteractionSystem.pickupItem()
     const success = this.interactionSystem.pickupItem(entity, itemEntity)
     if (success) {
       this._spendEnergy('pickup')
@@ -516,9 +499,6 @@ export default class PlayerActions {
         const target = this.location.getEntityAt(nx, ny)
         if (target && target.active) {
           const env = target.getComponent(EnvironmentComponent)
-
-          // Убираем проверку на лестницу - теперь она в moveCharacter
-
           if (env && env.isInteractive) {
             if (!this._canAfford('interact')) return false
             const success = this.interactionSystem.interact(entity, target)
@@ -546,7 +526,7 @@ export default class PlayerActions {
     const drop = rollLoot(dropPool)
     if (!drop) return
 
-    const baseData = GameConfig.getItem(drop.type) || GameConfig.getItem('generic') || {}
+    const baseData = ContentLoader.getItem(drop.type) || ContentLoader.getItem('generic') || {}
     const item = new Item({ ...baseData, type: drop.type }, drop.count)
     this._createItemEntity(pos.tileX, pos.tileY, item)
   }

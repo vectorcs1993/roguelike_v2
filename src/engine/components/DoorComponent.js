@@ -4,7 +4,7 @@ import Component from './Component.js'
 import EnvironmentComponent from './EnvironmentComponent.js'
 import PositionComponent from './PositionComponent.js'
 import RenderComponent from './RenderComponent.js'
-import { GameConfig } from '../../game/GameConfig.js'
+import ContentLoader from '../../game/ContentLoader.js'
 
 export default class DoorComponent extends Component {
   constructor(config = {}) {
@@ -12,9 +12,9 @@ export default class DoorComponent extends Component {
     this.isOpen = config.isOpen || false
     this.isLocked = config.isLocked || false
 
-    const envData = GameConfig.getEnvironment('door')
-    const closedState = envData.states.closed
-    const openState = envData.states.open
+    const envData = ContentLoader.getEnvironment('door')
+    const closedState = envData.states?.closed || { char: '+', color: '#aa8866', bgColor: '#332211', solid: true, blocksSight: true }
+    const openState = envData.states?.open || { char: '/', color: '#88cc88', bgColor: '#112211', solid: false, blocksSight: false }
 
     this.closedChar = config.closedChar || closedState.char
     this.openChar = config.openChar || openState.char

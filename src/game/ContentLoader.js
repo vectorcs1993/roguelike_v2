@@ -1,21 +1,275 @@
 // src/game/ContentLoader.js
 
-import { GameConfig } from './GameConfig.js'
 import { logger, LOG_MODULES } from './Logger.js'
 
-/**
- * ContentLoader - загрузчик контента для игры
- * Поддерживает загрузку из JSON, URL и модулей
- */
+export const GAME_DATA = {
+  version: '1.0.0',
+  player: {},
+  enemies: {},
+  environment: {},
+  items: {},
+  biomes: {},
+  world: {},
+  combat: {},
+  ui: {},
+  debug: {}
+}
+
 export default class ContentLoader {
-  static #loadedMods = new Set()
-  static #modData = new Map()
   static #isCoreLoaded = false
 
-  /**
-   * Загрузка Core контента по умолчанию
-   * Загружает core.json из public
-   */
+  // ===== ДОСТУП К ДАННЫМ =====
+
+  static getPlayer() {
+    return { ...GAME_DATA.player }
+  }
+
+  static getPlayerConfig() {
+    return { ...GAME_DATA.player }
+  }
+
+  static getEnemy(id) {
+    return GAME_DATA.enemies[id] ? { ...GAME_DATA.enemies[id] } : null
+  }
+
+  static getEnemyIds() {
+    return Object.keys(GAME_DATA.enemies)
+  }
+
+  static getAllEnemies() {
+    return { ...GAME_DATA.enemies }
+  }
+
+  static getItem(id) {
+    return GAME_DATA.items[id] ? { ...GAME_DATA.items[id] } : null
+  }
+
+  static getItemIds() {
+    return Object.keys(GAME_DATA.items)
+  }
+
+  static getAllItems() {
+    return { ...GAME_DATA.items }
+  }
+
+  static getBiome(id) {
+    return GAME_DATA.biomes[id] ? { ...GAME_DATA.biomes[id] } : null
+  }
+
+  static getBiomeIds() {
+    return Object.keys(GAME_DATA.biomes)
+  }
+
+  static getAllBiomes() {
+    return { ...GAME_DATA.biomes }
+  }
+
+  static getEnvironment(id) {
+    return GAME_DATA.environment[id] ? { ...GAME_DATA.environment[id] } : null
+  }
+
+  static getEnvironmentIds() {
+    return Object.keys(GAME_DATA.environment)
+  }
+
+  static getAllEnvironment() {
+    return { ...GAME_DATA.environment }
+  }
+
+  static getWorldConfig() {
+    return { ...GAME_DATA.world }
+  }
+
+  static getCombatConfig() {
+    return { ...GAME_DATA.combat }
+  }
+
+  static getUIConfig() {
+    return { ...GAME_DATA.ui }
+  }
+
+  static getDebugConfig() {
+    return { ...GAME_DATA.debug }
+  }
+
+  static getUIColors() {
+    return { ...GAME_DATA.ui.colors }
+  }
+
+  // ===== ВИДИМОСТЬ =====
+
+  static getVisibilityConfig(entityType, biomeId = null) {
+    const defaults = {
+      item: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      },
+      enemy: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: false
+      },
+      environment: {
+        visibleByDefault: false,
+        exploredByDefault: false,
+        showWhenVisible: true,
+        showWhenExplored: true
+      }
+    }
+
+    const category = entityType === 'enemy' ? 'enemies' : entityType === 'environment' ? 'environment' : 'items'
+    const base = defaults[entityType] || defaults.item
+
+    const worldVisibility = GAME_DATA.world.visibility || {}
+    const biomeVisibility = biomeId && GAME_DATA.biomes[biomeId]
+      ? (GAME_DATA.biomes[biomeId].visibility || {})
+      : {}
+
+    return {
+      ...base,
+      ...(worldVisibility[category] || {}),
+      ...(biomeVisibility[category] || {})
+    }
+  }
+
+  // ===== ВСПОМОГАТЕЛЬНЫЕ =====
+
+  static getSymbol(type, subType = null) {
+    const env = GAME_DATA.environment[type]
+    if (!env) return '?'
+    if (subType && env.states && env.states[subType]) {
+      return env.states[subType].char || env.char
+    }
+    return env.char || '?'
+  }
+
+  static getColor(type, subType = null) {
+    const env = GAME_DATA.environment[type]
+    if (!env) return '#ffffff'
+    if (subType && env.states && env.states[subType]) {
+      return env.states[subType].color || env.color
+    }
+    return env.color || '#ffffff'
+  }
+
+  static getBgColor(type, subType = null) {
+    const env = GAME_DATA.environment[type]
+    if (!env) return null
+    if (subType && env.states && env.states[subType]) {
+      return env.states[subType].bgColor || env.bgColor || null
+    }
+    return env.bgColor || null
+  }
+
+  static getLayer(type, subType = null) {
+    const env = GAME_DATA.environment[type]
+    if (!env) return 0
+    if (subType && env.states && env.states[subType]) {
+      return env.states[subType].layer || env.layer || 0
+    }
+    return env.layer || 0
+  }
+
+  static getBiomeGenerationConfig(biomeId) {
+    const biome = this.getBiome(biomeId)
+    if (!biome) return { ...GAME_DATA.world }
+    return { ...GAME_DATA.world, ...biome.generation }
+  }
+
+  static getRandomEnemyForBiome(biomeId) {
+    const biome = this.getBiome(biomeId)
+    if (!biome) return null
+    const pool = biome.enemyPool
+    if (!pool || typeof pool !== 'object' || Object.keys(pool).length === 0) return null
+
+    const entries = Object.entries(pool)
+    for (const [enemyId, cfg] of entries) {
+      if (Math.random() < (cfg.chance || 0)) {
+        return this.getEnemy(enemyId)
+      }
+    }
+
+    let bestId = entries[0][0]
+    let bestChance = -1
+    for (const [enemyId, cfg] of entries) {
+      if ((cfg.chance || 0) > bestChance) {
+        bestChance = cfg.chance || 0
+        bestId = enemyId
+      }
+    }
+    return this.getEnemy(bestId)
+  }
+
+  static getRandomItemForBiome(biomeId) {
+    const biome = this.getBiome(biomeId)
+    if (!biome) return null
+    const pool = biome.itemPool
+    if (!pool || typeof pool !== 'object' || Object.keys(pool).length === 0) return null
+
+    const entries = Object.entries(pool)
+    for (const [itemId, cfg] of entries) {
+      if (Math.random() < (cfg.chance || 0)) {
+        return this.getItem(itemId)
+      }
+    }
+
+    let bestId = entries[0][0]
+    let bestChance = -1
+    for (const [itemId, cfg] of entries) {
+      if ((cfg.chance || 0) > bestChance) {
+        bestChance = cfg.chance || 0
+        bestId = itemId
+      }
+    }
+    return this.getItem(bestId)
+  }
+
+  static getStairData(direction = 'down') {
+    const envData = this.getEnvironment('stair')
+    if (!envData) {
+      return {
+        char: direction === 'up' ? '<' : '>',
+        color: direction === 'up' ? '#88ff88' : '#ff8844',
+        bgColor: direction === 'up' ? '#1a2a1a' : '#2a1a0a',
+        layer: 2
+      }
+    }
+    const states = envData.states || {}
+    const state = states[direction] || {}
+    return {
+      char: state.char || envData.char || (direction === 'up' ? '<' : '>'),
+      color: state.color || envData.color || (direction === 'up' ? '#88ff88' : '#ff8844'),
+      bgColor: state.bgColor || envData.bgColor || (direction === 'up' ? '#1a2a1a' : '#2a1a0a'),
+      layer: state.layer || envData.layer || 2,
+      solid: envData.solid || false,
+      blocksSight: envData.blocksSight || false,
+      isInteractive: envData.isInteractive !== undefined ? envData.isInteractive : true
+    }
+  }
+
+  static getStairConfig(biomeId = null) {
+    const worldConfig = this.getWorldConfig()
+    const worldStairConfig = worldConfig.stairConfig || {
+      downChance: 1.0,
+      upChance: 0.0,
+      minDistanceFromStart: 5,
+      minDistanceBetween: 5,
+      preferDifferentRooms: true
+    }
+
+    if (!biomeId) return { ...worldStairConfig }
+
+    const biome = this.getBiome(biomeId)
+    if (!biome || !biome.stairConfig) return { ...worldStairConfig }
+
+    return { ...worldStairConfig, ...biome.stairConfig }
+  }
+
+  // ===== ЗАГРУЗКА =====
+
   static async loadCore() {
     if (this.#isCoreLoaded) {
       logger.debug(LOG_MODULES.SYSTEM, 'Core контент уже загружен')
@@ -25,8 +279,6 @@ export default class ContentLoader {
     try {
       // Пробуем разные пути
       const paths = [
-        '/core.json',
-        './core.json',
         `${import.meta.env.BASE_URL}core.json`
       ]
 
@@ -61,342 +313,107 @@ export default class ContentLoader {
     }
   }
 
-  /**
-   * Загрузка контента из JSON объекта или строки
-   * Поддерживает формат: { enemies: {}, items: {}, biomes: {}, world: {} }
-   */
   static loadFromJSON(jsonData) {
     try {
       const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData
 
       if (!data || typeof data !== 'object') {
-        logger.error(LOG_MODULES.SYSTEM, 'ContentLoader: Invalid JSON data')
+        logger.error(LOG_MODULES.SYSTEM, 'Invalid JSON data')
         return false
       }
 
-      let loaded = 0
+      if (data.player) {
+        GAME_DATA.player = { ...GAME_DATA.player, ...data.player }
+      }
 
-      // Загружаем врагов
-      if (data.enemies && typeof data.enemies === 'object') {
+      if (data.enemies) {
         for (const [id, enemy] of Object.entries(data.enemies)) {
-          GameConfig.registerEnemy(id, enemy)
-          loaded++
+          const cleanData = { ...enemy }
+          delete cleanData.visibility
+          GAME_DATA.enemies[id] = { ...cleanData, id }
         }
         logger.debug(LOG_MODULES.SYSTEM, `Загружено врагов: ${Object.keys(data.enemies).length}`)
       }
 
-      // Загружаем предметы
-      if (data.items && typeof data.items === 'object') {
+      if (data.items) {
         for (const [id, item] of Object.entries(data.items)) {
-          GameConfig.registerItem(id, item)
-          loaded++
+          const cleanData = { ...item }
+          delete cleanData.visibility
+          GAME_DATA.items[id] = { ...cleanData, id }
         }
         logger.debug(LOG_MODULES.SYSTEM, `Загружено предметов: ${Object.keys(data.items).length}`)
       }
 
-      // Загружаем окружение
-      if (data.environment && typeof data.environment === 'object') {
+      if (data.environment) {
         for (const [id, env] of Object.entries(data.environment)) {
-          GameConfig.registerEnvironment(id, env)
-          loaded++
+          const cleanData = { ...env }
+          delete cleanData.visibility
+          GAME_DATA.environment[id] = { ...cleanData, id }
         }
         logger.debug(LOG_MODULES.SYSTEM, `Загружено окружений: ${Object.keys(data.environment).length}`)
       }
 
-      // Загружаем биомы
-      if (data.biomes && typeof data.biomes === 'object') {
+      if (data.biomes) {
         for (const [id, biome] of Object.entries(data.biomes)) {
-          GameConfig.registerBiome(id, biome)
-          loaded++
+          GAME_DATA.biomes[id] = { ...biome, id }
         }
         logger.debug(LOG_MODULES.SYSTEM, `Загружено биомов: ${Object.keys(data.biomes).length}`)
       }
 
-      // Загружаем игрока
-      if (data.player && typeof data.player === 'object') {
-        GameConfig.overridePlayer(data.player)
-        loaded++
-        logger.debug(LOG_MODULES.SYSTEM, 'Обновлены данные игрока')
+      if (data.world) {
+        GAME_DATA.world = { ...GAME_DATA.world, ...data.world }
       }
 
-      // Обновляем настройки мира
-      if (data.world && typeof data.world === 'object') {
-        GameConfig.setWorldConfig(data.world)
-        loaded++
-        logger.debug(LOG_MODULES.SYSTEM, 'Обновлены настройки мира')
+      if (data.combat) {
+        GAME_DATA.combat = { ...GAME_DATA.combat, ...data.combat }
       }
 
-      // Обновляем настройки боя
-      if (data.combat && typeof data.combat === 'object') {
-        GameConfig.setCombatConfig(data.combat)
-        loaded++
-        logger.debug(LOG_MODULES.SYSTEM, 'Обновлены настройки боя')
+      if (data.ui) {
+        GAME_DATA.ui = { ...GAME_DATA.ui, ...data.ui }
       }
 
-      // Обновляем настройки UI
-      if (data.ui && typeof data.ui === 'object') {
-        GameConfig.setUIConfig(data.ui)
-        loaded++
-        logger.debug(LOG_MODULES.SYSTEM, 'Обновлены настройки UI')
+      if (data.debug) {
+        GAME_DATA.debug = { ...GAME_DATA.debug, ...data.debug }
       }
 
-      // Обновляем цвета
-      if (data.colors && typeof data.colors === 'object') {
-        GameConfig.setUIColors(data.colors)
-        loaded++
-        logger.debug(LOG_MODULES.SYSTEM, 'Обновлены цвета UI')
-      }
-
-      // Обновляем настройки отладки
-      if (data.debug && typeof data.debug === 'object') {
-        GameConfig.setDebugConfig(data.debug)
-        loaded++
-        logger.debug(LOG_MODULES.SYSTEM, 'Обновлены настройки отладки')
-      }
-
-      logger.info(LOG_MODULES.SYSTEM, `Загружено ${loaded} секций контента`)
-
-      // Проверяем валидацию
-      const validation = GameConfig.validate()
-      if (validation.errors.length > 0) {
-        logger.warn(LOG_MODULES.SYSTEM, `Найдено ${validation.errors.length} ошибок валидации`)
-        for (const err of validation.errors) {
-          logger.warn(LOG_MODULES.SYSTEM, `  - ${err}`)
-        }
-      }
-      if (validation.warnings.length > 0) {
-        logger.debug(LOG_MODULES.SYSTEM, `Найдено ${validation.warnings.length} предупреждений`)
-        for (const warn of validation.warnings) {
-          logger.debug(LOG_MODULES.SYSTEM, `  - ${warn}`)
-        }
-      }
-
+      logger.info(LOG_MODULES.SYSTEM, 'Контент загружен успешно')
       return true
     } catch (error) {
-      logger.error(LOG_MODULES.SYSTEM, `ContentLoader.loadFromJSON error: ${error.message}`)
+      logger.error(LOG_MODULES.SYSTEM, `Ошибка загрузки JSON: ${error.message}`)
       return false
     }
   }
 
-  /**
-   * Загрузка из URL
-   */
-  static async loadFromURL(url, options = {}) {
+  static async loadFromURL(url) {
     try {
-      logger.info(LOG_MODULES.SYSTEM, `Загрузка контента из URL: ${url}`)
-      const response = await fetch(url, options)
+      logger.info(LOG_MODULES.SYSTEM, `Загрузка из URL: ${url}`)
+      const response = await fetch(url)
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error(`HTTP ${response.status}`)
       }
       const data = await response.json()
       return this.loadFromJSON(data)
     } catch (error) {
-      logger.error(LOG_MODULES.SYSTEM, `ContentLoader.loadFromURL error (${url}): ${error.message}`)
+      logger.error(LOG_MODULES.SYSTEM, `Ошибка загрузки из URL: ${error.message}`)
       return false
     }
   }
 
-  /**
-   * Загрузка из модуля (ES Module)
-   */
-  static async loadFromModule(modulePath) {
-    try {
-      logger.info(LOG_MODULES.SYSTEM, `Загрузка мода из: ${modulePath}`)
-      const module = await import(/* @vite-ignore */ modulePath)
-      const data = module.default || module
-
-      if (typeof data === 'function') {
-        const result = data()
-        return this.loadFromJSON(result)
-      }
-
-      return this.loadFromJSON(data)
-    } catch (error) {
-      logger.error(LOG_MODULES.SYSTEM, `ContentLoader.loadFromModule error (${modulePath}): ${error.message}`)
-      return false
-    }
-  }
-
-  /**
-   * Регистрация мода
-   */
-  static registerMod(modId, modData) {
-    if (!modId || !modData) {
-      logger.error(LOG_MODULES.SYSTEM, 'ContentLoader.registerMod: modId and modData are required')
-      return false
-    }
-
-    if (this.#loadedMods.has(modId)) {
-      logger.warn(LOG_MODULES.SYSTEM, `ContentLoader: Mod "${modId}" already loaded`)
-      return false
-    }
-
-    try {
-      const data = typeof modData === 'function' ? modData() : modData
-      const result = this.loadFromJSON(data)
-
-      if (result) {
-        this.#loadedMods.add(modId)
-        this.#modData.set(modId, data)
-        logger.info(LOG_MODULES.SYSTEM, `Mod "${modId}" registered successfully`)
-        return true
-      }
-
-      return false
-    } catch (error) {
-      logger.error(LOG_MODULES.SYSTEM, `ContentLoader.registerMod error (${modId}): ${error.message}`)
-      return false
-    }
-  }
-
-  /**
-   * Загрузка нескольких модов
-   */
-  static registerMods(mods) {
-    let successCount = 0
-    for (const [id, data] of Object.entries(mods)) {
-      if (this.registerMod(id, data)) {
-        successCount++
-      }
-    }
-    logger.info(LOG_MODULES.SYSTEM, `Загружено модов: ${successCount}/${Object.keys(mods).length}`)
-    return successCount
-  }
-
-  /**
-   * Проверка загружен ли мод
-   */
-  static isModLoaded(modId) {
-    return this.#loadedMods.has(modId)
-  }
-
-  /**
-   * Получение данных мода
-   */
-  static getModData(modId) {
-    return this.#modData.get(modId) || null
-  }
-
-  /**
-   * Список загруженных модов
-   */
-  static getLoadedMods() {
-    return Array.from(this.#loadedMods)
-  }
-
-  /**
-   * Проверка загружен ли Core
-   */
   static isCoreLoaded() {
     return this.#isCoreLoaded
   }
 
-  /**
-   * Выгрузка мода
-   */
-  static unloadMod(modId) {
-    if (!this.#loadedMods.has(modId)) {
-      logger.warn(LOG_MODULES.SYSTEM, `ContentLoader: Mod "${modId}" not loaded`)
-      return false
-    }
-
-    logger.warn(LOG_MODULES.SYSTEM, `ContentLoader: Unloading mod "${modId}" requires game restart`)
-
-    this.#loadedMods.delete(modId)
-    this.#modData.delete(modId)
-    return true
-  }
-
-  /**
-   * Валидация контента
-   */
-  static validate(data) {
-    const errors = []
-
-    // Проверка врагов
-    if (data.enemies) {
-      for (const [id, enemy] of Object.entries(data.enemies)) {
-        if (!enemy.char) errors.push(`Enemy "${id}": missing char`)
-        if (!enemy.hp && enemy.hp !== 0) errors.push(`Enemy "${id}": missing hp`)
-        if (!enemy.damageMin && enemy.damageMin !== 0) errors.push(`Enemy "${id}": missing damageMin`)
-        if (!enemy.damageMax && enemy.damageMax !== 0) errors.push(`Enemy "${id}": missing damageMax`)
-        if (enemy.damageMin > enemy.damageMax) {
-          errors.push(`Enemy "${id}": damageMin (${enemy.damageMin}) > damageMax (${enemy.damageMax})`)
-        }
-        if (enemy.dropPool) {
-          if (typeof enemy.dropPool !== 'object' || Array.isArray(enemy.dropPool)) {
-            errors.push(`Enemy "${id}": dropPool must be an object { itemId: { chance, countMin, countMax } }`)
-          } else if (Object.keys(enemy.dropPool).length === 0) {
-            errors.push(`Enemy "${id}": dropPool is empty`)
-          }
-        }
-      }
-    }
-
-    // Проверка предметов
-    if (data.items) {
-      for (const [id, item] of Object.entries(data.items)) {
-        if (!item.char) errors.push(`Item "${id}": missing char`)
-        if (!item.name) errors.push(`Item "${id}": missing name`)
-        if (!item.type) errors.push(`Item "${id}": missing type`)
-      }
-    }
-
-    // Проверка биомов
-    if (data.biomes) {
-      for (const [id, biome] of Object.entries(data.biomes)) {
-        if (!biome.name) errors.push(`Biome "${id}": missing name`)
-        if (biome.enemyPool && Object.keys(biome.enemyPool).length === 0) {
-          errors.push(`Biome "${id}": enemyPool is empty`)
-        }
-        if (biome.itemPool && Object.keys(biome.itemPool).length === 0) {
-          errors.push(`Biome "${id}": itemPool is empty`)
-        }
-      }
-    }
-
-    return errors
-  }
-
-  /**
-   * Загрузка из директории с контентом
-   */
-  static async loadFromDirectory(directoryPath) {
-    try {
-      logger.info(LOG_MODULES.SYSTEM, `Загрузка из директории: ${directoryPath}`)
-
-      // Пытаемся загрузить index.json
-      const indexUrl = `${directoryPath}/index.json`
-      const indexResult = await this.loadFromURL(indexUrl)
-      if (indexResult) {
-        logger.info(LOG_MODULES.SYSTEM, `Загружено из директории ${directoryPath}`)
-        return true
-      }
-
-      // Ищем файлы в директории
-      const files = ['enemies.json', 'items.json', 'biomes.json', 'environment.json']
-      let loaded = 0
-
-      for (const file of files) {
-        const url = `${directoryPath}/${file}`
-        try {
-          const result = await this.loadFromURL(url)
-          if (result) loaded++
-        } catch {
-          // Файл не найден - пропускаем
-        }
-      }
-
-      if (loaded > 0) {
-        logger.info(LOG_MODULES.SYSTEM, `Загружено ${loaded} файлов из ${directoryPath}`)
-        return true
-      }
-
-      logger.warn(LOG_MODULES.SYSTEM, `Не найдено файлов контента в ${directoryPath}`)
-      return false
-    } catch (error) {
-      logger.error(LOG_MODULES.SYSTEM, `ContentLoader.loadFromDirectory error (${directoryPath}): ${error.message}`)
-      return false
-    }
+  static reset() {
+    logger.warn(LOG_MODULES.SYSTEM, 'Сброс данных')
+    GAME_DATA.enemies = {}
+    GAME_DATA.items = {}
+    GAME_DATA.biomes = {}
+    GAME_DATA.environment = {}
+    GAME_DATA.player = {}
+    GAME_DATA.world = {}
+    GAME_DATA.combat = {}
+    GAME_DATA.ui = {}
+    GAME_DATA.debug = {}
+    this.#isCoreLoaded = false
   }
 }

@@ -5,7 +5,7 @@ import RenderComponent from '../engine/components/RenderComponent.js'
 import HealthComponent from '../engine/components/HealthComponent.js'
 import PlayerComponent from '../engine/components/PlayerComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
-import { GameConfig } from './GameConfig.js'
+import ContentLoader from './ContentLoader.js'
 
 export default class Renderer {
   static DEFAULT_TILE_SIZE = 48
@@ -15,7 +15,7 @@ export default class Renderer {
   constructor(ctx) {
     this.ctx = ctx
 
-    const uiConfig = GameConfig?.ui || {}
+    const uiConfig = ContentLoader.getUIConfig()
     const rendererConfig = uiConfig.renderer || {}
 
     this.tileSize = rendererConfig.tileSize || Renderer.DEFAULT_TILE_SIZE
@@ -37,8 +37,7 @@ export default class Renderer {
     this._lastTileSize = null
     this._visibleBoundsCache = null
 
-    // Цвета из конфига
-    this.colors = GameConfig.getUIColors() || {
+    this.colors = ContentLoader.getUIColors() || {
       background: '#0a0a0a',
       player: '#88ff88',
       enemy: '#ff4444',
@@ -47,18 +46,16 @@ export default class Renderer {
       healthBarCritical: '#ff4444'
     }
 
-    const debugConfig = GameConfig?.debug || {}
+    const debugConfig = ContentLoader.getDebugConfig()
     this.debugFov = debugConfig.showFov || false
     this.debugShowRays = debugConfig.showRays || false
     this.debugShowVisibleCells = debugConfig.showVisibleCells || false
   }
 
-  // Метод для обновления цветов
   setColors(colors) {
     this.colors = { ...this.colors, ...colors }
   }
 
-  // Метод для обновления конфига рендерера
   setConfig(config) {
     if (config.tileSize) {
       this.tileSize = Math.max(
@@ -91,7 +88,7 @@ export default class Renderer {
     this.ctx.imageSmoothingEnabled = false
     this.ctx.textRendering = 'geometricPrecision'
 
-    const uiConfig = GameConfig?.ui || {}
+    const uiConfig = ContentLoader.getUIConfig()
     const rendererConfig = uiConfig.renderer || {}
     const minTileSize = rendererConfig.minTileSize || Renderer.MIN_TILE_SIZE
     this.tileSize = Math.max(
@@ -161,7 +158,6 @@ export default class Renderer {
       const health = entity.getComponent(HealthComponent)
       const player = entity.getComponent(PlayerComponent)
       const ai = entity.getComponent(AIComponent)
-      // const env = entity.getComponent(EnvironmentComponent) // Убираем неиспользуемую переменную
 
       if (!pos || !render) continue
 
@@ -170,7 +166,6 @@ export default class Renderer {
       const isVisible = render.visible
       const isExplored = render.explored
 
-      // Получаем настройки видимости
       const visConfig = render._visibilityConfig || {
         showWhenVisible: true,
         showWhenExplored: false
@@ -179,13 +174,10 @@ export default class Renderer {
       let shouldDraw = false
 
       if (isPlayer) {
-        // Игрок всегда видим
         shouldDraw = true
       } else if (isEnemy) {
-        // Враги: показываем если visible = true (в FOV)
         shouldDraw = isVisible
       } else {
-        // Для всех остальных (предметы, окружение)
         if (visConfig.showWhenVisible && isVisible) {
           shouldDraw = true
         } else if (visConfig.showWhenExplored && isExplored) {
@@ -201,7 +193,6 @@ export default class Renderer {
       let color = render.color || '#ffffff'
       let bgColor = render.bgColor || null
 
-      // Если объект не видим, но исследован - затемняем
       if (!isVisible && isExplored && !isPlayer) {
         color = this.darkenColor(color, 0.3)
         if (bgColor) {
@@ -217,17 +208,14 @@ export default class Renderer {
         color = this.colors.enemy || '#d83232'
       }
 
-      // Рисуем фон
       if (bgColor) {
         ctx.fillStyle = bgColor
         ctx.fillRect(drawX, drawY, ts, ts)
       }
 
-      // Определяем что рисовать: символ или цифру здоровья
       let displayChar = render.char
       let displayColor = color
 
-      // Проверяем здоровье для игрока и врагов (только если они видимы)
       if (health && health.isAlive && (isPlayer || (isEnemy && isVisible))) {
         const hpPercent = health.hp / health.maxHp
 
@@ -267,13 +255,11 @@ export default class Renderer {
         displayColor = isPlayer ? (this.colors.player || '#88ff88') : '#ff8844'
       }
 
-      // Вспышка атаки/урона (перекрывает обычный цвет)
       render.clearExpiredFlash()
       if (render.isFlashing()) {
         displayColor = render.flashColor
       }
 
-      // Рисуем символ
       ctx.fillStyle = displayColor
       ctx.fillText(displayChar, drawX + ts / 2, drawY + ts / 2)
     }

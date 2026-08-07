@@ -7,8 +7,8 @@ import Location from './Location.js'
 import TurnManager from './TurnManager.js'
 import PlayerActions from './PlayerActions.js'
 import LevelStack from './LevelStack.js'
+import ContentLoader from './ContentLoader.js'
 import { logger, LOG_MODULES } from './Logger.js'
-import { GameConfig } from './GameConfig.js'
 
 import PositionComponent from '../engine/components/PositionComponent.js'
 import PlayerComponent from '../engine/components/PlayerComponent.js'
@@ -40,7 +40,6 @@ export default class GameLoop {
       entity.active = true
     }
 
-    // СОХРАНЯЕМ ССЫЛКУ НА ИГРОКА
     this.playerEntity = playerEntities[0]
 
     if (this.playerEntity) {
@@ -141,7 +140,7 @@ export default class GameLoop {
 
     if (allies.length === 0) return
 
-    const playerConfig = GameConfig.getPlayerConfig()
+    const playerConfig = ContentLoader.getPlayerConfig()
     let first = true
     for (const ally of allies) {
       const pos = ally.getComponent(PositionComponent)
@@ -185,7 +184,7 @@ export default class GameLoop {
   goDownStairs(user, targetBiome = null) {
     let biomeToUse = targetBiome
     if (!biomeToUse) {
-      const biomeIds = GameConfig.getBiomeIds()
+      const biomeIds = ContentLoader.getBiomeIds()
       const currentBiome = this.currentLocation.biomeId
       const available = biomeIds.filter(id => id !== currentBiome)
       biomeToUse = available.length > 0
@@ -214,35 +213,29 @@ export default class GameLoop {
   }
 
   _switchToLevel(level, user, targetX, targetY) {
-    // 1. Удаляем игрока из старой локации (но не уничтожаем!)
     if (user && user.active) {
       const oldEngine = this.currentLocation.engine
       oldEngine.entities = oldEngine.entities.filter(e => e !== user)
       oldEngine.entityMap.delete(user.id)
     }
 
-    // 2. Переключаем локацию
     this.currentLocation = level
     this.currentLocation.engine.currentLocation = this.currentLocation
     this.currentLocation._gameLoop = this
 
     const engine = this.currentLocation.engine
 
-    // 3. Добавляем игрока в новую локацию
     if (user && user.active) {
-      // Очищаем старых игроков на новом уровне
       const oldPlayers = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
       for (const p of oldPlayers) {
         engine.entities = engine.entities.filter(e => e !== p)
         engine.entityMap.delete(p.id)
       }
 
-      // Добавляем игрока
       user.engine = engine
       engine.entities.push(user)
       engine.entityMap.set(user.id, user)
 
-      // Ставим на лестницу
       if (targetX !== undefined && targetY !== undefined) {
         const pos = user.getComponent(PositionComponent)
         if (pos) {
@@ -251,7 +244,6 @@ export default class GameLoop {
       }
     }
 
-    // 4. Обновляем камеру
     if (user) {
       const pos = user.getComponent(PositionComponent)
       if (pos) {
@@ -295,11 +287,9 @@ export default class GameLoop {
 
     const playerEntities = this.getPlayerEntities()
     if (playerEntities.length === 0) {
-      // Игрок мёртв - просто перезагружаем игру с 1-го этажа
       this.reloadGame()
       return
     }
-
 
     if (this.selectedEntity && this.selectedEntity.active) {
       this.initializeFovForAllAllies()
@@ -354,7 +344,7 @@ export default class GameLoop {
 
   _syncCameraViewport(canvasWidth, canvasHeight) {
     if (!this.camera) return
-    const uiConfig = GameConfig?.ui || {}
+    const uiConfig = ContentLoader.getUIConfig()
     const rendererConfig = uiConfig.renderer || {}
     const tileSize = rendererConfig.tileSize || (this.renderer ? this.renderer.tileSize : 48)
     this.camera.setViewportSize(canvasWidth, canvasHeight, tileSize)
@@ -373,7 +363,7 @@ export default class GameLoop {
   }
 
   reloadLocation() {
-    const biomeIds = GameConfig.getBiomeIds()
+    const biomeIds = ContentLoader.getBiomeIds()
     const biome = biomeIds[Math.floor(Math.random() * biomeIds.length)]
     this.reloadWithBiome(biome)
   }
@@ -381,16 +371,13 @@ export default class GameLoop {
   reloadGame() {
     logger.info(LOG_MODULES.SYSTEM, '💀 Игрок погиб! Перезагрузка игры...')
 
-    // Очищаем стек уровней
     this.levelStack.levels = []
     this.levelStack.currentIndex = -1
 
-    // Создаём новый первый уровень
     const firstLevel = Location.generateProcedural(null, 0)
     this.levelStack.levels = [firstLevel]
     this.levelStack.currentIndex = 0
 
-    // Переключаемся на новый уровень
     this._setupLocation(firstLevel)
 
     logger.info(LOG_MODULES.SYSTEM, 'Игра перезагружена на 1-м этаже')

@@ -3,7 +3,7 @@
 import Fov from './Fov.js'
 import Pathfinder from './Pathfinder.js'
 import BiomeGenerator from './BiomeGenerator.js'
-import { GameConfig } from './GameConfig.js'
+import ContentLoader from './ContentLoader.js'
 import { shuffle } from './utils.js'
 import Engine from '../engine/Engine.js'
 import EntityFactory from '../engine/EntityFactory.js'
@@ -24,10 +24,10 @@ export default class Location {
     this.biomeId = biomeId || null
     this.levelIndex = levelIndex || 0
 
-    const worldConfig = GameConfig.getWorldConfig()
+    const worldConfig = ContentLoader.getWorldConfig()
     this.cols = config.cols || worldConfig.width || 60
     this.rows = config.rows || worldConfig.height || 40
-    this._generatedRooms = config.rooms || []  // <-- сохраняем комнаты
+    this._generatedRooms = config.rooms || []
     this.grid = Array.from({ length: this.rows }, () =>
       Array.from({ length: this.cols }, () => null)
     )
@@ -267,8 +267,6 @@ export default class Location {
     return blocked
   }
 
-  // ===== МЕТОДЫ ДЛЯ РАБОТЫ С ЛЕСТНИЦАМИ =====
-
   createStair(x, y, direction = 'down', targetBiome = null, targetLevel = null) {
     const stairEntity = EntityFactory.createStair(x, y, direction, targetBiome, targetLevel, this.biomeId)
     stairEntity.engine = this.engine
@@ -299,7 +297,7 @@ export default class Location {
   // ===== СТАТИЧЕСКИЕ МЕТОДЫ =====
 
   static _selectBiome(biomeType, levelIndex = 0) {
-    const biomeIds = GameConfig.getBiomeIds()
+    const biomeIds = ContentLoader.getBiomeIds()
 
     let availableBiomes = biomeIds
     if (levelIndex < 3) {
@@ -309,10 +307,10 @@ export default class Location {
     }
 
     const selectedBiomeId = biomeType || availableBiomes[Math.floor(Math.random() * availableBiomes.length)]
-    const biome = GameConfig.getBiome(selectedBiomeId)
+    const biome = ContentLoader.getBiome(selectedBiomeId)
     const biomeName = biome ? biome.name : 'Зараженная зона'
-    const worldConfig = GameConfig.getWorldConfig()
-    const genConfig = GameConfig.getBiomeGenerationConfig(selectedBiomeId)
+    const worldConfig = ContentLoader.getWorldConfig()
+    const genConfig = ContentLoader.getBiomeGenerationConfig(selectedBiomeId)
 
     return { selectedBiomeId, biome, biomeName, worldConfig, genConfig }
   }
@@ -376,7 +374,7 @@ export default class Location {
     for (const [type, count] of Object.entries(enemyCounts)) {
       for (let i = 0; i < count && idx < freeCells.length && enemyPositions.length < maxEnemies; i++) {
         const [x, y] = freeCells[idx].split(',').map(Number)
-        const enemyData = GameConfig.getEnemy(type)
+        const enemyData = ContentLoader.getEnemy(type)
         if (enemyData) {
           const enemy = EntityFactory.createEnemy(x, y, type, enemyData, biomeId)
           if (enemy) {
@@ -553,11 +551,9 @@ export default class Location {
   static generateProcedural(biomeType = null, levelIndex = 0) {
     const { selectedBiomeId, biome, biomeName, worldConfig, genConfig } = this._selectBiome(biomeType, levelIndex)
 
-    // Берем width и height из genConfig (биома) или из worldConfig
     let width = genConfig.width || worldConfig.width || 60
     let height = genConfig.height || worldConfig.height || 40
 
-    // Для лабиринта размеры должны быть нечётными
     if (genConfig.layout === 'maze') {
       if (width % 2 === 0) width -= 1
       if (height % 2 === 0) height -= 1
@@ -614,7 +610,6 @@ export default class Location {
 
     const enemyPositions = this._createEnemies(entities, biome, available, playerStart, selectedBiomeId)
 
-    // ПЕРЕДАЁМ rooms В КОНФИГ
     const location = new Location(
       { cols: finalWidth, rows: finalHeight, rooms: rooms },
       walls,

@@ -9,7 +9,7 @@ import HealthComponent from '../components/HealthComponent.js'
 import InventoryComponent from '../components/InventoryComponent.js'
 import RenderComponent from '../components/RenderComponent.js'
 import EntityFactory from '../EntityFactory.js'
-import { GameConfig } from '../../game/GameConfig.js'
+import ContentLoader from '../../game/ContentLoader.js'
 import { logger, LOG_MODULES } from '../../game/Logger.js'
 import { rollLoot } from '../../game/utils.js'
 
@@ -73,7 +73,7 @@ export default class InteractionSystem extends System {
     logger.info(LOG_MODULES.ACTION, `Ящик разбит!`)
 
     const loc = this.engine.currentLocation
-    const biome = loc && loc.biomeId ? GameConfig.getBiome(loc.biomeId) : null
+    const biome = loc && loc.biomeId ? ContentLoader.getBiome(loc.biomeId) : null
     const cratePool = (biome && biome.cratePool) || {}
     const dropChance = cratePool.dropChance !== undefined ? cratePool.dropChance : 0.5
     const items = (cratePool.items && Object.keys(cratePool.items).length)
@@ -118,7 +118,6 @@ export default class InteractionSystem extends System {
       return false
     }
 
-    // ТОЛЬКО ЗДЕСЬ ПРОВЕРЯЕМ ВЕС
     const itemWeight = itemComp.item.unitWeight * itemComp.item.count
     if (!inv.canAddWeight(itemWeight)) {
       const needed = itemWeight - (inv.maxWeight - inv.currentWeight)

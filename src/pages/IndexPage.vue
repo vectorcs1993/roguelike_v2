@@ -260,7 +260,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import GameLoop from 'src/game/GameLoop.js'
-import { ContentLoader, GameConfig, logger, LOG_LEVEL, isItemUsable, LOG_MODULES } from 'src/game/index.js'
+import { ContentLoader, logger, LOG_LEVEL, isItemUsable, LOG_MODULES } from 'src/game/index.js'
 
 import PositionComponent from 'src/engine/components/PositionComponent.js'
 import RenderComponent from 'src/engine/components/RenderComponent.js'
@@ -270,7 +270,7 @@ import EnergyComponent from 'src/engine/components/EnergyComponent.js'
 import PlayerComponent from 'src/engine/components/PlayerComponent.js'
 import AIComponent from 'src/engine/components/AIComponent.js'
 import InventoryComponent from 'src/engine/components/InventoryComponent.js'
-import EnvironmentComponent from 'src/engine/components/EnvironmentComponent'
+import EnvironmentComponent from 'src/engine/components/EnvironmentComponent.js'
 import CombatComponent from 'src/engine/components/CombatComponent.js'
 import MovementComponent from 'src/engine/components/MovementComponent.js'
 
@@ -387,12 +387,11 @@ function updateEntitiesList() {
 
     if (!render || !health) continue
 
-    // Игрок обрабатывается отдельно в блоке статов
     if (player) {
       const combat = entity.getComponent(CombatComponent)
       const movement = entity.getComponent(MovementComponent)
       const position = entity.getComponent(PositionComponent)
-      const playerConfig = GameConfig.getPlayer()
+      const playerConfig = ContentLoader.getPlayer()
 
       const energyComp = entity.getComponent(EnergyComponent)
       const maxEnergy = energyComp ? energyComp.maxEnergy : 100
@@ -437,7 +436,6 @@ function updateEntitiesList() {
       continue
     }
 
-    // Показываем только сущности, видимые игроку
     if (!render.visible) continue
 
     let color = '#666666'
@@ -445,31 +443,27 @@ function updateEntitiesList() {
     let teamName = 'Нейтральный'
     let displayName
 
-    // Определяем имя
     if (ai) {
-      color = entity.enemyData.color
-      bgColor = entity.enemyData.bgColor
+      color = entity.enemyData?.color || '#ff4444'
+      bgColor = entity.enemyData?.bgColor || '#2a0a0a'
       teamName = 'Враг'
-      // Берем имя из enemyData или из конфига
       if (entity.enemyData?.name) {
         displayName = entity.enemyData.name
       } else if (entity.enemyType) {
-        const enemyData = GameConfig.getEnemy(entity.enemyType)
+        const enemyData = ContentLoader.getEnemy(entity.enemyType)
         displayName = enemyData?.name || entity.tag || 'Враг'
       } else {
         displayName = entity.tag || 'Враг'
       }
     } else if (env) {
-      // Для окружения (пол, стена, дверь, ящик)
       bgColor = '#888888'
       teamName = 'Окружение'
       displayName = env.name || entity.tag || 'Объект'
     } else {
-      // Для предметов
       if (entity.itemData?.name) {
         displayName = entity.itemData.name
       } else if (entity.itemType) {
-        const itemData = GameConfig.getItem(entity.itemType)
+        const itemData = ContentLoader.getItem(entity.itemType)
         displayName = itemData?.name || entity.tag || 'Предмет'
       } else {
         displayName = entity.tag || 'Сущность'
@@ -492,7 +486,6 @@ function updateEntitiesList() {
     })
   }
 
-  // Сортируем: сначала враги, потом остальные
   list.sort((a, b) => {
     if (a.isEnemy && !b.isEnemy) return -1
     if (!a.isEnemy && b.isEnemy) return 1
@@ -564,15 +557,14 @@ function dropAllItems() {
 async function initGame() {
   if (!canvasRef.value) return
 
-  // Загружаем Core контент перед инициализацией игры
   addConsoleMessage('Загрузка Core контента...', 'info')
   const coreLoaded = await ContentLoader.loadCore()
 
   if (coreLoaded) {
     addConsoleMessage('Core контент загружен успешно!', 'success')
-    const enemies = Object.keys(GameConfig.getAllEnemies()).length
-    const items = Object.keys(GameConfig.getAllItems()).length
-    const biomes = Object.keys(GameConfig.getAllBiomes()).length
+    const enemies = Object.keys(ContentLoader.getAllEnemies()).length
+    const items = Object.keys(ContentLoader.getAllItems()).length
+    const biomes = Object.keys(ContentLoader.getAllBiomes()).length
     addConsoleMessage(`Статистика: ${enemies} врагов, ${items} предметов, ${biomes} биомов`, 'info')
   } else {
     addConsoleMessage('Core контент не загружен, используется встроенный', 'warning')
@@ -599,10 +591,8 @@ async function initGame() {
     document.addEventListener('keydown', onGlobalKeyDown)
     document.addEventListener('keyup', onGlobalKeyUp)
 
-    // Сохраняем в window для отладки
     window.gameInstance = game
     window.ContentLoader = ContentLoader
-    window.GameConfig = GameConfig
 
   } catch (e) {
     addConsoleMessage(`Ошибка: ${e.message}`, 'error')
@@ -654,8 +644,7 @@ async function doLoadContent() {
     if (success) {
       addConsoleMessage('Контент успешно загружен!', 'success')
 
-      // Проверяем валидацию
-      const validation = GameConfig.validate()
+      const validation = ContentLoader.validate()
       if (validation.errors.length > 0) {
         addConsoleMessage(`Ошибки валидации: ${validation.errors.length}`, 'warning')
         for (const err of validation.errors) {
@@ -663,9 +652,8 @@ async function doLoadContent() {
         }
       }
 
-      // Перезагружаем локацию с обновленным контентом
       if (game) {
-        const biomeIds = GameConfig.getBiomeIds()
+        const biomeIds = ContentLoader.getBiomeIds()
         const biome = biomeIds[Math.floor(Math.random() * biomeIds.length)]
         game.reloadWithBiome(biome)
         addConsoleMessage(`Локация перезагружена с биомом: ${biome}`, 'info')
@@ -709,7 +697,6 @@ function resizeCanvas() {
 onMounted(() => {
   nextTick(initGame)
 
-  // Наблюдаем за изменением размеров контейнера (адаптив под любые экраны)
   if (canvasRef.value && typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(() => {
       if (resizeTimeout) clearTimeout(resizeTimeout)
