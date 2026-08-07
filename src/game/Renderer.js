@@ -6,6 +6,11 @@ import HealthComponent from '../engine/components/HealthComponent.js'
 import PlayerComponent from '../engine/components/PlayerComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
 import ContentLoader from './ContentLoader.js'
+import EnergyComponent from 'src/engine/components/EnergyComponent.js'
+import HungerComponent from 'src/engine/components/HungerComponent.js'
+import CombatComponent from 'src/engine/components/CombatComponent.js'
+import MovementComponent from 'src/engine/components/MovementComponent.js'
+import InventoryComponent from 'src/engine/components/InventoryComponent.js'
 
 export default class Renderer {
   static DEFAULT_TILE_SIZE = 48
@@ -282,6 +287,8 @@ export default class Renderer {
       ctx.strokeRect(x + 2, y + 2, ts - 4, ts - 4)
     }
 
+    this.drawUI(engine)
+
     if (this.debugFov) {
       this.drawFovDebug(map, engine, camera, ctx, ts, ox, oy)
     }
@@ -309,6 +316,23 @@ export default class Renderer {
     g = Math.floor(g * factor)
     b = Math.floor(b * factor)
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  }
+
+  /**
+   * Возвращает адаптивный размер шрифта в зависимости от высоты канваса
+   * @param {number} minSize - минимальный размер (по умолчанию 10)
+   * @param {number} maxSize - максимальный размер (по умолчанию 28)
+   * @param {number} divisor - делитель высоты (по умолчанию 30)
+   * @returns {number} вычисленный размер шрифта
+   */
+  getAdaptiveFontSize(minSize = 10, maxSize = 28, divisor = 30) {
+    return Math.max(
+      minSize,
+      Math.min(
+        maxSize,
+        Math.floor(this.canvasH / divisor)
+      )
+    )
   }
 
   drawFovDebug(map, engine, camera, ctx, ts, ox, oy) {
@@ -401,5 +425,174 @@ export default class Renderer {
     ctx.fillText('R - Toggle rays', 10, 92)
     ctx.fillText('V - Toggle visible cells', 10, 108)
     ctx.fillText('F - Toggle FOV debug', 10, 124)
+  }
+
+  /**
+   * Рисует текст прямо на канвасе в указанных координатах
+   * @param {string} text - текст для отображения
+   * @param {number} x - координата X (в пикселях)
+   * @param {number} y - координата Y (в пикселях)
+   * @param {object} options - настройки (все опционально)
+   */
+  drawTextOnCanvas(text, x, y, options = {}) {
+    const ctx = this.ctx
+    const {
+      color = '#ffffff',
+      bgColor = null,
+      fontSize = 14,
+      fontFamily = this.fontFamily || 'monospace',
+      align = 'left',
+      baseline = 'top',
+      fontWeight = 'normal'
+    } = options
+
+    ctx.save()
+
+    // Настраиваем шрифт
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`
+    ctx.textAlign = align
+    ctx.textBaseline = baseline
+
+    // Если есть фон - рисуем его
+    if (bgColor) {
+      const metrics = ctx.measureText(text)
+      const padding = 4
+      const width = metrics.width + padding * 2
+      const height = fontSize * 1.2 + padding * 2
+
+      let bgX = x - padding
+      let bgY = y - padding
+
+      if (align === 'center') bgX = x - width / 2
+      if (align === 'right') bgX = x - width + padding
+      if (baseline === 'middle') bgY = y - height / 2
+      if (baseline === 'bottom') bgY = y - height + padding
+
+      ctx.fillStyle = bgColor
+      ctx.fillRect(bgX, bgY, width, height)
+    }
+
+    // Рисуем текст
+    ctx.fillStyle = color
+    ctx.fillText(text, x, y)
+
+    ctx.restore()
+  }
+
+  /**
+   * Рисует строки состояния в левом нижнем углу
+   * @param {string[]} lines - массив строк для отображения
+   * @param {object} options - настройки
+   */
+  drawStatusLines(lines, options = {}) {
+    if (!lines || lines.length === 0) return
+
+    const {
+      x = 8,
+      padding = 8,
+      fontSize = this.getAdaptiveFontSize(10, 28, 30),
+      bgColor = 'rgba(0,0,0,0.85)'
+    } = options
+
+    const lineHeight = fontSize * 1.4
+
+    // Рисуем строки сверху вниз (инвертируем порядок)
+    for (let i = 0; i < lines.length; i++) {
+      // y считается от низа, но строки идут в обратном порядке
+      const y = this.canvasH - padding - ((lines.length - 1 - i) * lineHeight)
+
+      this.drawTextOnCanvas(lines[i], x, y, {
+        color: '#ffffff',
+        fontSize: fontSize,
+        bgColor: bgColor,
+        align: 'left',
+        baseline: 'bottom'
+      })
+    }
+  }
+
+  /**
+   * Формирует строки состояния игрока
+   * @param {Entity} player - сущность игрока
+   * @returns {string[]} массив строк
+   */
+  buildUILines(player) {
+    if (!player) return []
+
+    const health = player.getComponent(HealthComponent)
+    const energy = player.getComponent(EnergyComponent)
+    const hunger = player.getComponent(HungerComponent)
+    const pos = player.getComponent(PositionComponent)
+    const combat = player.getComponent(CombatComponent)
+    const movement = player.getComponent(MovementComponent)
+    const inventory = player.getComponent(InventoryComponent)
+
+    const lines = []
+
+    // Строка 1 - ЭТ, ЛОК, ПОЗ
+    let line1 = ''
+    if (pos) {
+      if (this._location) {
+        line1 += `ЭТ: ${(this._location.levelIndex || 0) + 1}  `
+        line1 += `ЛОК: ${this._location.name}  `
+      }
+      line1 += `ПОЗ: ${pos.tileX}:${pos.tileY}  `
+      if (this._location?._gameLoop) {
+        line1 += `ХОД: ${this._location._gameLoop.turnCount}  `
+      }
+    }
+    if (line1) lines.push(line1.trim())
+
+    // Строка 2 - ЗД, ЭН, ГОЛ
+    let line2 = ''
+    if (health) {
+      line2 += `ЗД: ${health.hp}/${health.maxHp}  `
+    }
+    if (energy) {
+      line2 += `ЭН: ${Math.floor(energy.energy)}/${energy.maxEnergy}  `
+    }
+    if (hunger) {
+      line2 += `ГОЛ: ${hunger.hunger}/${hunger.maxHunger}  `
+    }
+    if (line2) lines.push(line2.trim())
+
+    // Строка 3 - УРН, БРО, ТОЧ, ДЛН, СКР, ИНЦ
+    let line3 = ''
+    if (combat) {
+      line3 += `УРН: ${combat.damageMin}-${combat.damageMax}  `
+      line3 += `БРО: ${health?.armor || 0}  `
+      line3 += `ТОЧ: ${Math.round(combat.accuracy * 100)}%  `
+      line3 += `ДЛН: ${combat.attackRange}  `
+    }
+    if (movement) {
+      line3 += `СКР: ${movement.speed}  `
+    }
+    if (combat) {
+      line3 += `ИНЦ: ${combat.initiative}  `
+    }
+    if (inventory) {
+      // line3 += `ВЕС: ${inventory.currentWeight.toFixed(1)}/${inventory.maxWeight}`
+      // if (inventory.isOverweight()) {
+      //   line3 += `⚠️`
+      // }
+    }
+    if (line3) lines.push(line3.trim())
+
+    return lines
+  }
+
+  /**
+   * Отрисовывает весь UI поверх игрового поля
+   */
+  drawUI() {
+    const player = this._activeEntity
+    if (!player) return
+
+    const lines = this.buildUILines(player)
+    if (lines.length > 0) {
+      this.drawStatusLines(lines, {
+        fontSize: this.getAdaptiveFontSize(10, 28, 30)
+      })
+    }
   }
 }

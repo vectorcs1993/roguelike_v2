@@ -16,6 +16,7 @@ import PositionComponent from '../engine/components/PositionComponent.js'
 import RenderComponent from '../engine/components/RenderComponent.js'
 import StairComponent from '../engine/components/StairComponent.js'
 import { LOG_MODULES, logger } from './Logger.js'
+import PlayerComponent from 'src/engine/components/PlayerComponent.js'
 
 export default class Location {
   constructor(config, walls, entities, biomeName = null, walkableCells = null, biomeId = null, levelIndex = 0) {
@@ -129,18 +130,34 @@ export default class Location {
     this.grid[y][x] = { type, entity }
   }
 
-  isTileWalkable(x, y) {
+  isTileWalkable(x, y, entity = null) {
     if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return false
+
     const cell = this.grid[y][x]
     if (!cell) return true
+
+    // Стены - непроходимы
     if (cell.type === 'wall') return false
+
+    // Двери - проходимы только если открыты
     if (cell.type === 'door') {
       const door = cell.entity.getComponent(DoorComponent)
       return door ? door.isOpen : false
     }
+
+    // Ящики - непроходимы
     if (cell.type === 'crate') return false
-    if (cell.type === 'item') return true
-    if (cell.type === 'stair') return true
+
+    // Лестницы - проходимы ТОЛЬКО для игрока
+    if (cell.type === 'stair') {
+      if (entity) {
+        const player = entity.getComponent(PlayerComponent)
+        return !!player // только игрок может стоять на лестнице
+      }
+      return false // по умолчанию непроходимы
+    }
+
+    // Предметы и пол - проходимы
     return true
   }
 
@@ -239,7 +256,7 @@ export default class Location {
 
   findPath(fromX, fromY, toX, toY, activeEntity = null) {
     const blocked = this.getBlockedCells(activeEntity)
-    return this.pathfinder.find(fromX, fromY, toX, toY, blocked)
+    return this.pathfinder.find(fromX, fromY, toX, toY, blocked, activeEntity)
   }
 
   getBlockedCells(excludeEntity = null) {

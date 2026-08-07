@@ -13,7 +13,7 @@
             <div class="text-subtitle1 text-sm-h6 flex items-center flex-wrap" style="gap: 8px;">
               <q-icon name="fmd_good" class="q-mr-xs" />
               <div class="text-subtitle1 text-sm-h6 ellipsis">
-                Этаж: [{{ locationNumber }}] [{{ locationName }}] Ход: {{ turnCount }}
+                Локация
               </div>
               <q-space />
               <q-btn-group class="q-mt-xs q-mt-sm-0">
@@ -28,13 +28,6 @@
               @touchmove.prevent="onTouchMove" @touchend.prevent="onTouchEnd">
             </canvas>
           </q-card-section>
-          <div class="absolute-bottom full-width q-pa-xs q-pa-sm-sm">
-            <q-card-section flat bordered class="row bg-grey-9 justify-center q-pa-xs q-pa-sm-sm">
-              <div class="row q-gutter-xs q-gutter-sm-sm">
-                Здесь инфа о предмете (тултип)
-              </div>
-            </q-card-section>
-          </div>
         </q-card>
       </div>
 
@@ -73,102 +66,40 @@
           </q-card-section>
         </q-card>
 
-        <!-- Игрок - Статы -->
-        <q-card v-if="playerStats" flat square bordered dark class="player-card" style="display: flex; flex-direction: column; min-height: 0;">
-          <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
-            <div class="text-subtitle1 text-sm-h6 flex items-center">
-              <q-icon name="person" class="q-mr-xs" />
-              {{ playerStats.name }}
-            </div>
-          </q-card-section>
-          <q-separator dark />
-          <q-scroll-area class="player-body" dark style="width: 100%;">
-            <div class="row q-pa-xs q-pa-sm-sm">
-              <div class="col-12 col-sm-6 col-md-6 q-pa-xs q-pa-sm-sm q-gutter-xs">
-                <div class="row justify-between q-py-xs">
-                  <span>Здоровье</span>
-                  <span>{{ playerStats.hp }}/{{ playerStats.maxHp }}</span>
-                </div>
-                <div class="row justify-between q-py-xs">
-                  <span>Энергия</span>
-                  <span>{{ playerStats.energy }}/{{ playerStats.maxEnergy }}</span>
-                </div>
-                <div class="row justify-between q-py-xs">
-                  <span>Голод</span>
-                  <span>{{ playerStats.hunger }}/{{ playerStats.maxHunger }}</span>
-                </div>
-                <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">Броня</span>
-                  <span>{{ playerStats.armor }} ({{ playerStats.armorType }})</span>
-                </div>
-                <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">Урон</span>
-                  <span>{{ playerStats.damageMin }}-{{ playerStats.damageMax }} ({{ playerStats.damageType }})</span>
-                </div>
-                <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">Точность</span>
-                  <span>{{ Math.round(playerStats.accuracy * 100) }}%</span>
-                </div>
-                <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">Дальность</span>
-                  <span>{{ playerStats.attackRange }}</span>
-                </div>
-                <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">Скорость</span>
-                  <span>{{ playerStats.speed }}</span>
-                </div>
-                <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">Инициатива</span>
-                  <span>{{ playerStats.initiative }}</span>
-                </div>
-                <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">Позиция</span>
-                  <span>{{ playerStats.x }}, {{ playerStats.y }}</span>
-                </div>
-                <div class="row justify-between q-py-xs">
-                  <span class="text-grey-5">Вес</span>
-                  <span>{{ playerStats.totalWeight.toFixed(1) }} / {{ playerStats.maxCarryWeight }} кг</span>
-                </div>
-              </div>
-            </div>
-          </q-scroll-area>
-        </q-card>
-
         <!-- Инвентарь -->
         <q-card v-if="playerStats" flat square bordered dark class="inventory-card" style="display: flex; flex-direction: column; min-height: 0;">
           <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
             <div class="text-subtitle1 text-sm-h6 flex items-center">
               <q-icon name="inventory" class="q-mr-xs" />
               Инвентарь
+              <q-badge color="grey-7" :label="inventoryItems.length" class="q-ml-xs" />
               <q-space />
-              <q-btn dense @click="dropAllItems" label="Выбросить всё" />
+              <q-btn dense flat icon="delete_sweep" @click="dropAllItems" size="sm" />
             </div>
           </q-card-section>
           <q-separator dark />
-          <q-card-section class="inventory-section" style="overflow-y: auto;" dark>
+          <q-card-section class="inventory-section" style="overflow-y: auto; padding: 4px;" dark>
             <q-scroll-area v-if="inventoryItems.length > 0" dark style="width: 100%; height: 100%;">
-              <q-item v-for="item in inventoryItems" :key="item.id" clickable dark>
-                <q-item-section avatar>
-                  <span :style="{ backgroundColor: item.bgColor, color: item.color }">
+              <div v-for="item in inventoryItems" :key="item.id" class="row items-center q-pa-xs"
+                style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+                <div class="col-auto q-mr-sm">
+                  <span :style="{ backgroundColor: item.bgColor, color: item.color, padding: '2px 6px', borderRadius: '2px', fontSize: '14px' }">
                     {{ item.char }}
                   </span>
-                </q-item-section>
-                <q-item-section>
-                  <q-item-label>
+                </div>
+                <div class="col">
+                  <div class="text-caption ellipsis">
                     {{ item.name }}
-                    <span v-if="item.count > 1"> ({{ item.count }})</span>
-                  </q-item-label>
-                  <q-item-label caption class="text-grey-6">Тип: {{ item.type }}</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <div class="row q-gutter-xs">
-                    <q-btn v-if="item.usable" dense icon="play_arrow" label="Использовать" @click="useItem(item.id)" />
-                    <q-btn dense icon="delete" label="Выбросить" @click="dropItem(item.id)" />
+                    <span v-if="item.count > 1" class="text-grey-6"> x{{ item.count }}</span>
                   </div>
-                </q-item-section>
-              </q-item>
+                </div>
+                <div class="col-auto q-gutter-xs">
+                  <q-btn v-if="item.usable" dense label="Использовать" @click="useItem(item.id)" />
+                  <q-btn dense label="Выбросить" @click="dropItem(item.id)" />
+                </div>
+              </div>
             </q-scroll-area>
-            <div v-else class="text-center text-grey-5 q-py-md">Инвентарь пуст</div>
+            <div v-else class="text-center text-grey-5 q-py-md text-caption">Пусто</div>
           </q-card-section>
         </q-card>
 
@@ -397,13 +328,11 @@ function updateEntitiesList() {
 
     let color = '#666666'
     let bgColor = '#666666'
-    let teamName = 'Нейтральный'
     let displayName
 
     if (ai) {
       color = entity.enemyData?.color || '#ff4444'
       bgColor = entity.enemyData?.bgColor || '#2a0a0a'
-      teamName = 'Враг'
       if (entity.enemyData?.name) {
         displayName = entity.enemyData.name
       } else if (entity.enemyType) {
@@ -414,7 +343,6 @@ function updateEntitiesList() {
       }
     } else if (env) {
       bgColor = '#888888'
-      teamName = 'Окружение'
       displayName = env.name || entity.tag || 'Объект'
     } else {
       if (entity.itemData?.name) {
@@ -433,7 +361,6 @@ function updateEntitiesList() {
       char: render.char,
       bgColor: bgColor,
       color: color,
-      teamName: teamName,
       hp: health.hp,
       maxHp: health.maxHp,
       isPlayer: false,
@@ -661,11 +588,6 @@ canvas {
   .player-card {
     flex: 0 0 auto;
   }
-
-  .player-body {
-    flex: 0 0 auto;
-    height: 320px;
-  }
 }
 
 @media (max-width: 599px) {
@@ -702,11 +624,6 @@ canvas {
 
   .inventory-section,
   .entities-section {
-    flex: 1 1 0;
-    min-height: 0;
-  }
-
-  .player-body {
     flex: 1 1 0;
     min-height: 0;
   }

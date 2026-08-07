@@ -200,7 +200,7 @@ export default class PlayerActions {
 
     const targetCell = this.location.grid[newY]?.[newX]
 
-    if (!this.location.isTileWalkable(newX, newY)) {
+    if (!this.location.isTileWalkable(newX, newY, entity)) {
       const targetEntity = this.location.getEntityAt(newX, newY)
       if (targetEntity) {
         const env = targetEntity.getComponent(EnvironmentComponent)

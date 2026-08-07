@@ -3,10 +3,10 @@ export default class Pathfinder {
     this.map = map
   }
 
-  find(sx, sy, ex, ey, blockedCells = []) {
+  find(sx, sy, ex, ey, blockedCells = [], entity = null) {
     const map = this.map
     if (sx === ex && sy === ey) return null
-    if (!map.isTileWalkable(ex, ey)) return null
+    if (!map.isTileWalkable(ex, ey, entity)) return null
 
     const blockedSet = new Set()
     for (const b of blockedCells) {

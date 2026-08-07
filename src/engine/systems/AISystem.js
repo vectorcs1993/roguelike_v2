@@ -140,7 +140,7 @@ export default class AISystem extends System {
       const nx = pos.tileX + mx
       const ny = pos.tileY + my
 
-      if (!location.isTileWalkable(nx, ny)) continue
+      if (!location.isTileWalkable(nx, ny, enemy)) continue
       if (!this.engine.isTileBlocked(nx, ny, enemy)) {
         pos.moveTo(nx, ny)
         return
@@ -159,7 +159,7 @@ export default class AISystem extends System {
       const nx = pos.tileX + dx
       const ny = pos.tileY + dy
 
-      if (!location.isTileWalkable(nx, ny)) continue
+      if (!location.isTileWalkable(nx, ny, enemy)) continue
       if (!this.engine.isTileBlocked(nx, ny, enemy)) {
         pos.moveTo(nx, ny)
         return
