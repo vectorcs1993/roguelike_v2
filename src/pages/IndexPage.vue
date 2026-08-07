@@ -41,7 +41,39 @@
       <!-- Правая панель -->
       <div class="col-12 col-md-4 col-lg-4 right-panel" style="display: flex; flex-direction: column; gap: 8px; min-height: 0;">
 
-        <!-- Игрок -->
+        <!-- Игрок - Управление -->
+        <q-card v-if="playerStats" flat square bordered dark class="player-card" style="display: flex; flex-direction: column; min-height: 0;">
+          <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
+            <div class="text-subtitle1 text-sm-h6 flex items-center">
+              <q-icon name="gamepad" class="q-mr-xs" />
+              Управление
+            </div>
+          </q-card-section>
+          <q-separator dark />
+          <q-card-section class="q-pa-sm">
+            <!-- Сетка перемещения -->
+            <div class="row" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; max-width: 200px; margin: 0 auto;">
+              <q-btn label="↖" @click="move(-1, -1)" class="full-width" dense />
+              <q-btn label="⬆" @click="move(0, -1)" class="full-width" dense />
+              <q-btn label="↗" @click="move(1, -1)" class="full-width" dense />
+              <q-btn label="⬅" @click="move(-1, 0)" class="full-width" dense />
+              <q-btn label="🖱" @click="interact" class="full-width" dense />
+              <q-btn label="➡" @click="move(1, 0)" class="full-width" dense />
+              <q-btn label="↙" @click="move(-1, 1)" class="full-width" dense />
+              <q-btn label="⬇" @click="move(0, 1)" class="full-width" dense />
+              <q-btn label="↘" @click="move(1, 1)" class="full-width" dense />
+            </div>
+
+            <!-- Действия -->
+            <div class="row q-gutter-xs q-mt-sm">
+              <q-btn label="Ждать" @click="waitTurn" class="col" dense />
+              <q-btn label="Атака" @click="attack" class="col" dense />
+              <q-btn label="Поднять" @click="pickup" class="col" dense />
+            </div>
+          </q-card-section>
+        </q-card>
+
+        <!-- Игрок - Статы -->
         <q-card v-if="playerStats" flat square bordered dark class="player-card" style="display: flex; flex-direction: column; min-height: 0;">
           <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
             <div class="text-subtitle1 text-sm-h6 flex items-center">
@@ -53,85 +85,49 @@
           <q-scroll-area class="player-body" dark style="width: 100%;">
             <div class="row q-pa-xs q-pa-sm-sm">
               <div class="col-12 col-sm-6 col-md-6 q-pa-xs q-pa-sm-sm q-gutter-xs">
-                <!-- Здоровье -->
                 <div class="row justify-between q-py-xs">
                   <span>Здоровье</span>
                   <span>{{ playerStats.hp }}/{{ playerStats.maxHp }}</span>
                 </div>
-
-                <!-- Энергия -->
                 <div class="row justify-between q-py-xs">
                   <span>Энергия</span>
                   <span>{{ playerStats.energy }}/{{ playerStats.maxEnergy }}</span>
                 </div>
-
-                <!-- Голод -->
                 <div class="row justify-between q-py-xs">
                   <span>Голод</span>
                   <span>{{ playerStats.hunger }}/{{ playerStats.maxHunger }}</span>
                 </div>
-
-                <!-- Броня -->
                 <div class="row justify-between q-py-xs">
                   <span class="text-grey-5">Броня</span>
                   <span>{{ playerStats.armor }} ({{ playerStats.armorType }})</span>
                 </div>
-
-                <!-- Атака -->
                 <div class="row justify-between q-py-xs">
                   <span class="text-grey-5">Урон</span>
                   <span>{{ playerStats.damageMin }}-{{ playerStats.damageMax }} ({{ playerStats.damageType }})</span>
                 </div>
-
-                <!-- Точность -->
                 <div class="row justify-between q-py-xs">
                   <span class="text-grey-5">Точность</span>
                   <span>{{ Math.round(playerStats.accuracy * 100) }}%</span>
                 </div>
-
-                <!-- Дальность -->
                 <div class="row justify-between q-py-xs">
                   <span class="text-grey-5">Дальность</span>
                   <span>{{ playerStats.attackRange }}</span>
                 </div>
-
-                <!-- Скорость -->
                 <div class="row justify-between q-py-xs">
                   <span class="text-grey-5">Скорость</span>
                   <span>{{ playerStats.speed }}</span>
                 </div>
-
-                <!-- Инициатива -->
                 <div class="row justify-between q-py-xs">
                   <span class="text-grey-5">Инициатива</span>
                   <span>{{ playerStats.initiative }}</span>
                 </div>
-
-                <!-- Позиция -->
                 <div class="row justify-between q-py-xs">
                   <span class="text-grey-5">Позиция</span>
                   <span>{{ playerStats.x }}, {{ playerStats.y }}</span>
                 </div>
-              </div>
-              <div class="col-12 col-sm-6 col-md-6 q-pa-xs q-pa-sm-sm q-gutter-sm">
-                <!-- Сетка перемещения -->
-                <div class="row" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
-                  <q-btn label="↖" @click="move(-1, -1)" class="full-width" dense />
-                  <q-btn label="⬆" @click="move(0, -1)" class="full-width" dense />
-                  <q-btn label="↗" @click="move(1, -1)" class="full-width" dense />
-                  <q-btn label="⬅" @click="move(-1, 0)" class="full-width" dense />
-                  <q-btn label="🖱" @click="interact" class="full-width" dense />
-                  <q-btn label="➡" @click="move(1, 0)" class="full-width" dense />
-                  <q-btn label="↙" @click="move(-1, 1)" class="full-width" dense />
-                  <q-btn label="⬇" @click="move(0, 1)" class="full-width" dense />
-                  <q-btn label="↘" @click="move(1, 1)" class="full-width" dense />
-                </div>
-
-                <!-- Действия -->
-                <div class="row q-gutter-xs">
-                  <q-btn label="Ждать" @click="waitTurn" class="col" dense />
-                  <q-btn label="Атака" @click="attack" class="col" dense />
-                  <q-btn label="Поднять" @click="pickup" class="col" dense />
+                <div class="row justify-between q-py-xs">
+                  <span class="text-grey-5">Вес</span>
+                  <span>{{ playerStats.totalWeight.toFixed(1) }} / {{ playerStats.maxCarryWeight }} кг</span>
                 </div>
               </div>
             </div>
@@ -143,13 +139,12 @@
           <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
             <div class="text-subtitle1 text-sm-h6 flex items-center">
               <q-icon name="inventory" class="q-mr-xs" />
-              Инвентарь {{ playerStats.totalWeight.toFixed(1) }} / {{ playerStats.maxCarryWeight }} кг
+              Инвентарь
               <q-space />
               <q-btn dense @click="dropAllItems" label="Выбросить всё" />
             </div>
           </q-card-section>
           <q-separator dark />
-
           <q-card-section class="inventory-section" style="overflow-y: auto;" dark>
             <q-scroll-area v-if="inventoryItems.length > 0" dark style="width: 100%; height: 100%;">
               <q-item v-for="item in inventoryItems" :key="item.id" clickable dark>
@@ -236,24 +231,6 @@
         </q-card>
       </div>
     </div>
-
-    <!-- Диалог загрузки контента -->
-    <q-dialog v-model="contentDialog" persistent>
-      <q-card style="min-width: 90vw; max-width: 500px; width: 100%;">
-        <q-card-section>
-          <div class="text-h6">Загрузка контента</div>
-        </q-card-section>
-        <q-card-section>
-          <q-input v-model="contentUrl" label="URL или путь к JSON" placeholder="https://example.com/content.json или /content/mod.json" filled />
-          <q-select v-model="contentType" :options="contentTypeOptions" label="Тип загрузки" filled class="q-mt-sm" />
-          <q-file v-model="contentFile" label="Или выберите JSON файл" accept=".json" filled class="q-mt-sm" />
-        </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Отмена" v-close-popup />
-          <q-btn label="Загрузить" color="primary" @click="doLoadContent" :loading="contentLoading" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
   </q-page>
 </template>
 
@@ -277,7 +254,6 @@ import MovementComponent from 'src/engine/components/MovementComponent.js'
 
 const canvasRef = ref(null)
 const consoleScrollAreaRef = ref(null)
-const pageRef = ref(null)
 let game = null
 let resizeTimeout = null
 let updateInterval = null
@@ -291,35 +267,17 @@ const turnCount = ref(0)
 const selectedEntityId = ref(null)
 const playerStats = ref(null)
 
-// Диалог загрузки контента
-const contentDialog = ref(false)
-const contentUrl = ref('')
-const contentType = ref('json')
-const contentFile = ref(null)
-const contentLoading = ref(false)
-const contentTypeOptions = [
-  { label: 'JSON (URL)', value: 'json' },
-  { label: 'JSON (Файл)', value: 'file' },
-  { label: 'Мод (URL)', value: 'mod' }
-]
-
 
 function onGlobalKeyDown(event) {
   if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return
   if (event.target.tagName === 'BUTTON') return
-
-  if (game?.onKeyDown) {
-    game.onKeyDown(event)
-  }
+  if (game?.onKeyDown) game.onKeyDown(event)
 }
 
 function onGlobalKeyUp(event) {
   if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return
   if (event.target.tagName === 'BUTTON') return
-
-  if (game?.onKeyUp) {
-    game.onKeyUp(event)
-  }
+  if (game?.onKeyUp) game.onKeyUp(event)
 }
 
 function addConsoleMessage(text, type = 'info') {
@@ -400,7 +358,6 @@ function updateEntitiesList() {
       const hungerComp = entity.getComponent(HungerComponent)
       const hunger = hungerComp ? hungerComp.hunger : 0
       const maxHunger = hungerComp ? hungerComp.maxHunger : 100
-
 
       const inventory = entity.getComponent(InventoryComponent)
       const totalWeight = inventory ? inventory.totalWeight : 0
@@ -617,61 +574,6 @@ function highlightOnCharacter(entityId) {
   game?.highlightOnCharacter(entityId)
 }
 
-async function doLoadContent() {
-  contentLoading.value = true
-
-  try {
-    let success = false
-    const type = contentType.value
-
-    if (type === 'json' && contentUrl.value) {
-      addConsoleMessage(`Загрузка контента из URL: ${contentUrl.value}`, 'info')
-      success = await ContentLoader.loadFromURL(contentUrl.value)
-    } else if (type === 'file' && contentFile.value) {
-      addConsoleMessage(`Загрузка контента из файла: ${contentFile.value.name}`, 'info')
-      const text = await contentFile.value.text()
-      const data = JSON.parse(text)
-      success = ContentLoader.loadFromJSON(data)
-    } else if (type === 'mod' && contentUrl.value) {
-      addConsoleMessage(`Загрузка мода из: ${contentUrl.value}`, 'info')
-      success = await ContentLoader.loadFromModule(contentUrl.value)
-    } else {
-      addConsoleMessage('Пожалуйста, укажите источник контента', 'warning')
-      contentLoading.value = false
-      return
-    }
-
-    if (success) {
-      addConsoleMessage('Контент успешно загружен!', 'success')
-
-      const validation = ContentLoader.validate()
-      if (validation.errors.length > 0) {
-        addConsoleMessage(`Ошибки валидации: ${validation.errors.length}`, 'warning')
-        for (const err of validation.errors) {
-          addConsoleMessage(`  - ${err}`, 'error')
-        }
-      }
-
-      if (game) {
-        const biomeIds = ContentLoader.getBiomeIds()
-        const biome = biomeIds[Math.floor(Math.random() * biomeIds.length)]
-        game.reloadWithBiome(biome)
-        addConsoleMessage(`Локация перезагружена с биомом: ${biome}`, 'info')
-      }
-
-      contentDialog.value = false
-    } else {
-      addConsoleMessage('Не удалось загрузить контент', 'error')
-    }
-  } catch (error) {
-    addConsoleMessage(`Ошибка загрузки: ${error.message}`, 'error')
-    console.error(error)
-  }
-
-  contentLoading.value = false
-}
-
-
 function onCanvasClick(event) { game?.onClick?.(event) }
 function onMouseMove(event) { game?.onMouseMove?.(event) }
 function onMouseLeave(event) { game?.onMouseLeave?.(event) }
@@ -731,24 +633,18 @@ canvas {
   outline: none;
 }
 
-/* ===== Адаптив под любые экраны ===== */
-
-/* На маленьких и средних экранах (до md) панели складываются вертикально,
-   страница становится прокручиваемой, канвас получает фиксированную высоту */
 @media (max-width: 1023px) {
   .game-page {
     overflow-y: auto;
     overflow-x: hidden;
   }
 
-  /* Канвас-колонка: задаём высоту, чтобы канвас не схлопывался */
   .game-page :deep(.canvas-col) {
     height: 60vh;
     min-height: 320px;
     flex-shrink: 0;
   }
 
-  /* На маленьких экранах секции получают фиксированные высоты */
   .inventory-section {
     height: 120px;
   }
@@ -762,20 +658,16 @@ canvas {
     height: 220px;
   }
 
-  /* Тело карточки игрока не сжимается на маленьких экранах */
   .player-card {
     flex: 0 0 auto;
   }
 
-  /* q-scroll-area требует высоту — задаём фиксированную на маленьких экранах,
-     переопределяя inline flex:1, который схлопывает контент */
   .player-body {
     flex: 0 0 auto;
     height: 320px;
   }
 }
 
-/* Очень маленькие экраны (телефоны) */
 @media (max-width: 599px) {
   .game-page :deep(.canvas-col) {
     height: 55vh;
@@ -783,19 +675,15 @@ canvas {
   }
 }
 
-/* На больших экранах (md+) страница не прокручивается, всё вписывается в экран */
 @media (min-width: 1024px) {
   .game-page {
     overflow: hidden;
   }
 
-  /* Правая колонка растягивается на всю высоту */
   .game-page :deep(.right-panel) {
     height: 100%;
   }
 
-  /* Пропорциональное распределение высоты между карточками правой панели.
-     Лог получает наибольшую долю и всегда остаётся видимым. */
   .player-card {
     flex: 2 1 0;
   }
@@ -812,7 +700,6 @@ canvas {
     flex: 3 1 0;
   }
 
-  /* Внутренние секции заполняют карточку и прокручиваются при нехватке места */
   .inventory-section,
   .entities-section {
     flex: 1 1 0;

@@ -478,7 +478,7 @@
     },
     "radio": {
       "id": "radio",
-      "name": "Свиток",
+      "name": "Рация",
       "char": "?",
       "color": "#dddd88",
       "bgColor": "#1a1a0a",
@@ -748,7 +748,7 @@
           "countMax": 1
         },
         "radio": {
-          "chance": 0.15,
+          "chance": 1,
           "countMin": 1,
           "countMax": 1
         }
