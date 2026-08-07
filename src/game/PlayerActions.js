@@ -13,12 +13,14 @@ import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
 import ItemComponent from '../engine/components/ItemComponent.js'
 import InventoryComponent from '../engine/components/InventoryComponent.js'
 import EntityFactory from '../engine/EntityFactory.js'
+import StairComponent from '../engine/components/StairComponent.js'
 import Item from '../engine/Item.js'
 import EnergyComponent from '../engine/components/EnergyComponent.js'
 import { logger, LOG_MODULES } from './Logger.js'
 import { GameConfig } from './GameConfig.js'
 import { applyItemEffects, isItemUsable } from './ItemEffects.js'
 import { rollLoot } from './utils.js'
+
 
 export default class PlayerActions {
   constructor(gameLoop) {
@@ -203,13 +205,8 @@ export default class PlayerActions {
       newY < 0 || newY >= this.location.rows) return false
 
     const targetCell = this.location.grid[newY]?.[newX]
-    if (targetCell && targetCell.type === 'crate' && targetCell.entity) {
-      if (!this._canAfford('move')) return false
-      this.interactionSystem.breakCrate(entity, targetCell.entity)
-      this._spendEnergy('move')
-      return true
-    }
 
+    // === НЕПРОХОДИМАЯ КЛЕТКА (дверь, стена) ===
     if (!this.location.isTileWalkable(newX, newY)) {
       const targetEntity = this.location.getEntityAt(newX, newY)
       if (targetEntity) {
@@ -226,6 +223,8 @@ export default class PlayerActions {
       return false
     }
 
+
+    // === ВРАГ ===
     const targetEntity = this.engine.getFirstEntityAt(newX, newY)
     if (targetEntity && targetEntity.active) {
       const targetHealth = targetEntity.getComponent(HealthComponent)
@@ -244,6 +243,39 @@ export default class PlayerActions {
       }
     }
 
+    // === ЛЕСТНИЦА - проверяем в первую очередь ===
+    if (targetCell && targetCell.type === 'stair') {
+      const stairEntity = targetCell.entity
+      const stairComp = stairEntity?.getComponent(StairComponent)
+      if (stairComp && stairComp.isActive) {
+        if (!this._canAfford('move')) return false
+
+        const direction = stairComp.direction === 'up' ? 'вверх' : 'вниз'
+        logger.info(LOG_MODULES.ACTION, `Подъём по лестнице ${direction}...`)
+
+        // Перемещаем игрока на клетку с лестницей
+        pos.moveTo(newX, newY)
+
+        const success = stairComp.use(entity, this.gameLoop)
+        if (success) {
+          this._spendEnergy('move')
+          return true
+        } else {
+          logger.info(LOG_MODULES.ACTION, 'Не удалось использовать лестницу')
+          return false
+        }
+      }
+    }
+
+    // === ЯЩИК ===
+    if (targetCell && targetCell.type === 'crate' && targetCell.entity) {
+      if (!this._canAfford('move')) return false
+      this.interactionSystem.breakCrate(entity, targetCell.entity)
+      this._spendEnergy('move')
+      return true
+    }
+
+    // === ПРЕДМЕТ (просто видим) ===
     const itemEntity = this.engine.getEntitiesAt(newX, newY)
       .find(e => {
         const env = e.getComponent(EnvironmentComponent)
@@ -255,6 +287,7 @@ export default class PlayerActions {
       logger.info(LOG_MODULES.SYSTEM, `Игрок видит ${env.name || 'предмет'}`)
     }
 
+    // === ПРОСТО ДВИЖЕНИЕ ===
     if (!this._canAfford('move')) return false
     pos.moveTo(newX, newY)
     this._spendEnergy('move')
@@ -481,8 +514,11 @@ export default class PlayerActions {
         const nx = cx + dx
         const ny = cy + dy
         const target = this.location.getEntityAt(nx, ny)
-        if (target) {
+        if (target && target.active) {
           const env = target.getComponent(EnvironmentComponent)
+
+          // Убираем проверку на лестницу - теперь она в moveCharacter
+
           if (env && env.isInteractive) {
             if (!this._canAfford('interact')) return false
             const success = this.interactionSystem.interact(entity, target)

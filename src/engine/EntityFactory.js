@@ -14,6 +14,7 @@ import InventoryComponent from './components/InventoryComponent.js'
 import EnvironmentComponent from './components/EnvironmentComponent.js'
 import DoorComponent from './components/DoorComponent.js'
 import ItemComponent from './components/ItemComponent.js'
+import StairComponent from './components/StairComponent.js'
 import Item from './Item.js'
 import { GameConfig } from '../game/GameConfig.js'
 import { logger, LOG_MODULES } from '../game/Logger.js'
@@ -84,7 +85,6 @@ export default class EntityFactory {
     const bgColor = data.bgColor || null
     const layer = data.layer || 3
 
-
     const entity = new Entity('enemy')
     const render = new RenderComponent(char, color, bgColor)
     render.layer = layer
@@ -118,10 +118,6 @@ export default class EntityFactory {
 
     entity.enemyType = type
     entity.enemyData = data
-
-    if (data.components) {
-      this._addCustomComponents(entity, data.components)
-    }
 
     return entity
   }
@@ -296,66 +292,37 @@ export default class EntityFactory {
     return entity
   }
 
-  /**
-   * Применяет настройки видимости к render-компоненту с учётом биома.
-   * Приоритет: индивидуальные настройки сущности > настройки биома > значения по умолчанию.
-   */
+  static createStair(x, y, direction = 'down', targetBiome = null, targetLevel = null, biomeId = null) {
+    const isUp = direction === 'up'
+    const char = isUp ? '<' : '>'
+    const color = isUp ? '#88ff88' : '#ff8844'
+    const bgColor = isUp ? '#1a2a1a' : '#2a1a0a'
+    const layer = 2
+
+    const entity = new Entity('stair')
+    const render = new RenderComponent(char, color, bgColor)
+    render.layer = layer
+
+    // ИСПОЛЬЗУЕМ ОБЩУЮ СИСТЕМУ ВИДИМОСТИ
+    this._applyVisibility(render, 'environment', 'stair', biomeId)
+
+    entity
+      .addComponent(new PositionComponent(x, y))
+      .addComponent(render)
+      .addComponent(new StairComponent({
+        direction: direction,
+        targetBiome: targetBiome,
+        targetLevel: targetLevel
+      }))
+
+    return entity
+  }
+
   static _applyVisibility(render, entityType, entityId, biomeId) {
     const visibilityConfig = GameConfig.getVisibilityConfig(entityType, entityId, biomeId)
     render.visible = visibilityConfig.visibleByDefault || false
     render.explored = visibilityConfig.exploredByDefault || false
     render._visibilityConfig = visibilityConfig
-  }
-
-  // ===== ВСПОМОГАТЕЛЬНЫЙ МЕТОД ДЛЯ КАСТОМНЫХ КОМПОНЕНТОВ =====
-
-  static _addCustomComponents(entity, components) {
-    if (!components || typeof components !== 'object') return
-
-    const componentMap = {
-      'PositionComponent': PositionComponent,
-      'RenderComponent': RenderComponent,
-      'HealthComponent': HealthComponent,
-      'HungerComponent': HungerComponent,
-      'EnergyComponent': EnergyComponent,
-      'CombatComponent': CombatComponent,
-      'PlayerComponent': PlayerComponent,
-      'AIComponent': AIComponent,
-      'MovementComponent': MovementComponent,
-      'InventoryComponent': InventoryComponent,
-      'EnvironmentComponent': EnvironmentComponent,
-      'DoorComponent': DoorComponent,
-      'ItemComponent': ItemComponent
-    }
-
-    for (const [name, data] of Object.entries(components)) {
-      const ComponentClass = componentMap[name]
-      if (!ComponentClass) {
-        logger.warn(LOG_MODULES.SYSTEM, `[EntityFactory] Неизвестный компонент: ${name}`)
-        continue
-      }
-
-      let instance
-      if (data instanceof ComponentClass) {
-        instance = data
-      } else if (typeof data === 'object') {
-        try {
-          instance = new ComponentClass(data)
-        } catch (e) {
-          logger.warn(LOG_MODULES.SYSTEM, `[EntityFactory] Не удалось создать компонент ${name}:`, e)
-          continue
-        }
-      } else {
-        try {
-          instance = new ComponentClass(data)
-        } catch (e) {
-          logger.warn(LOG_MODULES.SYSTEM, `[EntityFactory] Не удалось создать компонент ${name}:`, e)
-          continue
-        }
-      }
-
-      entity.addComponent(instance)
-    }
   }
 
 }

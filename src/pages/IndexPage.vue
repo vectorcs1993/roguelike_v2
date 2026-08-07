@@ -12,7 +12,9 @@
           <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
             <div class="text-subtitle1 text-sm-h6 flex items-center flex-wrap" style="gap: 8px;">
               <q-icon name="fmd_good" class="q-mr-xs" />
-              <div class="text-subtitle1 text-sm-h6 ellipsis">Локация: {{ locationName }} — Ход {{ turnCount }}</div>
+              <div class="text-subtitle1 text-sm-h6 ellipsis">
+                Этаж: {{ locationNumber }} Локация: {{ locationName }} Ход {{ turnCount }}
+              </div>
               <q-space />
               <q-btn-group class="q-mt-xs q-mt-sm-0">
                 <q-btn label="Обновить" icon="refresh" @click="regenerateLevel" dark dense />
@@ -40,18 +42,17 @@
       <div class="col-12 col-md-4 col-lg-4 right-panel" style="display: flex; flex-direction: column; gap: 8px; min-height: 0;">
 
         <!-- Игрок -->
-        <q-card flat square bordered dark class="player-card" style="display: flex; flex-direction: column; min-height: 0;">
+        <q-card v-if="playerStats" flat square bordered dark class="player-card" style="display: flex; flex-direction: column; min-height: 0;">
           <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
             <div class="text-subtitle1 text-sm-h6 flex items-center">
               <q-icon name="person" class="q-mr-xs" />
-              Персонаж
-              <q-badge color="blue" :label="playerStats?.name || '—'" class="q-ml-xs" />
+              {{ playerStats.name }}
             </div>
           </q-card-section>
           <q-separator dark />
           <q-scroll-area class="player-body" dark style="width: 100%;">
             <div class="row q-pa-xs q-pa-sm-sm">
-              <div class="col-12 col-sm-6 col-md-6 q-pa-xs q-pa-sm-sm q-gutter-xs" v-if="playerStats">
+              <div class="col-12 col-sm-6 col-md-6 q-pa-xs q-pa-sm-sm q-gutter-xs">
                 <!-- Здоровье -->
                 <div class="row justify-between q-py-xs">
                   <span>Здоровье</span>
@@ -112,7 +113,6 @@
                   <span>{{ playerStats.x }}, {{ playerStats.y }}</span>
                 </div>
               </div>
-              <div v-else class="col text-center text-grey-5 q-py-md">Игрок не найден</div>
               <div class="col-12 col-sm-6 col-md-6 q-pa-xs q-pa-sm-sm q-gutter-sm">
                 <!-- Сетка перемещения -->
                 <div class="row" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
@@ -139,15 +139,11 @@
         </q-card>
 
         <!-- Инвентарь -->
-        <q-card flat square bordered dark class="inventory-card" style="display: flex; flex-direction: column; min-height: 0;">
+        <q-card v-if="playerStats" flat square bordered dark class="inventory-card" style="display: flex; flex-direction: column; min-height: 0;">
           <q-card-section class="bg-grey-9 q-pa-xs q-pa-sm-sm">
             <div class="text-subtitle1 text-sm-h6 flex items-center">
               <q-icon name="inventory" class="q-mr-xs" />
-              Инвентарь
-              <q-badge v-if="playerStats" color="grey-7" :label="`${playerStats.totalWeight.toFixed(1)}/${playerStats.maxCarryWeight} кг`"
-                class="q-ml-xs">
-              </q-badge>
-
+              Инвентарь {{ playerStats.totalWeight.toFixed(1) }} / {{ playerStats.maxCarryWeight }} кг
               <q-space />
               <q-btn dense @click="dropAllItems" label="Выбросить всё" />
             </div>
@@ -165,7 +161,7 @@
                 <q-item-section>
                   <q-item-label>
                     {{ item.name }}
-                    <q-badge v-if="item.count > 1" color="grey-7" :label="item.count" class="q-ml-xs" />
+                    <span v-if="item.count > 1"> ({{ item.count }})</span>
                   </q-item-label>
                   <q-item-label caption class="text-grey-6">Тип: {{ item.type }}</q-item-label>
                 </q-item-section>
@@ -290,6 +286,7 @@ const consoleLogs = ref([])
 const entitiesList = ref([])
 const inventoryItems = ref([])
 const locationName = ref('')
+const locationNumber = ref(1)
 const turnCount = ref(0)
 const selectedEntityId = ref(null)
 const playerStats = ref(null)
@@ -369,6 +366,7 @@ function updateEntitiesList() {
 
   const engine = game.currentLocation.engine
   locationName.value = game.currentLocation.name
+  locationNumber.value = (game.currentLocation.levelIndex || 0) + 1
   turnCount.value = game.turnCount ?? 0
 
   const entities = engine.getEntitiesWithComponents([

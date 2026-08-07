@@ -4,7 +4,7 @@ import Fov from './Fov.js'
 import Pathfinder from './Pathfinder.js'
 import BiomeGenerator from './BiomeGenerator.js'
 import { GameConfig } from './GameConfig.js'
-import { shuffle, rollLoot } from './utils.js'
+import { shuffle } from './utils.js'
 import Engine from '../engine/Engine.js'
 import EntityFactory from '../engine/EntityFactory.js'
 import CombatSystem from '../engine/systems/CombatSystem.js'
@@ -14,12 +14,15 @@ import EnvironmentComponent from '../engine/components/EnvironmentComponent.js'
 import DoorComponent from '../engine/components/DoorComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
 import RenderComponent from '../engine/components/RenderComponent.js'
+import StairComponent from '../engine/components/StairComponent.js'
+import { LOG_MODULES, logger } from './Logger.js'
 
 export default class Location {
-  constructor(config, walls, entities, biomeName = null, walkableCells = null, biomeId = null) {
+  constructor(config, walls, entities, biomeName = null, walkableCells = null, biomeId = null, levelIndex = 0) {
     this.biomeName = biomeName || 'Неизвестная локация'
     this.name = this.biomeName
     this.biomeId = biomeId || null
+    this.levelIndex = levelIndex || 0
 
     const worldConfig = GameConfig.getWorldConfig()
     this.cols = config.cols || worldConfig.width
@@ -70,8 +73,6 @@ export default class Location {
   }
 
   addFloorTiles(walkableCells = null) {
-    // Если переданы проходимые клетки (комнаты + коридоры) - добавляем пол только в них.
-    // Иначе (для совместимости) - добавляем пол во все пустые клетки.
     if (walkableCells !== null) {
       for (const [x, y] of walkableCells) {
         this._addFloorAt(x, y)
@@ -86,7 +87,6 @@ export default class Location {
     }
   }
 
-  /** Добавляет пол на клетку (x, y), если она пустая и не содержит стену/дверь/ящик. */
   _addFloorAt(x, y) {
     if (x < 0 || x >= this.cols || y < 0 || y >= this.rows) return
     if (this.grid[y][x]) return
@@ -122,7 +122,6 @@ export default class Location {
     }
   }
 
-  /** Регистрирует сущность в engine и записывает её в grid. */
   _addToGrid(x, y, type, entity) {
     entity.engine = this.engine
     this.engine.addEntity(entity)
@@ -140,6 +139,7 @@ export default class Location {
     }
     if (cell.type === 'crate') return false
     if (cell.type === 'item') return true
+    if (cell.type === 'stair') return true
     return true
   }
 
@@ -154,6 +154,7 @@ export default class Location {
     }
     if (cell.type === 'crate') return false
     if (cell.type === 'item') return false
+    if (cell.type === 'stair') return false
     return false
   }
 
@@ -197,7 +198,6 @@ export default class Location {
       const door = cell.entity.getComponent(DoorComponent)
       if (door) {
         door.isOpen = isOpen
-        // Изменение состояния двери влияет на видимость — инвалидируем кэш FOV
         this.fov.invalidate()
       }
     }
@@ -210,27 +210,20 @@ export default class Location {
       for (const entity of all) {
         const render = entity.getComponent(RenderComponent)
         if (!render) continue
-        // Учитываем настройки биома: если объект помечен как видимый по
-        // умолчанию, он не сбрасывается при пересчёте FOV.
         const visConfig = render._visibilityConfig || {}
         if (visConfig.visibleByDefault) {
           render.visible = true
         } else {
           render.visible = false
         }
-        // Объекты, исследованные по умолчанию, остаются исследованными
-        // даже вне текущего FOV.
         if (visConfig.exploredByDefault) {
           render.explored = true
         }
       }
     }
 
-    // Используем кэшированный набор видимых клеток (если позиция уже посещалась
-    // и карта не менялась — вычисление пропускается).
     const visibleCells = this.fov.computeVisibleCells(originX, originY, radius)
 
-    // За один проход помечаем сущности видимыми и исследованными.
     for (const { x, y } of visibleCells) {
       const entitiesAt = this.getEntitiesAt(x, y)
       for (const entity of entitiesAt) {
@@ -273,79 +266,48 @@ export default class Location {
     return blocked
   }
 
-  static generateProcedural(biomeType = null) {
-    const { selectedBiomeId, biome, biomeName, worldConfig, genConfig } = this._selectBiome(biomeType)
+  // ===== МЕТОДЫ ДЛЯ РАБОТЫ С ЛЕСТНИЦАМИ =====
 
-    const generator = new BiomeGenerator({
-      width: worldConfig.width,
-      height: worldConfig.height,
-      minRoomSize: genConfig.minRoomSize || worldConfig.minRoomSize,
-      maxRoomSize: genConfig.maxRoomSize || worldConfig.maxRoomSize,
-      maxRooms: genConfig.maxRooms || worldConfig.maxRooms,
-      roomSpacing: genConfig.roomSpacing || worldConfig.roomSpacing || 1,
-      doorChance: genConfig.doorChance || worldConfig.doorChance || 0.5,
-      padding: genConfig.padding !== undefined ? genConfig.padding : (worldConfig.padding || 2),
-      layout: genConfig.layout || 'dungeon',
-      columnCount: genConfig.columnCount,
-      wallSegmentCount: genConfig.wallSegmentCount,
-      wallSegmentMin: genConfig.wallSegmentMin,
-      wallSegmentMax: genConfig.wallSegmentMax
-    })
-
-    const { walls, width, height, rooms, doors: doorData, walkableCells } = generator.generate()
-
-    const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
-    const roomCells = this._collectRoomCells(rooms)
-    const isFree = (x, y) => !wallSet.has(`${x},${y}`)
-
-    // Для арены внутренние клетки могут содержать колонны/стены-препятствия,
-    // поэтому отфильтровываем их перед размещением ящиков и предметов.
-    const freeRoomCells = roomCells.filter(c => {
-      const [x, y] = c.split(',').map(Number)
-      return isFree(x, y)
-    })
-
-    // Определяем ящики и свободные клетки. Количество ящиков берётся из
-    // cratePool биома (minCount..maxCount), ограниченное числом свободных клеток.
-    const cratePool = biome && biome.cratePool ? biome.cratePool : {}
-    const crateMin = cratePool.minCount !== undefined ? cratePool.minCount : 0
-    const crateMax = cratePool.maxCount !== undefined ? cratePool.maxCount : freeRoomCells.length
-    const crateTarget = Math.floor(Math.random() * (crateMax - crateMin + 1)) + crateMin
-    const crateCount = Math.min(crateTarget, freeRoomCells.length)
-    const crates = freeRoomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
-    const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`))
-    const available = freeRoomCells.filter(c => !crateSet.has(c))
-
-    const playerStart = this.findStartInRoom(rooms, isFree, crateSet)
-
-    // Создаём игрока и врагов
-    const entities = []
-    const player = EntityFactory.createPlayer(playerStart.x, playerStart.y)
-    entities.push(player)
-
-    const enemyPositions = this._createEnemies(entities, biome, available, playerStart, selectedBiomeId)
-
-    const location = new Location(
-      { cols: width, rows: height },
-      walls,
-      entities,
-      biomeName,
-      walkableCells,
-      selectedBiomeId
-    )
-
-    this._placeCrates(location, crates, selectedBiomeId)
-    this._placeItems(location, biome, available, playerStart, enemyPositions, selectedBiomeId)
-    this._placeDoors(location, doorData)
-    this._setupBaseVisibility(location)
-
-    return location
+  createStair(x, y, direction = 'down', targetBiome = null, targetLevel = null) {
+    const stairEntity = EntityFactory.createStair(x, y, direction, targetBiome, targetLevel, this.biomeId)
+    stairEntity.engine = this.engine
+    this.engine.addEntity(stairEntity)
+    this.grid[y][x] = { type: 'stair', entity: stairEntity }
+    return stairEntity
   }
 
-  /** Выбирает биом и возвращает связанные с ним конфигурации. */
-  static _selectBiome(biomeType) {
+  findStair(direction = 'down') {
+    const stairs = this.engine.getEntitiesWithComponents([StairComponent])
+    for (const stair of stairs) {
+      const stairComp = stair.getComponent(StairComponent)
+      if (stairComp && stairComp.direction === direction && stairComp.isActive) {
+        return stair
+      }
+    }
+    return null
+  }
+
+  findAllStairs() {
+    const stairs = this.engine.getEntitiesWithComponents([StairComponent])
+    return stairs.filter(s => {
+      const comp = s.getComponent(StairComponent)
+      return comp && comp.isActive
+    })
+  }
+
+  // ===== СТАТИЧЕСКИЕ МЕТОДЫ =====
+
+  static _selectBiome(biomeType, levelIndex = 0) {
     const biomeIds = GameConfig.getBiomeIds()
-    const selectedBiomeId = biomeType || biomeIds[Math.floor(Math.random() * biomeIds.length)]
+
+    let availableBiomes = biomeIds
+    if (levelIndex < 3) {
+      const earlyBiomes = ['residential', 'factory']
+      availableBiomes = biomeIds.filter(id => earlyBiomes.includes(id))
+      if (availableBiomes.length === 0) availableBiomes = biomeIds
+    }
+
+    const selectedBiomeId = biomeType || availableBiomes[Math.floor(Math.random() * availableBiomes.length)]
     const biome = GameConfig.getBiome(selectedBiomeId)
     const biomeName = biome ? biome.name : 'Зараженная зона'
     const worldConfig = GameConfig.getWorldConfig()
@@ -353,7 +315,6 @@ export default class Location {
     return { selectedBiomeId, biome, biomeName, worldConfig, genConfig }
   }
 
-  /** Собирает и перемешивает внутренние клетки всех комнат. */
   static _collectRoomCells(rooms) {
     const roomCells = []
     for (const room of rooms) {
@@ -366,7 +327,7 @@ export default class Location {
     return shuffle(roomCells)
   }
 
-  /** Создаёт врагов на свободных клетках и возвращает их позиции. */
+
   static _createEnemies(entities, biome, available, playerStart, biomeId = null) {
     const enemyPool = biome && biome.enemyPool ? biome.enemyPool : {
       groaner: { chance: 0.3, countMin: 1, countMax: 2 },
@@ -374,46 +335,64 @@ export default class Location {
       runner: { chance: 0.2, countMin: 1, countMax: 1 }
     }
 
-    // Клетки, удалённые от старта игрока.
     const freeCells = shuffle(available.filter(c => {
       const [x, y] = c.split(',').map(Number)
       return Math.abs(x - playerStart.x) + Math.abs(y - playerStart.y) > 5
     }))
 
-    // Верхний предел врагов на уровень, чтобы большие карты не генерировали
-    // сотни существ. Значение из биома (enemyMax) или безопасный дефолт.
     const maxEnemies = (biome && biome.enemyMax) || 25
-
     const enemyPositions = []
 
-    // Бросаем пул на каждой клетке ровно один раз; каждый тип — независимый
-    // бросок (cumulative вероятность). Выпавший тип размещается в количестве
-    // count на последовательных клетках, затем пропускаем их через idx += count,
-    // чтобы одна и та же клетка не проверялась повторно.
-    let idx = 0
-    while (idx < freeCells.length && enemyPositions.length < maxEnemies) {
-      const drop = rollLoot(enemyPool)
-      if (!drop) { idx++; continue }
+    const poolEntries = Object.entries(enemyPool)
 
-      const count = Math.min(drop.count, freeCells.length - idx, maxEnemies - enemyPositions.length)
-      for (let i = 0; i < count; i++) {
-        const [x, y] = freeCells[idx + i].split(',').map(Number)
-        const enemyData = GameConfig.getEnemy(drop.type)
+    // Определяем количество каждого типа врага
+    const enemyCounts = {}
+    let totalEnemies = 0
+
+    for (const [type, cfg] of poolEntries) {
+      const chance = cfg.chance || 0
+      if (Math.random() < chance) {
+        const countMin = cfg.countMin || 1
+        const countMax = cfg.countMax || countMin
+        const count = countMax > countMin
+          ? Math.floor(Math.random() * (countMax - countMin + 1)) + countMin
+          : countMin
+        enemyCounts[type] = count
+        totalEnemies += count
+      }
+    }
+
+    if (totalEnemies === 0) return enemyPositions
+
+    // Ограничиваем общее количество врагов
+    const maxAllowed = Math.min(maxEnemies, freeCells.length)
+    if (totalEnemies > maxAllowed) {
+      const ratio = maxAllowed / totalEnemies
+      for (const type of Object.keys(enemyCounts)) {
+        enemyCounts[type] = Math.max(1, Math.floor(enemyCounts[type] * ratio))
+      }
+    }
+
+    // Размещаем врагов на клетках
+    let idx = 0
+    for (const [type, count] of Object.entries(enemyCounts)) {
+      for (let i = 0; i < count && idx < freeCells.length && enemyPositions.length < maxEnemies; i++) {
+        const [x, y] = freeCells[idx].split(',').map(Number)
+        const enemyData = GameConfig.getEnemy(type)
         if (enemyData) {
-          const enemy = EntityFactory.createEnemy(x, y, drop.type, enemyData, biomeId)
+          const enemy = EntityFactory.createEnemy(x, y, type, enemyData, biomeId)
           if (enemy) {
             entities.push(enemy)
-            enemyPositions.push(freeCells[idx + i])
+            enemyPositions.push(freeCells[idx])
           }
         }
+        idx++
       }
-      idx += count
     }
 
     return enemyPositions
   }
 
-  /** Добавляет ящики на указанные клетки. */
   static _placeCrates(location, crates, biomeId = null) {
     for (const [x, y] of crates) {
       const crateEntity = EntityFactory.createCrate(x, y, biomeId)
@@ -421,13 +400,6 @@ export default class Location {
     }
   }
 
-  /**
-   * Добавляет предметы на свободные клетки с учётом точной настройки биома.
-   * itemPool — объект вида { itemId: { chance, countMin, countMax } }.
-   * Для каждой клетки независимо бросается шанс каждого предмета; если шанс
-   * сработал, предмет размещается со случайным количеством в диапазоне
-   * [countMin, countMax]. Если ни один предмет не выпал — клетка остаётся пустой.
-   */
   static _placeItems(location, biome, available, playerStart, enemyPositions, biomeId = null) {
     const itemPool = biome && biome.itemPool ? biome.itemPool : {
       health: { chance: 0.3, countMin: 1, countMax: 2 },
@@ -437,23 +409,53 @@ export default class Location {
     }
 
     const occupiedByEntities = new Set([`${playerStart.x},${playerStart.y}`, ...enemyPositions])
-    const freeCells = available.filter(c => !occupiedByEntities.has(c))
+    const freeCells = shuffle(available.filter(c => !occupiedByEntities.has(c)))
 
-    // Бросаем лут на каждой свободной клетке; плотность регулируется только
-    // вероятностями в itemPool. Порядок обхода перемешиваем для случайности.
-    for (const cell of shuffle(freeCells)) {
-      const [x, y] = cell.split(',').map(Number)
+    if (freeCells.length === 0) return
 
-      // Бросаем лут из пула; если ничего не выпало — клетка остаётся пустой.
-      const drop = rollLoot(itemPool)
-      if (!drop) continue
+    const poolEntries = Object.entries(itemPool)
 
-      const itemEntity = EntityFactory.createItem(x, y, drop.type, { count: drop.count }, biomeId)
-      location._addToGrid(x, y, 'item', itemEntity)
+    // Определяем количество каждого типа предмета
+    const itemCounts = {}
+    let totalItems = 0
+
+    for (const [type, cfg] of poolEntries) {
+      const chance = cfg.chance || 0
+      if (Math.random() < chance) {
+        const countMin = cfg.countMin || 1
+        const countMax = cfg.countMax || countMin
+        const count = countMax > countMin
+          ? Math.floor(Math.random() * (countMax - countMin + 1)) + countMin
+          : countMin
+        itemCounts[type] = count
+        totalItems += count
+      }
+    }
+
+    if (totalItems === 0) return
+
+    // Ограничиваем общее количество предметов
+    if (totalItems > freeCells.length) {
+      const ratio = freeCells.length / totalItems
+      for (const type of Object.keys(itemCounts)) {
+        itemCounts[type] = Math.max(1, Math.floor(itemCounts[type] * ratio))
+      }
+    }
+
+    // Размещаем предметы на клетках
+    let idx = 0
+    for (const [type, count] of Object.entries(itemCounts)) {
+      for (let i = 0; i < count && idx < freeCells.length; i++) {
+        const [x, y] = freeCells[idx].split(',').map(Number)
+
+        const itemEntity = EntityFactory.createItem(x, y, type, { count: 1 }, biomeId)
+        location._addToGrid(x, y, 'item', itemEntity)
+
+        idx++
+      }
     }
   }
 
-  /** Добавляет двери на карту. */
   static _placeDoors(location, doorData) {
     if (doorData?.length) {
       const doors = doorData.map(d => ({ x: d.x, y: d.y, locked: d.locked || false }))
@@ -461,7 +463,6 @@ export default class Location {
     }
   }
 
-  /** Устанавливает explored для базовых объектов (стены и пол). */
   static _setupBaseVisibility(location) {
     for (let y = 0; y < location.rows; y++) {
       for (let x = 0; x < location.cols; x++) {
@@ -470,20 +471,69 @@ export default class Location {
           const render = cell.entity.getComponent(RenderComponent)
           const env = cell.entity.getComponent(EnvironmentComponent)
           if (render && env) {
-            // Стены и пол - explored определяется настройкой exploredByDefault.
-            // Если exploredByDefault = false, они остаются скрытыми, пока FOV
-            // не отметит их как исследованные при первом обзоре.
             if (env.type === 'floor' || env.type === 'wall') {
               const visConfig = render._visibilityConfig || {}
               if (visConfig.exploredByDefault) {
                 render.explored = true
               }
-              // visible остается false, пока FOV не покажет
             }
-            // Для дверей, ящиков, предметов - explored определяется настройками
-            // и будет установлено при первом FOV или через настройки
           }
         }
+      }
+    }
+  }
+
+  static _placeStairs(location, rooms, playerStart, levelIndex) {
+    const walkableCells = []
+    for (const room of rooms) {
+      for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
+        for (let x = room.x + 1; x < room.x + room.w - 1; x++) {
+          if (location.isTileWalkable(x, y)) {
+            const cell = location.grid[y]?.[x]
+            if (!cell || (cell.type !== 'wall' && cell.type !== 'crate' && cell.type !== 'door')) {
+              walkableCells.push({ x, y, room })
+            }
+          }
+        }
+      }
+    }
+
+    if (walkableCells.length === 0) {
+      logger.warn(LOG_MODULES.GENERATION, 'Нет места для лестниц!')
+      return
+    }
+
+    walkableCells.sort((a, b) => {
+      const distA = Math.abs(a.x - playerStart.x) + Math.abs(a.y - playerStart.y)
+      const distB = Math.abs(b.x - playerStart.x) + Math.abs(b.y - playerStart.y)
+      return distB - distA
+    })
+
+    const downCell = walkableCells[0]
+    location.createStair(downCell.x, downCell.y, 'down', null, levelIndex + 1)
+    logger.debug(LOG_MODULES.GENERATION, `Лестница вниз на (${downCell.x}, ${downCell.y})`)
+
+    if (levelIndex > 0 && walkableCells.length > 1) {
+      let upCell = null
+
+      for (const cell of walkableCells) {
+        if (cell.x === downCell.x && cell.y === downCell.y) continue
+
+        const distToDown = Math.abs(cell.x - downCell.x) + Math.abs(cell.y - downCell.y)
+
+        if (cell.room !== downCell.room || distToDown > 5) {
+          upCell = cell
+          break
+        }
+      }
+
+      if (!upCell) {
+        upCell = walkableCells.find(c => c.x !== downCell.x || c.y !== downCell.y) || walkableCells[1]
+      }
+
+      if (upCell) {
+        location.createStair(upCell.x, upCell.y, 'up', null, levelIndex - 1)
+        logger.debug(LOG_MODULES.GENERATION, `Лестница вверх на (${upCell.x}, ${upCell.y})`)
       }
     }
   }
@@ -508,6 +558,72 @@ export default class Location {
       }
     }
     return { x: 10, y: 10 }
+  }
+
+  static generateProcedural(biomeType = null, levelIndex = 0) {
+    const { selectedBiomeId, biome, biomeName, worldConfig, genConfig } = this._selectBiome(biomeType, levelIndex)
+
+    const generator = new BiomeGenerator({
+      width: worldConfig.width,
+      height: worldConfig.height,
+      minRoomSize: genConfig.minRoomSize || worldConfig.minRoomSize,
+      maxRoomSize: genConfig.maxRoomSize || worldConfig.maxRoomSize,
+      maxRooms: genConfig.maxRooms || worldConfig.maxRooms,
+      roomSpacing: genConfig.roomSpacing || worldConfig.roomSpacing || 1,
+      doorChance: genConfig.doorChance || worldConfig.doorChance || 0.5,
+      padding: genConfig.padding !== undefined ? genConfig.padding : (worldConfig.padding || 2),
+      layout: genConfig.layout || 'dungeon',
+      columnCount: genConfig.columnCount,
+      wallSegmentCount: genConfig.wallSegmentCount,
+      wallSegmentMin: genConfig.wallSegmentMin,
+      wallSegmentMax: genConfig.wallSegmentMax
+    })
+
+    const { walls, width, height, rooms, doors: doorData, walkableCells } = generator.generate()
+
+    const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
+    const roomCells = this._collectRoomCells(rooms)
+    const isFree = (x, y) => !wallSet.has(`${x},${y}`)
+
+    const freeRoomCells = roomCells.filter(c => {
+      const [x, y] = c.split(',').map(Number)
+      return isFree(x, y)
+    })
+
+    const cratePool = biome && biome.cratePool ? biome.cratePool : {}
+    const crateMin = cratePool.minCount !== undefined ? cratePool.minCount : 0
+    const crateMax = cratePool.maxCount !== undefined ? cratePool.maxCount : freeRoomCells.length
+    const crateTarget = Math.floor(Math.random() * (crateMax - crateMin + 1)) + crateMin
+    const crateCount = Math.min(crateTarget, freeRoomCells.length)
+    const crates = freeRoomCells.slice(0, crateCount).map(c => c.split(',').map(Number))
+    const crateSet = new Set(crates.map(c => `${c[0]},${c[1]}`))
+    const available = freeRoomCells.filter(c => !crateSet.has(c))
+
+    const playerStart = this.findStartInRoom(rooms, isFree, crateSet)
+
+    const entities = []
+    const player = EntityFactory.createPlayer(playerStart.x, playerStart.y)
+    entities.push(player)
+
+    const enemyPositions = this._createEnemies(entities, biome, available, playerStart, selectedBiomeId)
+
+    const location = new Location(
+      { cols: width, rows: height },
+      walls,
+      entities,
+      biomeName,
+      walkableCells,
+      selectedBiomeId,
+      levelIndex
+    )
+
+    this._placeCrates(location, crates, selectedBiomeId)
+    this._placeItems(location, biome, available, playerStart, enemyPositions, selectedBiomeId)
+    this._placeDoors(location, doorData)
+    this._setupBaseVisibility(location)
+    this._placeStairs(location, rooms, playerStart, levelIndex)
+
+    return location
   }
 
   static createDefault() {

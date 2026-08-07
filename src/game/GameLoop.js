@@ -1,8 +1,4 @@
 // src/game/GameLoop.js
-//
-// Оркестратор игры: управляет игровым циклом, камерой, рендером, выбором
-// персонажа, полем зрения и перезагрузкой локаций. Пошаговая логика и
-// действия игрока делегируются модулям TurnManager и PlayerActions.
 
 import Camera from './Camera.js'
 import InputManager from './InputManager.js'
@@ -10,6 +6,7 @@ import Renderer from './Renderer.js'
 import Location from './Location.js'
 import TurnManager from './TurnManager.js'
 import PlayerActions from './PlayerActions.js'
+import LevelStack from './LevelStack.js'
 import { logger, LOG_MODULES } from './Logger.js'
 import { GameConfig } from './GameConfig.js'
 
@@ -26,8 +23,15 @@ export default class GameLoop {
     this.canvas = canvas
     this.ctx = canvas.getContext('2d')
 
-    this.currentLocation = initialLocation || Location.generateProcedural(biomeType)
+    this.levelStack = new LevelStack()
+
+    const firstLevel = initialLocation || Location.generateProcedural(biomeType, 0)
+    this.levelStack.levels = [firstLevel]
+    this.levelStack.currentIndex = 0
+
+    this.currentLocation = firstLevel
     this.currentLocation.engine.currentLocation = this.currentLocation
+    this.currentLocation._gameLoop = this
 
     const engine = this.currentLocation.engine
     const playerEntities = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
@@ -36,11 +40,13 @@ export default class GameLoop {
       entity.active = true
     }
 
-    const mainPlayer = playerEntities[0]
-    if (mainPlayer) {
-      const pos = mainPlayer.getComponent(PositionComponent)
+    // СОХРАНЯЕМ ССЫЛКУ НА ИГРОКА
+    this.playerEntity = playerEntities[0]
+
+    if (this.playerEntity) {
+      const pos = this.playerEntity.getComponent(PositionComponent)
       this.camera = new Camera(pos.x, pos.y)
-      this.camera.follow(mainPlayer)
+      this.camera.follow(this.playerEntity)
     } else {
       this.camera = new Camera(0, 0)
     }
@@ -55,25 +61,21 @@ export default class GameLoop {
 
     this.selectedEntityIndex = 0
 
-    // Системы, используемые напрямую (уже добавлены в engine в Location)
     this.aiSystem = this._getSystem('AISystem') || new AISystem()
     this.interactionSystem = this._getSystem('InteractionSystem') || new InteractionSystem()
     this.combatSystem = this._getSystem('CombatSystem')
 
-    // Делегирующие модули
     this.turnManager = new TurnManager(this)
     this.playerActions = new PlayerActions(this)
 
     this.initializeFovForAllAllies()
     this.turnManager.updateEnemyList()
 
-    // Сохраняем референс на GameLoop для доступа из Location
     if (this.currentLocation) {
       this.currentLocation._gameLoop = this
     }
   }
 
-  /** Возвращает систему по имени из текущего engine. */
   _getSystem(name) {
     return this.currentLocation.engine.systems.find(s => s.name === name) || null
   }
@@ -122,9 +124,6 @@ export default class GameLoop {
     }
   }
 
-  /**
-   * Подсвечивает персонажа желтой вспышкой (для выделения в списке сущностей)
-   */
   highlightOnCharacter(entityId) {
     const engine = this.currentLocation.engine
     const entity = engine.getEntity(entityId)
@@ -153,8 +152,6 @@ export default class GameLoop {
     }
   }
 
-  // ===== Действия игрока (делегируются PlayerActions) =====
-
   moveCharacter(dx, dy) { return this.playerActions.moveCharacter(dx, dy) }
   wait() { return this.playerActions.wait() }
   pickupItem() { return this.playerActions.pickupItem() }
@@ -164,7 +161,133 @@ export default class GameLoop {
   attackNearestEnemy() { return this.playerActions.attackNearestEnemy() }
   interact() { return this.playerActions.interact() }
 
-  // ===== Игровой цикл =====
+  goUpStairs(user) {
+    const targetLevel = this.levelStack.goUp()
+    if (!targetLevel) {
+      logger.info(LOG_MODULES.SYSTEM, 'Нет уровня выше')
+      return false
+    }
+
+    const stairEntity = targetLevel.findStair('down')
+    let targetX, targetY
+
+    if (stairEntity) {
+      const pos = stairEntity.getComponent(PositionComponent)
+      if (pos) {
+        targetX = pos.tileX
+        targetY = pos.tileY
+      }
+    }
+
+    return this._switchToLevel(targetLevel, user, targetX, targetY)
+  }
+
+  goDownStairs(user, targetBiome = null) {
+    let biomeToUse = targetBiome
+    if (!biomeToUse) {
+      const biomeIds = GameConfig.getBiomeIds()
+      const currentBiome = this.currentLocation.biomeId
+      const available = biomeIds.filter(id => id !== currentBiome)
+      biomeToUse = available.length > 0
+        ? available[Math.floor(Math.random() * available.length)]
+        : biomeIds[Math.floor(Math.random() * biomeIds.length)]
+    }
+
+    const newLevel = this.levelStack.goDown(biomeToUse)
+    if (!newLevel) {
+      logger.info(LOG_MODULES.SYSTEM, 'Не удалось создать новый уровень')
+      return false
+    }
+
+    const stairEntity = newLevel.findStair('up')
+    let targetX, targetY
+
+    if (stairEntity) {
+      const pos = stairEntity.getComponent(PositionComponent)
+      if (pos) {
+        targetX = pos.tileX
+        targetY = pos.tileY
+      }
+    }
+
+    return this._switchToLevel(newLevel, user, targetX, targetY)
+  }
+
+  _switchToLevel(level, user, targetX, targetY) {
+    // 1. Удаляем игрока из старой локации (но не уничтожаем!)
+    if (user && user.active) {
+      const oldEngine = this.currentLocation.engine
+      oldEngine.entities = oldEngine.entities.filter(e => e !== user)
+      oldEngine.entityMap.delete(user.id)
+    }
+
+    // 2. Переключаем локацию
+    this.currentLocation = level
+    this.currentLocation.engine.currentLocation = this.currentLocation
+    this.currentLocation._gameLoop = this
+
+    const engine = this.currentLocation.engine
+
+    // 3. Добавляем игрока в новую локацию
+    if (user && user.active) {
+      // Очищаем старых игроков на новом уровне
+      const oldPlayers = engine.getEntitiesWithComponents([PlayerComponent, PositionComponent])
+      for (const p of oldPlayers) {
+        engine.entities = engine.entities.filter(e => e !== p)
+        engine.entityMap.delete(p.id)
+      }
+
+      // Добавляем игрока
+      user.engine = engine
+      engine.entities.push(user)
+      engine.entityMap.set(user.id, user)
+
+      // Ставим на лестницу
+      if (targetX !== undefined && targetY !== undefined) {
+        const pos = user.getComponent(PositionComponent)
+        if (pos) {
+          pos.set(targetX, targetY)
+        }
+      }
+    }
+
+    // 4. Обновляем камеру
+    if (user) {
+      const pos = user.getComponent(PositionComponent)
+      if (pos) {
+        this.camera.setPosition(pos.x, pos.y)
+        this.camera.follow(user)
+      }
+    }
+
+    if (this.renderer && this.camera) {
+      this._syncCameraViewport(this.renderer.canvasW, this.renderer.canvasH)
+    }
+
+    this.aiSystem = this._getSystem('AISystem') || this.aiSystem
+    this.interactionSystem = this._getSystem('InteractionSystem') || this.interactionSystem
+    this.combatSystem = this._getSystem('CombatSystem')
+
+    this.initializeFovForAllAllies()
+    this.turnManager.reset()
+
+    logger.info(LOG_MODULES.SYSTEM, `Переход на уровень ${this.levelStack.getCurrentIndex() + 1}: ${level.name}`)
+    return true
+  }
+
+  _findStartPosition(level) {
+    for (let y = 1; y < level.rows - 1; y++) {
+      for (let x = 1; x < level.cols - 1; x++) {
+        if (level.isTileWalkable(x, y)) {
+          const cell = level.grid[y]?.[x]
+          if (!cell || cell.type !== 'wall') {
+            return { x, y }
+          }
+        }
+      }
+    }
+    return { x: Math.floor(level.cols / 2), y: Math.floor(level.rows / 2) }
+  }
 
   update(dt) {
     const engine = this.currentLocation.engine
@@ -227,12 +350,12 @@ export default class GameLoop {
     }
   }
 
-  /** Синхронизирует размер вьюпорта камеры с размером канваса. */
   _syncCameraViewport(canvasWidth, canvasHeight) {
     if (!this.camera) return
     const uiConfig = GameConfig?.ui || {}
     const rendererConfig = uiConfig.renderer || {}
-    this.camera.setViewportSize(canvasWidth, canvasHeight, rendererConfig.tileSize || this.renderer.tileSize)
+    const tileSize = rendererConfig.tileSize || (this.renderer ? this.renderer.tileSize : 48)
+    this.camera.setViewportSize(canvasWidth, canvasHeight, tileSize)
   }
 
   start() {
@@ -247,18 +370,19 @@ export default class GameLoop {
     }
   }
 
-  // ===== Перезагрузка локации =====
-
   reloadLocation() {
-    this._setupLocation(Location.generateProcedural())
+    const biomeIds = GameConfig.getBiomeIds()
+    const biome = biomeIds[Math.floor(Math.random() * biomeIds.length)]
+    this.reloadWithBiome(biome)
   }
 
   reloadWithBiome(biomeType) {
-    this._setupLocation(Location.generateProcedural(biomeType))
+    const newLevel = Location.generateProcedural(biomeType, this.levelStack.getCurrentIndex())
+    this.levelStack.levels[this.levelStack.currentIndex] = newLevel
+    this._setupLocation(newLevel)
     logger.info(LOG_MODULES.SYSTEM, `Локация перезагружена с биомом: ${biomeType || 'случайный'}`)
   }
 
-  /** Общая логика установки новой локации после перезагрузки. */
   _setupLocation(location) {
     this.currentLocation = location
     this.currentLocation.engine.currentLocation = this.currentLocation
@@ -277,7 +401,6 @@ export default class GameLoop {
       this._syncCameraViewport(this.renderer.canvasW, this.renderer.canvasH)
     }
 
-    // Обновляем ссылки на системы нового engine
     this.aiSystem = this._getSystem('AISystem') || this.aiSystem
     this.interactionSystem = this._getSystem('InteractionSystem') || this.interactionSystem
     this.combatSystem = this._getSystem('CombatSystem')
@@ -285,8 +408,6 @@ export default class GameLoop {
     this.initializeFovForAllAllies()
     this.turnManager.reset()
   }
-
-  // ===== Обработчики событий =====
 
   onTouchStart(e) { this.input.handleTouchStart(e) }
   onTouchMove(e) { this.input.handleTouchMove(e) }

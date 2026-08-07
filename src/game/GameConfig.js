@@ -119,6 +119,51 @@ export const GameConfig = {
     return null
   },
 
+  // ===== НАСТРОЙКИ ЛЕСТНИЦ =====
+
+  getStairConfig(biomeId = null) {
+    const worldConfig = this.getWorldConfig()
+    const worldStairConfig = worldConfig.stairConfig || {
+      downChance: 1.0,
+      upChance: 0.0,
+      minDistanceFromStart: 5,
+      minDistanceBetween: 5,
+      preferDifferentRooms: true
+    }
+
+    if (!biomeId) return { ...worldStairConfig }
+
+    const biome = this.getBiome(biomeId)
+    if (!biome || !biome.stairConfig) return { ...worldStairConfig }
+
+    return { ...worldStairConfig, ...biome.stairConfig }
+  },
+
+  getStairData(direction = 'down') {
+    const envData = this.getEnvironment('stair')
+    if (!envData) {
+      return {
+        char: direction === 'up' ? '<' : '>',
+        color: direction === 'up' ? '#88ff88' : '#ff8844',
+        bgColor: direction === 'up' ? '#1a2a1a' : '#2a1a0a',
+        layer: 2
+      }
+    }
+
+    const states = envData.states || {}
+    const state = states[direction] || {}
+
+    return {
+      char: state.char || envData.char || (direction === 'up' ? '<' : '>'),
+      color: state.color || envData.color || (direction === 'up' ? '#88ff88' : '#ff8844'),
+      bgColor: state.bgColor || envData.bgColor || (direction === 'up' ? '#1a2a1a' : '#2a1a0a'),
+      layer: state.layer || envData.layer || 2,
+      solid: envData.solid || false,
+      blocksSight: envData.blocksSight || false,
+      isInteractive: envData.isInteractive !== undefined ? envData.isInteractive : true
+    }
+  },
+
   getItem(id) {
     return GAME_CONFIG.items[id] ? { ...GAME_CONFIG.items[id] } : null
   },
@@ -141,6 +186,7 @@ export const GameConfig = {
   getBiomeIds() {
     return Object.keys(GAME_CONFIG.biomes)
   },
+
 
   getRandomEnemyForBiome(biomeId) {
     const biome = this.getBiome(biomeId)

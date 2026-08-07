@@ -10,7 +10,7 @@
     "hp": 55,
     "maxHp": 55,
     "hunger": 0,
-    "maxHunger": 100,
+    "maxHunger": 300,
     "hungerPerTurn": 1,
     "hungerDamagePerTurn": 1,
     "armor": 0,
@@ -26,8 +26,8 @@
     "maxLevel": 20,
     "maxCarryWeight": 10,
     "energy": 100,
-    "maxEnergy": 100,
-    "energyRegen": 15,
+    "maxEnergy": 200,
+    "energyRegen": 25,
     "energyCosts": {
       "move": 1,
       "attack": 1,
@@ -356,6 +356,30 @@
         "showWhenVisible": true,
         "showWhenExplored": false
       }
+    },
+    "stair": {
+      "id": "stair",
+      "name": "Лестница",
+      "char": ">",
+      "color": "#ff8844",
+      "bgColor": "#2a1a0a",
+      "solid": false,
+      "blocksSight": false,
+      "isInteractive": true,
+      "isCollectible": false,
+      "layer": 2,
+      "states": {
+        "down": {
+          "char": ">",
+          "color": "#ff8844",
+          "bgColor": "#2a1a0a"
+        },
+        "up": {
+          "char": "<",
+          "color": "#88ff88",
+          "bgColor": "#1a2a1a"
+        }
+      }
     }
   },
   "items": {
@@ -549,6 +573,7 @@
       "enemyMax": 25,
       "description": "Заброшенные жилые квартиры самосбора Гигахруща. Коридоры, комнаты и общие кухни, где обитают бывшие жильцы.",
       "generation": {
+        "layout": "rooms",
         "minRoomSize": 4,
         "maxRoomSize": 8,
         "maxRooms": 22,
@@ -556,17 +581,17 @@
       },
       "enemyPool": {
         "groaner": {
-          "chance": 0.35,
+          "chance": 0.5,
           "countMin": 1,
           "countMax": 2
         },
         "crawler": {
-          "chance": 0.3,
+          "chance": 0.1,
           "countMin": 1,
           "countMax": 2
         },
         "runner": {
-          "chance": 0.2,
+          "chance": 0.1,
           "countMin": 1,
           "countMax": 1
         }
@@ -602,18 +627,18 @@
         "dropChance": 0.2,
         "items": {
           "ticket": {
-            "chance": 0.05,
-            "countMin": 1,
+            "chance": 0.5,
+            "countMin": 0,
             "countMax": 2
           },
           "bread": {
-            "chance": 0.04,
-            "countMin": 1,
+            "chance": 0.4,
+            "countMin": 0,
             "countMax": 1
           },
           "health": {
-            "chance": 0.05,
-            "countMin": 1,
+            "chance": 0.5,
+            "countMin": 0,
             "countMax": 1
           }
         },
@@ -652,6 +677,7 @@
       "enemyMax": 20,
       "description": "Производственные цеха Гигахруща. Конвейеры, станки и роботы, сошедшие с ума.",
       "generation": {
+        "layout": "rooms",
         "minRoomSize": 6,
         "maxRoomSize": 12,
         "maxRooms": 14,
@@ -659,44 +685,44 @@
       },
       "enemyPool": {
         "brute": {
-          "chance": 0.25,
-          "countMin": 1,
+          "chance": 0.2,
+          "countMin": 0,
           "countMax": 2
         },
         "runner": {
-          "chance": 0.3,
+          "chance": 0.1,
           "countMin": 1,
           "countMax": 2
         },
         "crawler": {
           "chance": 0.3,
-          "countMin": 1,
+          "countMin": 0,
           "countMax": 2
         },
         "shadow": {
-          "chance": 0.18,
+          "chance": 0.1,
           "countMin": 1,
           "countMax": 1
         }
       },
       "itemPool": {
         "ticket": {
-          "chance": 0.03,
-          "countMin": 1,
-          "countMax": 2
+          "chance": 0.3,
+          "countMin": 0,
+          "countMax": 6
         },
         "bread": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 1
         },
         "coffee": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 1
         },
         "weapon": {
-          "chance": 0.02,
+          "chance": 0.05,
           "countMin": 1,
           "countMax": 1
         },
@@ -731,7 +757,7 @@
           }
         },
         "minCount": 1,
-        "maxCount": 4
+        "maxCount": 10
       },
       "colors": {
         "floor": "#443322",
@@ -765,6 +791,7 @@
       "enemyMax": 30,
       "description": "Лабиринты труб, кабелей и вентиляции Гигахруща. Здесь темно и тесно.",
       "generation": {
+        "layout": "rooms",
         "minRoomSize": 3,
         "maxRoomSize": 6,
         "maxRooms": 26,
@@ -863,6 +890,7 @@
       "enemyMax": 18,
       "description": "Больничные палаты и лаборатории Гигахруща. Запах антисептика и заражённые пациенты.",
       "generation": {
+        "layout": "rooms",
         "minRoomSize": 4,
         "maxRoomSize": 9,
         "maxRooms": 18,
@@ -870,17 +898,17 @@
       },
       "enemyPool": {
         "groaner": {
-          "chance": 0.35,
+          "chance": 0.05,
           "countMin": 1,
           "countMax": 2
         },
         "shadow": {
-          "chance": 0.25,
+          "chance": 0.01,
           "countMin": 1,
           "countMax": 1
         },
         "crawler": {
-          "chance": 0.3,
+          "chance": 0.03,
           "countMin": 1,
           "countMax": 2
         },
@@ -976,6 +1004,7 @@
       "enemyMax": 0,
       "description": "Офисы и кабинеты руководства Гигахруща. Охрана и элитные сотрудники.",
       "generation": {
+        "layout": "rooms",
         "minRoomSize": 5,
         "maxRoomSize": 10,
         "maxRooms": 10,
