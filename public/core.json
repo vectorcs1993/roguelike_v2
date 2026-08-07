@@ -104,7 +104,7 @@
           "countMin": 1,
           "countMax": 2
         },
-        "potion": {
+        "map": {
           "chance": 0.1,
           "countMin": 1,
           "countMax": 1
@@ -211,7 +211,7 @@
           "countMin": 1,
           "countMax": 3
         },
-        "scroll": {
+        "radio": {
           "chance": 0.2,
           "countMin": 1,
           "countMax": 1
@@ -260,7 +260,7 @@
           "countMin": 1,
           "countMax": 1
         },
-        "scroll": {
+        "radio": {
           "chance": 0.25,
           "countMin": 1,
           "countMax": 2
@@ -279,13 +279,7 @@
       "blocksSight": false,
       "isInteractive": false,
       "isCollectible": false,
-      "layer": 0,
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": true
-      }
+      "layer": 0
     },
     "wall": {
       "id": "wall",
@@ -297,13 +291,7 @@
       "blocksSight": true,
       "isInteractive": false,
       "isCollectible": false,
-      "layer": 1,
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": true
-      }
+      "layer": 1
     },
     "door": {
       "id": "door",
@@ -316,12 +304,6 @@
       "isInteractive": true,
       "isCollectible": false,
       "layer": 1,
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": true
-      },
       "states": {
         "open": {
           "char": "/",
@@ -349,13 +331,7 @@
       "blocksSight": false,
       "isInteractive": true,
       "isCollectible": false,
-      "layer": 1,
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "layer": 1
     },
     "stair": {
       "id": "stair",
@@ -392,17 +368,11 @@
       "layer": 2,
       "type": "currency",
       "category": "ticket",
-      "value": 1,
+      "price": 1,
       "weight": 0.01,
       "usable": false,
       "effects": {},
-      "description": "Местная валюта",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "description": "Местная валюта"
     },
     "bread": {
       "id": "bread",
@@ -413,19 +383,13 @@
       "layer": 2,
       "type": "consumable",
       "category": "food",
-      "value": 5,
+      "price": 5,
       "weight": 0.4,
       "usable": true,
       "effects": {
         "restoreHunger": 20
       },
-      "description": "Утоляет голод на 20",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "description": "Утоляет голод на 20"
     },
     "health": {
       "id": "health",
@@ -436,134 +400,98 @@
       "layer": 2,
       "type": "consumable",
       "category": "healing",
-      "value": 10,
+      "price": 10,
       "weight": 0.5,
       "usable": true,
       "effects": {
         "heal": 15
       },
-      "description": "Восстанавливает 15 HP",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "description": "Восстанавливает 15 HP"
     },
     "coffee": {
       "id": "coffee",
       "name": "Кофе",
-      "char": "☕",
+      "char": "k",
       "color": "#c8a06a",
       "bgColor": "#2a1a0a",
       "layer": 2,
       "type": "consumable",
       "category": "energy",
-      "value": 8,
+      "price": 8,
       "weight": 0.3,
       "usable": true,
       "effects": {
         "restoreEnergy": 10
       },
-      "description": "Восстанавливает 10 энергии",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "description": "Восстанавливает 10 энергии"
     },
     "weapon": {
       "id": "weapon",
       "name": "Оружие",
-      "char": "⚔",
+      "char": "w",
       "color": "#ffaa44",
       "bgColor": "#2a1a0a",
       "layer": 2,
       "type": "weapon",
       "category": "melee",
-      "value": 15,
+      "price": 15,
       "weight": 3.0,
       "usable": true,
       "effects": {
         "damageBonus": 3
       },
-      "description": "Увеличивает урон на 3",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "description": "Увеличивает урон на 3"
     },
     "armor": {
       "id": "armor",
       "name": "Броня",
-      "char": "♠",
+      "char": "a",
       "color": "#44aaff",
       "bgColor": "#0a1a2a",
       "layer": 2,
       "type": "armor",
       "category": "body",
-      "value": 12,
+      "price": 12,
       "weight": 4.0,
       "usable": true,
       "effects": {
         "armorBonus": 2
       },
-      "description": "Увеличивает броню на 2",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "description": "Увеличивает броню на 2"
     },
-    "potion": {
-      "id": "potion",
-      "name": "Зелье",
+    "map": {
+      "id": "map",
+      "name": "План этажа",
       "char": "!",
       "color": "#ff66ff",
       "bgColor": "#1a0a1a",
       "layer": 2,
       "type": "consumable",
-      "category": "healing",
-      "value": 8,
-      "weight": 0.3,
+      "category": "reveal",
+      "price": 8,
+      "weight": 0.1,
       "usable": true,
       "effects": {
-        "heal": 8
+        "revealMap": true
       },
-      "description": "Восстанавливает 8 HP",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "description": "Открывает план этажа"
     },
-    "scroll": {
-      "id": "scroll",
+    "radio": {
+      "id": "radio",
       "name": "Свиток",
       "char": "?",
       "color": "#dddd88",
       "bgColor": "#1a1a0a",
       "layer": 2,
       "type": "consumable",
-      "category": "magic",
-      "value": 12,
+      "category": "teleport",
+      "price": 12,
       "weight": 0.1,
       "usable": true,
       "effects": {
-        "identify": true
+        "teleport": true
       },
-      "description": "Идентифицирует предмет",
-      "visibility": {
-        "visibleByDefault": false,
-        "exploredByDefault": false,
-        "showWhenVisible": true,
-        "showWhenExplored": false
-      }
+      "description": "Телепортирует игрока в случайную комнату"
     }
   },
   "biomes": {
@@ -717,7 +645,7 @@
           "countMin": 1,
           "countMax": 1
         },
-        "scroll": {
+        "radio": {
           "chance": 0.015,
           "countMin": 1,
           "countMax": 1
@@ -814,12 +742,12 @@
           "countMin": 1,
           "countMax": 1
         },
-        "potion": {
-          "chance": 0.3,
+        "map": {
+          "chance": 1,
           "countMin": 1,
           "countMax": 1
         },
-        "scroll": {
+        "radio": {
           "chance": 0.15,
           "countMin": 1,
           "countMax": 1
@@ -838,7 +766,7 @@
             "countMin": 1,
             "countMax": 1
           },
-          "potion": {
+          "map": {
             "chance": 0.3,
             "countMin": 1,
             "countMax": 1
@@ -916,7 +844,7 @@
           "countMin": 1,
           "countMax": 1
         },
-        "potion": {
+        "map": {
           "chance": 0.4,
           "countMin": 1,
           "countMax": 1
@@ -931,7 +859,7 @@
           "countMin": 1,
           "countMax": 1
         },
-        "scroll": {
+        "radio": {
           "chance": 0.2,
           "countMin": 1,
           "countMax": 1
@@ -950,7 +878,7 @@
             "countMin": 1,
             "countMax": 1
           },
-          "potion": {
+          "map": {
             "chance": 0.4,
             "countMin": 1,
             "countMax": 1
@@ -1108,7 +1036,7 @@
           "countMin": 1,
           "countMax": 1
         },
-        "potion": {
+        "map": {
           "chance": 0.3,
           "countMin": 1,
           "countMax": 1
@@ -1168,8 +1096,8 @@
       "enemyMax": 35,
       "description": "Запутанные подземные ходы Гигахруща. Легко заблудиться, опасно для жизни.",
       "generation": {
-        "width": 20,
-        "height": 20,
+        "width": 7,
+        "height": 7,
         "layout": "maze",
         "roomSpacing": 0,
         "corridorWidth": 2,
@@ -1198,12 +1126,12 @@
           "countMin": 1,
           "countMax": 3
         },
-        "potion": {
+        "map": {
           "chance": 0.2,
           "countMin": 1,
           "countMax": 1
         },
-        "scroll": {
+        "radio": {
           "chance": 0.15,
           "countMin": 1,
           "countMax": 1
@@ -1217,7 +1145,7 @@
             "countMin": 1,
             "countMax": 3
           },
-          "potion": {
+          "map": {
             "chance": 0.2,
             "countMin": 1,
             "countMax": 1

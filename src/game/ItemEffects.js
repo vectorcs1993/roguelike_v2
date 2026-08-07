@@ -31,6 +31,7 @@ import HungerComponent from '../engine/components/HungerComponent.js'
 import EnergyComponent from '../engine/components/EnergyComponent.js'
 import CombatComponent from '../engine/components/CombatComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
+import RenderComponent from '../engine/components/RenderComponent.js'
 import { logger, LOG_MODULES } from './Logger.js'
 import PlayerComponent from 'src/engine/components/PlayerComponent.js'
 
@@ -171,19 +172,49 @@ export const EFFECT_HANDLERS = {
     const location = ctx.location
     if (!pos || !location) return false
 
-    // Ищем случайную проходимую клетку.
-    const cols = location.cols
-    const rows = location.rows
-    for (let attempt = 0; attempt < 100; attempt++) {
-      const x = Math.floor(Math.random() * cols)
-      const y = Math.floor(Math.random() * rows)
-      if (location.isTileWalkable(x, y)) {
-        pos.moveTo(x, y)
-        return `Телепортация в (${x}, ${y})`
+    // Ищем случайную проходимую клетку с учётом комнат
+    const rooms = location._generatedRooms || []
+    const candidates = []
+
+    if (rooms.length > 0) {
+      // Собираем все свободные клетки в комнатах
+      for (const room of rooms) {
+        for (let y = room.y + 1; y < room.y + room.h - 1; y++) {
+          for (let x = room.x + 1; x < room.x + room.w - 1; x++) {
+            if (location.isTileWalkable(x, y) && !location.engine.isTileBlocked(x, y, entity)) {
+              candidates.push({ x, y })
+            }
+          }
+        }
       }
     }
-    logger.info(LOG_MODULES.ACTION, 'Не удалось найти место для телепортации')
-    return false
+
+    // Если комнат нет или в них нет места — ищем по всей карте
+    if (candidates.length === 0) {
+      for (let y = 1; y < location.rows - 1; y++) {
+        for (let x = 1; x < location.cols - 1; x++) {
+          if (location.isTileWalkable(x, y) && !location.engine.isTileBlocked(x, y, entity)) {
+            candidates.push({ x, y })
+          }
+        }
+      }
+    }
+
+    // Убираем текущую позицию из кандидатов
+    const filtered = candidates.filter(c => c.x !== pos.tileX || c.y !== pos.tileY)
+    if (filtered.length === 0) {
+      logger.info(LOG_MODULES.ACTION, 'Нет места для телепортации')
+      return false
+    }
+
+    const target = filtered[Math.floor(Math.random() * filtered.length)]
+    pos.moveTo(target.x, target.y)
+
+    // Вспышка на игроке
+    const render = entity.getComponent(RenderComponent)
+    if (render) render.flash('#88ff88', 300)
+
+    return `Телепортация в комнату (${target.x}, ${target.y})`
   },
 
   // Нанесение урона себе (например, яд): { "selfDamage": 5 }
@@ -218,6 +249,36 @@ export const EFFECT_HANDLERS = {
     if (amount <= 0) return false
     player.maxCarryWeight += amount
     return `Грузоподъёмность увеличена на ${amount} (${player.maxCarryWeight})`
+  },
+
+  // Открытие карты (всех исследованных клеток): { "revealMap": true }
+  revealMap(ctx) {
+    const location = ctx.location
+    if (!location) return false
+
+    // Открываем все клетки на карте
+    for (let y = 0; y < location.rows; y++) {
+      for (let x = 0; x < location.cols; x++) {
+        const cell = location.grid[y]?.[x]
+        if (cell && cell.entity) {
+          const render = cell.entity.getComponent(RenderComponent)
+          if (render) {
+            render.explored = true
+          }
+        }
+      }
+    }
+
+    // Также открываем все сущности движка
+    const allEntities = location.engine.getEntitiesWithComponents([RenderComponent])
+    for (const e of allEntities) {
+      const render = e.getComponent(RenderComponent)
+      if (render) {
+        render.explored = true
+      }
+    }
+
+    return 'Карта открыта!'
   },
 }
 

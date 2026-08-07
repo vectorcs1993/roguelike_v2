@@ -315,26 +315,17 @@ export const GameConfig = {
 
   // ===== НАСТРОЙКИ ВИДИМОСТИ =====
 
-  getVisibilityConfig(entityType, entityId = null, biomeId = null) {
-    // Индивидуальные настройки сущности (базовый слой).
-    let entityVisibility = null
-    if (entityId) {
-      const entity = this.getEnemy(entityId) || this.getItem(entityId) || this.getEnvironment(entityId)
-      if (entity && entity.visibility) {
-        entityVisibility = entity.visibility
-      }
-    }
-
-    // Мировые значения по умолчанию, поверх которых применяются
-    // настройки конкретного биома (биом переопределяет мир).
-    const worldVisibility = GAME_CONFIG.world.visibility || {}
-
-    // Настройки биома имеют наивысший приоритет и переопределяют
-    // как глобальные, так и индивидуальные настройки сущности.
-    const biomeVisibility = biomeId && GAME_CONFIG.biomes[biomeId]
-      ? (GAME_CONFIG.biomes[biomeId].visibility || {})
-      : {}
-
+  /**
+   * Возвращает настройки видимости для сущности.
+   * Приоритет: настройки биома > настройки мира > значения по умолчанию.
+   * Настройки самой сущности (entityVisibility) НЕ используются.
+   *
+   * @param {string} entityType - 'item', 'enemy' или 'environment'
+   * @param {string} biomeId - ID биома (опционально)
+   * @returns {object} Настройки видимости
+   */
+  getVisibilityConfig(entityType, biomeId = null) {
+    // Значения по умолчанию для каждого типа сущностей
     const defaults = {
       item: {
         visibleByDefault: false,
@@ -356,12 +347,19 @@ export const GameConfig = {
       }
     }
 
-    const base = defaults[entityType] || defaults.item
     const category = entityType === 'enemy' ? 'enemies' : entityType === 'environment' ? 'environment' : 'items'
+    const base = defaults[entityType] || defaults.item
+
+    // Мировые настройки (переопределяют дефолты)
+    const worldVisibility = GAME_CONFIG.world.visibility || {}
+
+    // Настройки биома (имеют наивысший приоритет)
+    const biomeVisibility = biomeId && GAME_CONFIG.biomes[biomeId]
+      ? (GAME_CONFIG.biomes[biomeId].visibility || {})
+      : {}
 
     return {
       ...base,
-      ...entityVisibility,
       ...(worldVisibility[category] || {}),
       ...(biomeVisibility[category] || {})
     }
@@ -377,7 +375,10 @@ export const GameConfig = {
     if (GAME_CONFIG.enemies[id]) {
       log(1, 'SYSTEM', `GameConfig.registerEnemy: Enemy "${id}" already exists, overriding`)
     }
-    GAME_CONFIG.enemies[id] = { ...data, id }
+    // Удаляем visibility из данных врага, если он вдруг там есть
+    // Используем деструктуризацию с _ для игнорирования
+    const { visibility: _vis, ...cleanData } = data
+    GAME_CONFIG.enemies[id] = { ...cleanData, id }
     return this
   },
 
@@ -389,7 +390,9 @@ export const GameConfig = {
     if (GAME_CONFIG.items[id]) {
       log(1, 'SYSTEM', `GameConfig.registerItem: Item "${id}" already exists, overriding`)
     }
-    GAME_CONFIG.items[id] = { ...data, id }
+    // Удаляем visibility из данных предмета
+    const { visibility: _vis, ...cleanData } = data
+    GAME_CONFIG.items[id] = { ...cleanData, id }
     return this
   },
 
@@ -402,7 +405,9 @@ export const GameConfig = {
       log(1, 'SYSTEM', `GameConfig.registerEnvironment: Environment "${id}" already exists, skipping`)
       return this
     }
-    GAME_CONFIG.environment[id] = { ...data, id }
+    // Удаляем visibility из данных окружения
+    const { visibility: _vis, ...cleanData } = data
+    GAME_CONFIG.environment[id] = { ...cleanData, id }
     return this
   },
 
@@ -435,7 +440,8 @@ export const GameConfig = {
       log(1, 'SYSTEM', `GameConfig.overrideEnemy: Enemy "${id}" does not exist, registering new`)
       return this.registerEnemy(id, data)
     }
-    GAME_CONFIG.enemies[id] = { ...GAME_CONFIG.enemies[id], ...data }
+    const { visibility: _vis, ...cleanData } = data
+    GAME_CONFIG.enemies[id] = { ...GAME_CONFIG.enemies[id], ...cleanData }
     return this
   },
 
@@ -448,7 +454,8 @@ export const GameConfig = {
       log(1, 'SYSTEM', `GameConfig.overrideItem: Item "${id}" does not exist, registering new`)
       return this.registerItem(id, data)
     }
-    GAME_CONFIG.items[id] = { ...GAME_CONFIG.items[id], ...data }
+    const { visibility: _vis, ...cleanData } = data
+    GAME_CONFIG.items[id] = { ...GAME_CONFIG.items[id], ...cleanData }
     return this
   },
 

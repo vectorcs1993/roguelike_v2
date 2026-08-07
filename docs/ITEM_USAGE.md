@@ -61,7 +61,7 @@ ItemEffects.applyItemEffects() → для каждого эффекта вызы
   "layer": 2,
   "type": "consumable",
   "category": "healing",
-  "value": 8,
+  "price": 8,
   "weight": 0.3,
   "usable": true,
   "effects": {

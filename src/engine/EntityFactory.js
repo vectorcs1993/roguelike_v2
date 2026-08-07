@@ -89,7 +89,8 @@ export default class EntityFactory {
     const render = new RenderComponent(char, color, bgColor)
     render.layer = layer
 
-    this._applyVisibility(render, 'enemy', type, biomeId)
+    // Применяем настройки видимости из биома (или мира)
+    this._applyVisibility(render, 'enemy', biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -132,7 +133,7 @@ export default class EntityFactory {
     )
     render.layer = envData.layer || 0
 
-    this._applyVisibility(render, 'environment', 'floor', biomeId)
+    this._applyVisibility(render, 'environment', biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -158,7 +159,7 @@ export default class EntityFactory {
     )
     render.layer = envData.layer || 1
 
-    this._applyVisibility(render, 'environment', 'wall', biomeId)
+    this._applyVisibility(render, 'environment', biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -192,7 +193,7 @@ export default class EntityFactory {
     const render = new RenderComponent(closedChar, closedColor, closedBgColor)
     render.layer = layer
 
-    this._applyVisibility(render, 'environment', 'door', biomeId)
+    this._applyVisibility(render, 'environment', biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -229,7 +230,7 @@ export default class EntityFactory {
     )
     render.layer = envData.layer || 1
 
-    this._applyVisibility(render, 'environment', 'crate', biomeId)
+    this._applyVisibility(render, 'environment', biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -274,7 +275,8 @@ export default class EntityFactory {
     const render = new RenderComponent(char, color, bgColor)
     render.layer = layer
 
-    this._applyVisibility(render, 'item', itemType, biomeId)
+    // Применяем настройки видимости из биома
+    this._applyVisibility(render, 'item', biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -303,8 +305,7 @@ export default class EntityFactory {
     const render = new RenderComponent(char, color, bgColor)
     render.layer = layer
 
-    // ИСПОЛЬЗУЕМ ОБЩУЮ СИСТЕМУ ВИДИМОСТИ
-    this._applyVisibility(render, 'environment', 'stair', biomeId)
+    this._applyVisibility(render, 'environment', biomeId)
 
     entity
       .addComponent(new PositionComponent(x, y))
@@ -318,8 +319,12 @@ export default class EntityFactory {
     return entity
   }
 
-  static _applyVisibility(render, entityType, entityId, biomeId) {
-    const visibilityConfig = GameConfig.getVisibilityConfig(entityType, entityId, biomeId)
+  /**
+   * Применяет настройки видимости к RenderComponent.
+   * Настройки берутся ТОЛЬКО из биома (или мира), НЕ из самой сущности.
+   */
+  static _applyVisibility(render, entityType, biomeId) {
+    const visibilityConfig = GameConfig.getVisibilityConfig(entityType, biomeId)
     render.visible = visibilityConfig.visibleByDefault || false
     render.explored = visibilityConfig.exploredByDefault || false
     render._visibilityConfig = visibilityConfig

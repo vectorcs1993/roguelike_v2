@@ -27,6 +27,7 @@ export default class Location {
     const worldConfig = GameConfig.getWorldConfig()
     this.cols = config.cols || worldConfig.width || 60
     this.rows = config.rows || worldConfig.height || 40
+    this._generatedRooms = config.rooms || []  // <-- сохраняем комнаты
     this.grid = Array.from({ length: this.rows }, () =>
       Array.from({ length: this.cols }, () => null)
     )
@@ -398,12 +399,7 @@ export default class Location {
   }
 
   static _placeItems(location, biome, available, playerStart, enemyPositions, biomeId = null) {
-    const itemPool = biome && biome.itemPool ? biome.itemPool : {
-      health: { chance: 0.3, countMin: 1, countMax: 2 },
-      ticket: { chance: 0.2, countMin: 1, countMax: 3 },
-      bread: { chance: 0.15, countMin: 1, countMax: 2 },
-      potion: { chance: 0.15, countMin: 1, countMax: 2 }
-    }
+    const itemPool = biome.itemPool
 
     const occupiedByEntities = new Set([`${playerStart.x},${playerStart.y}`, ...enemyPositions])
     const freeCells = shuffle(available.filter(c => !occupiedByEntities.has(c)))
@@ -618,8 +614,9 @@ export default class Location {
 
     const enemyPositions = this._createEnemies(entities, biome, available, playerStart, selectedBiomeId)
 
+    // ПЕРЕДАЁМ rooms В КОНФИГ
     const location = new Location(
-      { cols: finalWidth, rows: finalHeight },
+      { cols: finalWidth, rows: finalHeight, rooms: rooms },
       walls,
       entities,
       biomeName,

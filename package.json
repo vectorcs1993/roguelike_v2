@@ -2,7 +2,7 @@
   "name": "roguelike-v2",
   "version": "0.0.1",
   "description": "A Quasar Project",
-  "productName": "SamosborRoguelike",
+  "productName": "SamosborIdle",
   "author": "vectorcs1993 <vectorcs@mail.ru>",
   "type": "module",
   "private": true,
