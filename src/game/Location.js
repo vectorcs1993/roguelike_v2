@@ -25,8 +25,8 @@ export default class Location {
     this.levelIndex = levelIndex || 0
 
     const worldConfig = GameConfig.getWorldConfig()
-    this.cols = config.cols || worldConfig.width
-    this.rows = config.rows || worldConfig.height
+    this.cols = config.cols || worldConfig.width || 60
+    this.rows = config.rows || worldConfig.height || 40
     this.grid = Array.from({ length: this.rows }, () =>
       Array.from({ length: this.cols }, () => null)
     )
@@ -312,6 +312,7 @@ export default class Location {
     const biomeName = biome ? biome.name : 'Зараженная зона'
     const worldConfig = GameConfig.getWorldConfig()
     const genConfig = GameConfig.getBiomeGenerationConfig(selectedBiomeId)
+
     return { selectedBiomeId, biome, biomeName, worldConfig, genConfig }
   }
 
@@ -326,7 +327,6 @@ export default class Location {
     }
     return shuffle(roomCells)
   }
-
 
   static _createEnemies(entities, biome, available, playerStart, biomeId = null) {
     const enemyPool = biome && biome.enemyPool ? biome.enemyPool : {
@@ -345,7 +345,6 @@ export default class Location {
 
     const poolEntries = Object.entries(enemyPool)
 
-    // Определяем количество каждого типа врага
     const enemyCounts = {}
     let totalEnemies = 0
 
@@ -364,7 +363,6 @@ export default class Location {
 
     if (totalEnemies === 0) return enemyPositions
 
-    // Ограничиваем общее количество врагов
     const maxAllowed = Math.min(maxEnemies, freeCells.length)
     if (totalEnemies > maxAllowed) {
       const ratio = maxAllowed / totalEnemies
@@ -373,7 +371,6 @@ export default class Location {
       }
     }
 
-    // Размещаем врагов на клетках
     let idx = 0
     for (const [type, count] of Object.entries(enemyCounts)) {
       for (let i = 0; i < count && idx < freeCells.length && enemyPositions.length < maxEnemies; i++) {
@@ -415,7 +412,6 @@ export default class Location {
 
     const poolEntries = Object.entries(itemPool)
 
-    // Определяем количество каждого типа предмета
     const itemCounts = {}
     let totalItems = 0
 
@@ -434,7 +430,6 @@ export default class Location {
 
     if (totalItems === 0) return
 
-    // Ограничиваем общее количество предметов
     if (totalItems > freeCells.length) {
       const ratio = freeCells.length / totalItems
       for (const type of Object.keys(itemCounts)) {
@@ -442,7 +437,6 @@ export default class Location {
       }
     }
 
-    // Размещаем предметы на клетках
     let idx = 0
     for (const [type, count] of Object.entries(itemCounts)) {
       for (let i = 0; i < count && idx < freeCells.length; i++) {
@@ -563,23 +557,40 @@ export default class Location {
   static generateProcedural(biomeType = null, levelIndex = 0) {
     const { selectedBiomeId, biome, biomeName, worldConfig, genConfig } = this._selectBiome(biomeType, levelIndex)
 
+    // Берем width и height из genConfig (биома) или из worldConfig
+    let width = genConfig.width || worldConfig.width || 60
+    let height = genConfig.height || worldConfig.height || 40
+
+    // Для лабиринта размеры должны быть нечётными
+    if (genConfig.layout === 'maze') {
+      if (width % 2 === 0) width -= 1
+      if (height % 2 === 0) height -= 1
+      if (width < 5) width = 5
+      if (height < 5) height = 5
+    }
+
     const generator = new BiomeGenerator({
-      width: worldConfig.width,
-      height: worldConfig.height,
-      minRoomSize: genConfig.minRoomSize || worldConfig.minRoomSize,
-      maxRoomSize: genConfig.maxRoomSize || worldConfig.maxRoomSize,
-      maxRooms: genConfig.maxRooms || worldConfig.maxRooms,
-      roomSpacing: genConfig.roomSpacing || worldConfig.roomSpacing || 1,
-      doorChance: genConfig.doorChance || worldConfig.doorChance || 0.5,
+      width: width,
+      height: height,
+      minRoomSize: genConfig.minRoomSize || worldConfig.minRoomSize || 4,
+      maxRoomSize: genConfig.maxRoomSize || worldConfig.maxRoomSize || 8,
+      maxRooms: genConfig.maxRooms || worldConfig.maxRooms || 20,
+      roomSpacing: genConfig.roomSpacing !== undefined ? genConfig.roomSpacing : (worldConfig.roomSpacing || 1),
+      doorChance: genConfig.doorChance !== undefined ? genConfig.doorChance : (worldConfig.doorChance || 0.5),
       padding: genConfig.padding !== undefined ? genConfig.padding : (worldConfig.padding || 2),
-      layout: genConfig.layout || 'dungeon',
+      layout: genConfig.layout || 'rooms',
       columnCount: genConfig.columnCount,
       wallSegmentCount: genConfig.wallSegmentCount,
       wallSegmentMin: genConfig.wallSegmentMin,
-      wallSegmentMax: genConfig.wallSegmentMax
+      wallSegmentMax: genConfig.wallSegmentMax,
+      corridorWidth: genConfig.corridorWidth,
+      deadEndChance: genConfig.deadEndChance
     })
 
-    const { walls, width, height, rooms, doors: doorData, walkableCells } = generator.generate()
+    const result = generator.generate()
+    const { walls, rooms, doors: doorData, walkableCells } = result
+    const finalWidth = result.width || width
+    const finalHeight = result.height || height
 
     const wallSet = new Set(walls.map(w => `${w[0]},${w[1]}`))
     const roomCells = this._collectRoomCells(rooms)
@@ -608,7 +619,7 @@ export default class Location {
     const enemyPositions = this._createEnemies(entities, biome, available, playerStart, selectedBiomeId)
 
     const location = new Location(
-      { cols: width, rows: height },
+      { cols: finalWidth, rows: finalHeight },
       walls,
       entities,
       biomeName,

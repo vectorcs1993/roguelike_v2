@@ -13,7 +13,7 @@
             <div class="text-subtitle1 text-sm-h6 flex items-center flex-wrap" style="gap: 8px;">
               <q-icon name="fmd_good" class="q-mr-xs" />
               <div class="text-subtitle1 text-sm-h6 ellipsis">
-                Этаж: {{ locationNumber }} Локация: {{ locationName }} Ход {{ turnCount }}
+                Этаж: [{{ locationNumber }}] [{{ locationName }}] Ход: {{ turnCount }}
               </div>
               <q-space />
               <q-btn-group class="q-mt-xs q-mt-sm-0">

@@ -1,11 +1,13 @@
+// src/game/BiomeGenerator.js
+
 export default class BiomeGenerator {
   constructor(config = {}) {
-    this.width = config.width || 60
-    this.height = config.height || 40
+    this.width = config.width
+    this.height = config.height
     this.minRoomSize = config.minRoomSize || 4
     this.maxRoomSize = config.maxRoomSize || 8
     this.maxRooms = config.maxRooms || 20
-    this.roomSpacing = config.roomSpacing !== undefined ? config.roomSpacing : 1
+    this.roomSpacing = config.roomSpacing
     this.doorChance = config.doorChance !== undefined ? config.doorChance : 0.5
     this.padding = config.padding !== undefined ? config.padding : 2
 
@@ -15,13 +17,24 @@ export default class BiomeGenerator {
     this.wallSegmentCount = config.wallSegmentCount !== undefined ? config.wallSegmentCount : 6
     this.wallSegmentMin = config.wallSegmentMin !== undefined ? config.wallSegmentMin : 2
     this.wallSegmentMax = config.wallSegmentMax !== undefined ? config.wallSegmentMax : 5
+
+    // Параметры лабиринта (layout === 'maze')
+    this.corridorWidth = config.corridorWidth !== undefined ? config.corridorWidth : 1
+    this.deadEndChance = config.deadEndChance !== undefined ? config.deadEndChance : 0.3
   }
 
   generate() {
-    if (this.layout === 'arena') {
-      return this.generateArena()
+    switch (this.layout) {
+      case 'arena':
+        return this.generateArena()
+      case 'open':
+        return this.generateOpen()
+      case 'maze':
+        return this.generateMaze()
+      case 'rooms':
+      default:
+        return this.generateRooms()
     }
-    return this.generateDungeon()
   }
 
   /**
@@ -41,15 +54,13 @@ export default class BiomeGenerator {
       map[y][this.width - 1] = true
     }
 
-    // Внутренняя область (без границы). Паддинг отодвигает препятствия
-    // (колонны/стены/ящики) от внешних стен, оставляя свободный проход.
     const pad = Math.max(1, this.padding)
     const innerMinX = pad
     const innerMaxX = this.width - 1 - pad
     const innerMinY = pad
     const innerMaxY = this.height - 1 - pad
 
-    // Размещаем колонны (одиночные стены) в случайных местах.
+    // Размещаем колонны
     let placedColumns = 0
     let attempts = 0
     const maxAttempts = this.columnCount * 20
@@ -58,13 +69,12 @@ export default class BiomeGenerator {
       const x = this.rand(innerMinX, innerMaxX)
       const y = this.rand(innerMinY, innerMaxY)
       if (map[y][x]) continue
-      // Не ставим колонну вплотную к границе, чтобы не блокировать проход.
       if (x === innerMinX || x === innerMaxX || y === innerMinY || y === innerMaxY) continue
       map[y][x] = true
       placedColumns++
     }
 
-    // Размещаем случайные отрезки стен (обломки).
+    // Размещаем случайные отрезки стен
     let placedSegments = 0
     attempts = 0
     const maxSegAttempts = this.wallSegmentCount * 30
@@ -95,7 +105,6 @@ export default class BiomeGenerator {
       placedSegments++
     }
 
-    // Собираем стены.
     const walls = []
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
@@ -103,14 +112,11 @@ export default class BiomeGenerator {
       }
     }
 
-    // Пол внутренней области — от границы стен (x=1..width-2), чтобы пол
-    // покрывал всю арену. Паддинг влияет только на размещение препятствий.
     const floorMinX = 1
     const floorMaxX = this.width - 2
     const floorMinY = 1
     const floorMaxY = this.height - 2
 
-    // Проходимые клетки — вся внутренняя область без препятствий.
     const walkableCells = []
     for (let y = floorMinY; y <= floorMaxY; y++) {
       for (let x = floorMinX; x <= floorMaxX; x++) {
@@ -118,7 +124,6 @@ export default class BiomeGenerator {
       }
     }
 
-    // Единая "комната" — вся внутренняя область арены.
     const rooms = [{
       x: floorMinX,
       y: floorMinY,
@@ -136,7 +141,215 @@ export default class BiomeGenerator {
     }
   }
 
-  generateDungeon() {
+  /**
+   * Генерирует открытое пространство без стен внутри.
+   * Только внешние стены по периметру.
+   */
+  generateOpen() {
+    const map = Array(this.height).fill().map(() => Array(this.width).fill(false))
+
+    // Огораживаем периметр стенами
+    for (let x = 0; x < this.width; x++) {
+      map[0][x] = true
+      map[this.height - 1][x] = true
+    }
+    for (let y = 0; y < this.height; y++) {
+      map[y][0] = true
+      map[y][this.width - 1] = true
+    }
+
+    const walls = []
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (map[y][x]) walls.push([x, y])
+      }
+    }
+
+    const floorMinX = 1
+    const floorMaxX = this.width - 2
+    const floorMinY = 1
+    const floorMaxY = this.height - 2
+
+    const walkableCells = []
+    for (let y = floorMinY; y <= floorMaxY; y++) {
+      for (let x = floorMinX; x <= floorMaxX; x++) {
+        walkableCells.push([x, y])
+      }
+    }
+
+    const rooms = [{
+      x: floorMinX,
+      y: floorMinY,
+      w: floorMaxX - floorMinX + 1,
+      h: floorMaxY - floorMinY + 1
+    }]
+
+    return {
+      walls,
+      width: this.width,
+      height: this.height,
+      rooms,
+      doors: [],
+      walkableCells
+    }
+  }
+
+  /**
+   * Генерирует лабиринт с коридорами.
+   * Использует алгоритм рекурсивного бэктрекинга.
+   */
+  generateMaze() {
+    // Используем точные размеры, но делаем их нечётными для правильной сетки лабиринта
+    let mazeWidth = this.width
+    let mazeHeight = this.height
+
+    // Если размеры чётные - делаем нечётными (для корректной сетки)
+    if (mazeWidth % 2 === 0) mazeWidth -= 1
+    if (mazeHeight % 2 === 0) mazeHeight -= 1
+
+    // Минимальный размер лабиринта - 5x5
+    if (mazeWidth < 5) mazeWidth = 5
+    if (mazeHeight < 5) mazeHeight = 5
+
+    // Инициализируем карту (все клетки - стены)
+    const map = Array(mazeHeight).fill().map(() => Array(mazeWidth).fill(true))
+
+    // Начинаем с центральной клетки (или близко к центру)
+    const startX = Math.floor(mazeWidth / 4) * 2 + 1
+    const startY = Math.floor(mazeHeight / 4) * 2 + 1
+    map[startY][startX] = false
+
+    // Стек для DFS
+    const stack = [{ x: startX, y: startY }]
+    const visited = new Set()
+    visited.add(`${startX},${startY}`)
+
+    // Направления: вверх, вниз, влево, вправо (шаг 2 клетки)
+    const dirs = [
+      { dx: 0, dy: -2 },
+      { dx: 0, dy: 2 },
+      { dx: -2, dy: 0 },
+      { dx: 2, dy: 0 }
+    ]
+
+    while (stack.length > 0) {
+      const current = stack[stack.length - 1]
+      const neighbors = []
+
+      // Находим непосещённых соседей
+      for (const dir of dirs) {
+        const nx = current.x + dir.dx
+        const ny = current.y + dir.dy
+        const key = `${nx},${ny}`
+        if (nx > 0 && nx < mazeWidth - 1 && ny > 0 && ny < mazeHeight - 1 && !visited.has(key)) {
+          neighbors.push({ x: nx, y: ny, dir })
+        }
+      }
+
+      if (neighbors.length > 0) {
+        // Выбираем случайного соседа
+        const next = neighbors[Math.floor(Math.random() * neighbors.length)]
+
+        // Убираем стену между текущей и следующей клеткой
+        const wallX = current.x + next.dir.dx / 2
+        const wallY = current.y + next.dir.dy / 2
+        map[wallY][wallX] = false
+
+        // Отмечаем следующую клетку как проходимую
+        map[next.y][next.x] = false
+        visited.add(`${next.x},${next.y}`)
+
+        // Добавляем в стек
+        stack.push({ x: next.x, y: next.y })
+      } else {
+        // Если нет соседей - возвращаемся назад
+        stack.pop()
+      }
+    }
+
+    // Создаём тупики (опционально)
+    if (this.deadEndChance > 0) {
+      // Находим все тупики (клетки с 1 проходом)
+      const deadEnds = []
+      for (let y = 1; y < mazeHeight - 1; y += 2) {
+        for (let x = 1; x < mazeWidth - 1; x += 2) {
+          if (!map[y][x]) {
+            let wallCount = 0
+            const checks = [
+              [x, y - 2], [x, y + 2], [x - 2, y], [x + 2, y]
+            ]
+            for (const [cx, cy] of checks) {
+              if (cx < 0 || cx >= mazeWidth || cy < 0 || cy >= mazeHeight || map[cy][cx]) {
+                wallCount++
+              }
+            }
+            if (wallCount === 3) {
+              deadEnds.push({ x, y })
+            }
+          }
+        }
+      }
+
+      // Удаляем некоторые тупики (создаём дополнительные проходы)
+      for (const cell of deadEnds) {
+        if (Math.random() < this.deadEndChance) {
+          const dirs2 = [
+            { dx: 0, dy: -2 }, { dx: 0, dy: 2 },
+            { dx: -2, dy: 0 }, { dx: 2, dy: 0 }
+          ]
+          const shuffled = this.shuffleArray([...dirs2])
+          for (const dir of shuffled) {
+            const wx = cell.x + dir.dx / 2
+            const wy = cell.y + dir.dy / 2
+            const nx = cell.x + dir.dx
+            const ny = cell.y + dir.dy
+            if (wx >= 0 && wx < mazeWidth && wy >= 0 && wy < mazeHeight &&
+              nx >= 0 && nx < mazeWidth && ny >= 0 && ny < mazeHeight &&
+              map[wy][wx] && map[ny][nx]) {
+              map[wy][wx] = false
+              map[ny][nx] = false
+              break
+            }
+          }
+        }
+      }
+    }
+
+    // Собираем стены и проходимые клетки
+    const walls = []
+    const walkableCells = []
+    for (let y = 0; y < mazeHeight; y++) {
+      for (let x = 0; x < mazeWidth; x++) {
+        if (map[y][x]) {
+          walls.push([x, y])
+        } else {
+          walkableCells.push([x, y])
+        }
+      }
+    }
+
+    // Одна большая комната = весь лабиринт
+    const rooms = [{
+      x: 0,
+      y: 0,
+      w: mazeWidth,
+      h: mazeHeight
+    }]
+
+    return {
+      walls,
+      width: mazeWidth,
+      height: mazeHeight,
+      rooms,
+      doors: [],
+      walkableCells
+    }
+  }
+
+  /**
+   * Генерирует комнаты с коридорами (стандартный данжен)
+   */
+  generateRooms() {
     const map = Array(this.height).fill().map(() => Array(this.width).fill(true))
     const rooms = []
 
@@ -189,11 +402,6 @@ export default class BiomeGenerator {
     }
 
     const doorData = this.placeDoors(map, rooms)
-
-    // Собираем проходимые клетки ТОЛЬКО из комнат и коридоров.
-    // Исключаем искусственную границу и заполненные пустоты,
-    // которые removeInaccessibleWalls делает проходимыми, но которые
-    // не являются частью реального подземелья (игрок туда не ступит).
     const walkableCells = this.collectWalkableCells(map, rooms)
 
     return {
@@ -204,6 +412,16 @@ export default class BiomeGenerator {
       doors: doorData,
       walkableCells
     }
+  }
+
+  // ===== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ =====
+
+  shuffleArray(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+        ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    return arr
   }
 
   intersects(r1, r2, spacing) {
@@ -318,9 +536,6 @@ export default class BiomeGenerator {
   }
 
   collectWalkableCells(map, rooms) {
-    // Затравка - все клетки комнат (включая стены комнат, т.к. они проходимы).
-    // Затем BFS распространяется по проходимым клеткам (map === false),
-    // захватывая коридоры, но НЕ выходя за границу карты.
     const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]]
     const visited = new Set()
     const queue = []

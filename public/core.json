@@ -573,71 +573,54 @@
       "enemyMax": 25,
       "description": "Заброшенные жилые квартиры самосбора Гигахруща. Коридоры, комнаты и общие кухни, где обитают бывшие жильцы.",
       "generation": {
+        "width": 30,
+        "height": 20,
         "layout": "rooms",
         "minRoomSize": 4,
-        "maxRoomSize": 8,
-        "maxRooms": 22,
-        "doorChance": 0.6
+        "maxRoomSize": 4,
+        "maxRooms": 42,
+        "roomSpacing": 1,
+        "doorChance": 1
       },
       "enemyPool": {
         "groaner": {
           "chance": 0.5,
           "countMin": 1,
-          "countMax": 2
+          "countMax": 4
         },
         "crawler": {
-          "chance": 0.1,
-          "countMin": 1,
-          "countMax": 2
-        },
-        "runner": {
-          "chance": 0.1,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 1
+        },
+        "runner": {
+          "chance": 0.5,
+          "countMin": 1,
+          "countMax": 2
         }
       },
       "itemPool": {
-        "ticket": {
-          "chance": 0.04,
-          "countMin": 1,
-          "countMax": 2
-        },
         "bread": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 1
         },
-        "health": {
-          "chance": 0.04,
-          "countMin": 1,
-          "countMax": 1
-        },
-        "potion": {
-          "chance": 0.03,
-          "countMin": 1,
-          "countMax": 1
-        },
-        "weapon": {
-          "chance": 0.015,
+        "coffee": {
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 1
         }
       },
       "cratePool": {
-        "dropChance": 0.2,
+        "dropChance": 0.5,
         "items": {
           "ticket": {
             "chance": 0.5,
             "countMin": 0,
-            "countMax": 2
-          },
-          "bread": {
-            "chance": 0.4,
-            "countMin": 0,
-            "countMax": 1
+            "countMax": 20
           },
           "health": {
-            "chance": 0.5,
+            "chance": 0.1,
             "countMin": 0,
             "countMax": 1
           }
@@ -677,10 +660,13 @@
       "enemyMax": 20,
       "description": "Производственные цеха Гигахруща. Конвейеры, станки и роботы, сошедшие с ума.",
       "generation": {
+        "width": 40,
+        "height": 40,
         "layout": "rooms",
         "minRoomSize": 6,
         "maxRoomSize": 12,
         "maxRooms": 14,
+        "roomSpacing": 1,
         "doorChance": 0.4
       },
       "enemyPool": {
@@ -791,15 +777,18 @@
       "enemyMax": 30,
       "description": "Лабиринты труб, кабелей и вентиляции Гигахруща. Здесь темно и тесно.",
       "generation": {
+        "width": 60,
+        "height": 60,
         "layout": "rooms",
         "minRoomSize": 3,
         "maxRoomSize": 6,
         "maxRooms": 26,
+        "roomSpacing": 1,
         "doorChance": 0.3
       },
       "enemyPool": {
         "runner": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 2
         },
@@ -811,27 +800,27 @@
       },
       "itemPool": {
         "ticket": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 2
         },
         "bread": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 1
         },
         "coffee": {
-          "chance": 0.04,
+          "chance": 0.4,
           "countMin": 1,
           "countMax": 1
         },
         "potion": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 1
         },
         "scroll": {
-          "chance": 0.015,
+          "chance": 0.15,
           "countMin": 1,
           "countMax": 1
         }
@@ -840,17 +829,17 @@
         "dropChance": 0.2,
         "items": {
           "ticket": {
-            "chance": 0.04,
+            "chance": 0.4,
             "countMin": 1,
             "countMax": 2
           },
           "coffee": {
-            "chance": 0.05,
+            "chance": 0.5,
             "countMin": 1,
             "countMax": 1
           },
           "potion": {
-            "chance": 0.03,
+            "chance": 0.3,
             "countMin": 1,
             "countMax": 1
           }
@@ -890,62 +879,65 @@
       "enemyMax": 18,
       "description": "Больничные палаты и лаборатории Гигахруща. Запах антисептика и заражённые пациенты.",
       "generation": {
+        "width": 30,
+        "height": 30,
         "layout": "rooms",
         "minRoomSize": 4,
         "maxRoomSize": 9,
         "maxRooms": 18,
+        "roomSpacing": 1,
         "doorChance": 0.5
       },
       "enemyPool": {
         "groaner": {
-          "chance": 0.05,
+          "chance": 0.5,
           "countMin": 1,
           "countMax": 2
         },
         "shadow": {
-          "chance": 0.01,
+          "chance": 0.1,
           "countMin": 1,
           "countMax": 1
         },
         "crawler": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 2
         },
         "boss": {
-          "chance": 0.08,
+          "chance": 0.8,
           "countMin": 1,
           "countMax": 1
         }
       },
       "itemPool": {
         "health": {
-          "chance": 0.05,
+          "chance": 0.5,
           "countMin": 1,
           "countMax": 1
         },
         "potion": {
-          "chance": 0.04,
+          "chance": 0.4,
           "countMin": 1,
           "countMax": 1
         },
         "ticket": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 2
         },
         "bread": {
-          "chance": 0.04,
+          "chance": 0.4,
           "countMin": 1,
           "countMax": 1
         },
         "scroll": {
-          "chance": 0.02,
+          "chance": 0.2,
           "countMin": 1,
           "countMax": 1
         },
         "armor": {
-          "chance": 0.02,
+          "chance": 0.2,
           "countMin": 1,
           "countMax": 1
         }
@@ -954,17 +946,17 @@
         "dropChance": 0.25,
         "items": {
           "health": {
-            "chance": 0.06,
+            "chance": 0.6,
             "countMin": 1,
             "countMax": 1
           },
           "potion": {
-            "chance": 0.04,
+            "chance": 0.4,
             "countMin": 1,
             "countMax": 1
           },
           "ticket": {
-            "chance": 0.03,
+            "chance": 0.3,
             "countMin": 1,
             "countMax": 2
           }
@@ -974,7 +966,7 @@
       },
       "colors": {
         "floor": "#3a3a3a",
-        "wall": "#6a6a6a",
+        "wall": "#385bd9",
         "background": "#0a0a0a"
       },
       "visibility": {
@@ -1004,35 +996,22 @@
       "enemyMax": 0,
       "description": "Офисы и кабинеты руководства Гигахруща. Охрана и элитные сотрудники.",
       "generation": {
+        "width": 30,
+        "height": 20,
         "layout": "rooms",
         "minRoomSize": 5,
         "maxRoomSize": 10,
         "maxRooms": 10,
+        "roomSpacing": 1,
         "doorChance": 1
       },
       "enemyPool": {},
       "itemPool": {},
       "cratePool": {
-        "dropChance": 0.2,
-        "items": {
-          "ticket": {
-            "chance": 0.05,
-            "countMin": 1,
-            "countMax": 2
-          },
-          "bread": {
-            "chance": 0.04,
-            "countMin": 1,
-            "countMax": 1
-          },
-          "health": {
-            "chance": 0.05,
-            "countMin": 1,
-            "countMax": 1
-          }
-        },
-        "minCount": 1,
-        "maxCount": 4
+        "dropChance": 0,
+        "items": {},
+        "minCount": 0,
+        "maxCount": 0
       },
       "colors": {
         "floor": "#3a3a3a",
@@ -1066,10 +1045,13 @@
       "enemyMax": 15,
       "description": "Огороженная стенами боевая площадка Гигахруща. Колонны, обломки стен и ящики, за которыми можно укрыться.",
       "generation": {
+        "width": 30,
+        "height": 30,
         "layout": "arena",
         "minRoomSize": 4,
         "maxRoomSize": 8,
         "maxRooms": 1,
+        "roomSpacing": 0,
         "doorChance": 0,
         "padding": 2,
         "crateChance": 0.01,
@@ -1102,32 +1084,32 @@
       },
       "itemPool": {
         "ticket": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 2
         },
         "bread": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 1
         },
         "health": {
-          "chance": 0.04,
+          "chance": 0.4,
           "countMin": 1,
           "countMax": 1
         },
         "weapon": {
-          "chance": 0.02,
+          "chance": 0.2,
           "countMin": 1,
           "countMax": 1
         },
         "armor": {
-          "chance": 0.02,
+          "chance": 0.2,
           "countMin": 1,
           "countMax": 1
         },
         "potion": {
-          "chance": 0.03,
+          "chance": 0.3,
           "countMin": 1,
           "countMax": 1
         }
@@ -1136,17 +1118,17 @@
         "dropChance": 0.3,
         "items": {
           "ticket": {
-            "chance": 0.04,
+            "chance": 0.4,
             "countMin": 1,
             "countMax": 2
           },
           "health": {
-            "chance": 0.04,
+            "chance": 0.4,
             "countMin": 1,
             "countMax": 1
           },
           "weapon": {
-            "chance": 0.02,
+            "chance": 0.2,
             "countMin": 1,
             "countMax": 1
           }
@@ -1179,16 +1161,103 @@
           "showWhenExplored": true
         }
       }
+    },
+    "catacombs": {
+      "id": "catacombs",
+      "name": "Катакомбы",
+      "enemyMax": 35,
+      "description": "Запутанные подземные ходы Гигахруща. Легко заблудиться, опасно для жизни.",
+      "generation": {
+        "width": 20,
+        "height": 20,
+        "layout": "maze",
+        "roomSpacing": 0,
+        "corridorWidth": 2,
+        "deadEndChance": 0.2
+      },
+      "enemyPool": {
+        "groaner": {
+          "chance": 0.4,
+          "countMin": 2,
+          "countMax": 4
+        },
+        "shadow": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 2
+        },
+        "crawler": {
+          "chance": 0.3,
+          "countMin": 2,
+          "countMax": 4
+        }
+      },
+      "itemPool": {
+        "ticket": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 3
+        },
+        "potion": {
+          "chance": 0.2,
+          "countMin": 1,
+          "countMax": 1
+        },
+        "scroll": {
+          "chance": 0.15,
+          "countMin": 1,
+          "countMax": 1
+        }
+      },
+      "cratePool": {
+        "dropChance": 0.15,
+        "items": {
+          "ticket": {
+            "chance": 0.3,
+            "countMin": 1,
+            "countMax": 3
+          },
+          "potion": {
+            "chance": 0.2,
+            "countMin": 1,
+            "countMax": 1
+          }
+        },
+        "minCount": 1,
+        "maxCount": 3
+      },
+      "colors": {
+        "floor": "#2a2a2a",
+        "wall": "#4a4a4a",
+        "background": "#050505"
+      },
+      "visibility": {
+        "items": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "enemies": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": false
+        },
+        "environment": {
+          "visibleByDefault": false,
+          "exploredByDefault": false,
+          "showWhenVisible": true,
+          "showWhenExplored": true
+        }
+      }
     }
   },
   "world": {
-    "width": 60,
-    "height": 40,
     "padding": 2,
     "minRoomSize": 4,
     "maxRoomSize": 8,
     "maxRooms": 20,
-    "roomSpacing": 1,
     "doorChance": 0.5,
     "crateChance": 0.3,
     "doorSpawnChance": 0.5,

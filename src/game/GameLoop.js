@@ -295,9 +295,11 @@ export default class GameLoop {
 
     const playerEntities = this.getPlayerEntities()
     if (playerEntities.length === 0) {
-      this.reloadLocation()
+      // Игрок мёртв - просто перезагружаем игру с 1-го этажа
+      this.reloadGame()
       return
     }
+
 
     if (this.selectedEntity && this.selectedEntity.active) {
       this.initializeFovForAllAllies()
@@ -374,6 +376,24 @@ export default class GameLoop {
     const biomeIds = GameConfig.getBiomeIds()
     const biome = biomeIds[Math.floor(Math.random() * biomeIds.length)]
     this.reloadWithBiome(biome)
+  }
+
+  reloadGame() {
+    logger.info(LOG_MODULES.SYSTEM, '💀 Игрок погиб! Перезагрузка игры...')
+
+    // Очищаем стек уровней
+    this.levelStack.levels = []
+    this.levelStack.currentIndex = -1
+
+    // Создаём новый первый уровень
+    const firstLevel = Location.generateProcedural(null, 0)
+    this.levelStack.levels = [firstLevel]
+    this.levelStack.currentIndex = 0
+
+    // Переключаемся на новый уровень
+    this._setupLocation(firstLevel)
+
+    logger.info(LOG_MODULES.SYSTEM, 'Игра перезагружена на 1-м этаже')
   }
 
   reloadWithBiome(biomeType) {
