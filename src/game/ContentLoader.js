@@ -9,7 +9,6 @@ export const GAME_DATA = {
   environment: {},
   items: {},
   biomes: {},
-  world: {},
   combat: {},
   ui: {},
   debug: {}
@@ -76,10 +75,6 @@ export default class ContentLoader {
     return { ...GAME_DATA.environment }
   }
 
-  static getWorldConfig() {
-    return { ...GAME_DATA.world }
-  }
-
   static getCombatConfig() {
     return { ...GAME_DATA.combat }
   }
@@ -123,14 +118,12 @@ export default class ContentLoader {
     const category = entityType === 'enemy' ? 'enemies' : entityType === 'environment' ? 'environment' : 'items'
     const base = defaults[entityType] || defaults.item
 
-    const worldVisibility = GAME_DATA.world.visibility || {}
     const biomeVisibility = biomeId && GAME_DATA.biomes[biomeId]
       ? (GAME_DATA.biomes[biomeId].visibility || {})
       : {}
 
     return {
       ...base,
-      ...(worldVisibility[category] || {}),
       ...(biomeVisibility[category] || {})
     }
   }
@@ -175,8 +168,8 @@ export default class ContentLoader {
 
   static getBiomeGenerationConfig(biomeId) {
     const biome = this.getBiome(biomeId)
-    if (!biome) return { ...GAME_DATA.world }
-    return { ...GAME_DATA.world, ...biome.generation }
+    if (!biome) return {}
+    return { ...biome.generation }
   }
 
   static getRandomEnemyForBiome(biomeId) {
@@ -251,8 +244,7 @@ export default class ContentLoader {
   }
 
   static getStairConfig(biomeId = null) {
-    const worldConfig = this.getWorldConfig()
-    const worldStairConfig = worldConfig.stairConfig || {
+    const defaultConfig = {
       downChance: 1.0,
       upChance: 0.0,
       minDistanceFromStart: 5,
@@ -260,12 +252,12 @@ export default class ContentLoader {
       preferDifferentRooms: true
     }
 
-    if (!biomeId) return { ...worldStairConfig }
+    if (!biomeId) return { ...defaultConfig }
 
     const biome = this.getBiome(biomeId)
-    if (!biome || !biome.stairConfig) return { ...worldStairConfig }
+    if (!biome || !biome.stairConfig) return { ...defaultConfig }
 
-    return { ...worldStairConfig, ...biome.stairConfig }
+    return { ...defaultConfig, ...biome.stairConfig }
   }
 
   // ===== ЗАГРУЗКА =====
@@ -360,10 +352,6 @@ export default class ContentLoader {
         logger.debug(LOG_MODULES.SYSTEM, `Загружено биомов: ${Object.keys(data.biomes).length}`)
       }
 
-      if (data.world) {
-        GAME_DATA.world = { ...GAME_DATA.world, ...data.world }
-      }
-
       if (data.combat) {
         GAME_DATA.combat = { ...GAME_DATA.combat, ...data.combat }
       }
@@ -410,7 +398,6 @@ export default class ContentLoader {
     GAME_DATA.biomes = {}
     GAME_DATA.environment = {}
     GAME_DATA.player = {}
-    GAME_DATA.world = {}
     GAME_DATA.combat = {}
     GAME_DATA.ui = {}
     GAME_DATA.debug = {}

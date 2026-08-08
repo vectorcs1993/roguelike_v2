@@ -6,6 +6,7 @@
 import PositionComponent from '../engine/components/PositionComponent.js'
 import HealthComponent from '../engine/components/HealthComponent.js'
 import HungerComponent from '../engine/components/HungerComponent.js'
+import FatigueComponent from '../engine/components/FatigueComponent.js'
 import CombatComponent from '../engine/components/CombatComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
 import RenderComponent from '../engine/components/RenderComponent.js'
@@ -15,7 +16,6 @@ import InventoryComponent from '../engine/components/InventoryComponent.js'
 import EntityFactory from '../engine/EntityFactory.js'
 import StairComponent from '../engine/components/StairComponent.js'
 import Item from '../engine/Item.js'
-import EnergyComponent from '../engine/components/EnergyComponent.js'
 import ContentLoader from './ContentLoader.js'
 import { logger, LOG_MODULES } from './Logger.js'
 import { applyItemEffects, isItemUsable } from './ItemEffects.js'
@@ -47,76 +47,20 @@ export default class PlayerActions {
     return this.gameLoop.combatSystem
   }
 
-  _getEnergyCost(actionType) {
-    const playerConfig = ContentLoader.getPlayer()
-    const costs = playerConfig.energyCosts || {}
-    return costs[actionType] ?? 0
-  }
-
-  _canAfford(actionType) {
-    const entity = this.gameLoop.selectedEntity
-    const energy = entity?.getComponent(EnergyComponent)
-    if (!energy) return true
-
-    const cost = this._getEnergyCost(actionType)
-
-    if (energy.isExhausted()) {
-      logger.info(LOG_MODULES.ACTION, '💤 Вы полностью истощены! Принудительный отдых...')
-      this._forceRest(entity)
-      return false
-    }
-
-    if (!energy.isSufficient(cost)) {
-      logger.info(LOG_MODULES.ACTION,
-        `Недостаточно энергии (нужно ${cost}, есть ${Math.floor(energy.energy)}). Нажмите P для отдыха.`)
-      return false
-    }
-    return true
-  }
-
-  _forceRest(entity) {
-    const energy = entity?.getComponent(EnergyComponent)
-    if (!energy) return
-
-    const playerConfig = ContentLoader.getPlayer()
-    const regen = playerConfig.energyRegen || 15
-
-    const before = energy.energy
-    energy.regen(regen)
-    const restored = energy.energy - before
-
-    logger.info(LOG_MODULES.ACTION,
-      `💤 Восстановлено ${restored} энергии (${Math.floor(energy.energy)}/${energy.maxEnergy})`)
-
-    this._applyHunger()
-    this.turnManager.endPlayerTurn()
-  }
-
-  _spendEnergy(actionType) {
-    const entity = this.gameLoop.selectedEntity
-    const energy = entity?.getComponent(EnergyComponent)
-    if (!energy) return
-
-    const cost = this._getEnergyCost(actionType)
-    energy.spend(cost)
-    this._applyHunger()
-    this.turnManager.endPlayerTurn()
-  }
-
   _applyHunger() {
     const entity = this.gameLoop.selectedEntity
     const hunger = entity?.getComponent(HungerComponent)
     if (!hunger) return
 
-    const playerConfig = ContentLoader.getPlayer()
-    const hungerPerTurn = playerConfig.hungerPerTurn ?? 1
-    hunger.damagePerTurn = playerConfig.hungerDamagePerTurn ?? 1
-
-    const damaged = hunger.increase(hungerPerTurn)
+    // increase() возвращает true только когда голод реально увеличился
+    const damaged = hunger.increase(1)
     if (damaged) {
       const health = entity.getComponent(HealthComponent)
       if (health && health.isAlive) {
-        logger.info(LOG_MODULES.SYSTEM, `Голод! Потеряно ${hunger.damagePerTurn} HP (${health.hp}/${health.maxHp})`)
+        // Проверяем, наступил ли голод (урон от голода)
+        if (hunger.isStarving) {
+          logger.info(LOG_MODULES.SYSTEM, `Голод! Потеряно ${hunger.damagePerTurn} HP (${health.hp}/${health.maxHp})`)
+        }
       }
     }
   }
@@ -147,25 +91,16 @@ export default class PlayerActions {
     const health = entity.getComponent(HealthComponent)
     if (!health || health.isDead) return false
 
-    const inv = entity.getComponent(InventoryComponent)
-    const overloaded = inv && inv.isOverweight()
+    const fatigue = entity.getComponent(FatigueComponent)
 
-    const energy = entity.getComponent(EnergyComponent)
-    const playerConfig = ContentLoader.getPlayer()
-
-    const baseRegen = playerConfig.energyRegen || 15
-    let regen = baseRegen
-
-    if (overloaded && inv) {
-      regen = Math.floor(baseRegen * inv.getRegenModifier())
-    }
-
-    if (energy) {
-      const before = energy.energy
-      energy.regen(regen)
-      const restored = energy.energy - before
-      const overloadMsg = overloaded ? ' (замедленно из-за перегруза)' : ''
-      logger.info(LOG_MODULES.ACTION, `💤 Отдых: восстановлено ${restored} энергии${overloadMsg}`)
+    if (fatigue) {
+      const before = fatigue.fatigue
+      fatigue.recover()
+      const recovered = before - fatigue.fatigue
+      const fatigueMsg = recovered > 0
+        ? `Усталость снижена на ${recovered} (${fatigue.fatigue}/${fatigue.maxFatigue})`
+        : 'Вы уже отдохнули'
+      logger.info(LOG_MODULES.ACTION, `💤 Отдых: ${fatigueMsg}`)
     } else {
       logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} ждёт`)
     }
@@ -200,15 +135,16 @@ export default class PlayerActions {
 
     const targetCell = this.location.grid[newY]?.[newX]
 
+    // Проверка проходимости
     if (!this.location.isTileWalkable(newX, newY, entity)) {
       const targetEntity = this.location.getEntityAt(newX, newY)
       if (targetEntity) {
         const env = targetEntity.getComponent(EnvironmentComponent)
         if (env && env.isInteractive) {
-          if (!this._canAfford('interact')) return false
           const success = this.interactionSystem.interact(entity, targetEntity)
           if (success) {
-            this._spendEnergy('interact')
+            this._applyHunger()
+            this.turnManager.endPlayerTurn()
             return true
           }
         }
@@ -216,6 +152,7 @@ export default class PlayerActions {
       return false
     }
 
+    // Проверка на врага
     const targetEntity = this.engine.getFirstEntityAt(newX, newY)
     if (targetEntity && targetEntity.active) {
       const targetHealth = targetEntity.getComponent(HealthComponent)
@@ -223,23 +160,27 @@ export default class PlayerActions {
 
       if (targetAI && targetHealth && !targetHealth.isDead) {
         if (this.combatSystem) {
-          if (!this._canAfford('attack')) return false
           this.combatSystem.attackWithLog(entity, targetEntity)
           if (targetHealth.isDead) {
             this._spawnEnemyDrop(targetEntity)
           }
-          this._spendEnergy('attack')
+          // Добавляем усталость за атаку
+          const fatigue = entity.getComponent(FatigueComponent)
+          if (fatigue) {
+            fatigue.add(2)
+          }
+          this._applyHunger()
+          this.turnManager.endPlayerTurn()
           return true
         }
       }
     }
 
+    // Проверка на лестницу
     if (targetCell && targetCell.type === 'stair') {
       const stairEntity = targetCell.entity
       const stairComp = stairEntity?.getComponent(StairComponent)
       if (stairComp && stairComp.isActive) {
-        if (!this._canAfford('move')) return false
-
         const direction = stairComp.direction === 'up' ? 'вверх' : 'вниз'
         logger.info(LOG_MODULES.ACTION, `Подъём по лестнице ${direction}...`)
 
@@ -247,7 +188,12 @@ export default class PlayerActions {
 
         const success = stairComp.use(entity, this.gameLoop)
         if (success) {
-          this._spendEnergy('move')
+          const fatigue = entity.getComponent(FatigueComponent)
+          if (fatigue) {
+            fatigue.add(1)
+          }
+          this._applyHunger()
+          this.turnManager.endPlayerTurn()
           return true
         } else {
           logger.info(LOG_MODULES.ACTION, 'Не удалось использовать лестницу')
@@ -256,70 +202,53 @@ export default class PlayerActions {
       }
     }
 
+    // Проверка на ящик
     if (targetCell && targetCell.type === 'crate' && targetCell.entity) {
-      if (!this._canAfford('move')) return false
       this.interactionSystem.breakCrate(entity, targetCell.entity)
-      this._spendEnergy('move')
+      const fatigue = entity.getComponent(FatigueComponent)
+      if (fatigue) {
+        fatigue.add(1)
+      }
+      this._applyHunger()
+      this.turnManager.endPlayerTurn()
       return true
     }
 
+    // ===== АВТОМАТИЧЕСКИЙ ПОДБОР ПРЕДМЕТОВ =====
     const itemEntity = this.engine.getEntitiesAt(newX, newY)
       .find(e => {
         const env = e.getComponent(EnvironmentComponent)
         const itemComp = e.getComponent(ItemComponent)
         return env && env.isCollectible && itemComp && !itemComp.collected
       })
+
     if (itemEntity) {
       const env = itemEntity.getComponent(EnvironmentComponent)
-      logger.info(LOG_MODULES.SYSTEM, `Игрок видит ${env.name || 'предмет'}`)
-    }
-
-    if (!this._canAfford('move')) return false
-    pos.moveTo(newX, newY)
-    this._spendEnergy('move')
-    return true
-  }
-
-  pickupItem() {
-    if (!this.turnManager.isPlayerTurn) return false
-
-    const entity = this.gameLoop.selectedEntity
-    if (!entity || !entity.active) return false
-
-    const pos = entity.getComponent(PositionComponent)
-    if (!pos) return false
-
-    const inv = entity.getComponent(InventoryComponent)
-    if (inv && inv.isOverweight()) {
-      this._checkOverweight()
-      return false
-    }
-
-    const cx = pos.tileX
-    const cy = pos.tileY
-
-    let itemEntity = null
-    const entitiesAt = this.engine.getEntitiesAt(cx, cy)
-    for (const e of entitiesAt) {
-      const itemComp = e.getComponent(ItemComponent)
-      if (itemComp && !itemComp.collected) {
-        itemEntity = e
-        break
+      const success = this.interactionSystem.pickupItem(entity, itemEntity)
+      if (success) {
+        pos.moveTo(newX, newY)
+        const fatigue = entity.getComponent(FatigueComponent)
+        if (fatigue) {
+          fatigue.add(1)
+        }
+        logger.info(LOG_MODULES.ACTION, `Подобран предмет: ${env?.name || 'предмет'}`)
+        this._applyHunger()
+        this.turnManager.endPlayerTurn()
+        return true
       }
     }
 
-    if (!itemEntity || !itemEntity.active) {
-      logger.info(LOG_MODULES.ACTION, 'Здесь нет предметов для подбора')
-      return false
+    // Обычное перемещение
+    pos.moveTo(newX, newY)
+
+    const fatigue = entity.getComponent(FatigueComponent)
+    if (fatigue) {
+      fatigue.add(1) // ходьба утомляет на 1
     }
 
-    if (!this._canAfford('pickup')) return false
-
-    const success = this.interactionSystem.pickupItem(entity, itemEntity)
-    if (success) {
-      this._spendEnergy('pickup')
-    }
-    return success
+    this._applyHunger()
+    this.turnManager.endPlayerTurn()
+    return true
   }
 
   dropItem(itemId) {
@@ -358,6 +287,9 @@ export default class PlayerActions {
     const remaining = inv.getItemCount(itemId)
     const countMsg = remaining > 0 ? ` (осталось ${remaining})` : ''
     logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} выбросил ${item.name}${countMsg}`)
+
+    this._applyHunger()
+    this.turnManager.endPlayerTurn()
     return true
   }
 
@@ -391,6 +323,8 @@ export default class PlayerActions {
     }
 
     logger.info(LOG_MODULES.ACTION, `Выброшено ${totalDropped} предметов`)
+    this._applyHunger()
+    this.turnManager.endPlayerTurn()
     return totalDropped > 0
   }
 
@@ -416,8 +350,6 @@ export default class PlayerActions {
       return false
     }
 
-    if (!this._canAfford('useItem')) return false
-
     const result = applyItemEffects(entity, itemData, this.gameLoop)
 
     if (!result.success) {
@@ -435,7 +367,13 @@ export default class PlayerActions {
     const countMsg = remaining > 0 ? ` (осталось ${remaining})` : ''
     logger.info(LOG_MODULES.ACTION, `${this.gameLoop.getEntityName(entity)} использовал ${item.name}${countMsg}`)
 
-    this._spendEnergy('useItem')
+    const fatigue = entity.getComponent(FatigueComponent)
+    if (fatigue) {
+      fatigue.add(1)
+    }
+
+    this._applyHunger()
+    this.turnManager.endPlayerTurn()
     return true
   }
 
@@ -472,10 +410,15 @@ export default class PlayerActions {
 
     if (!this.combatSystem) return false
 
-    if (!this._canAfford('attack')) return false
-
     this.combatSystem.attackWithLog(entity, nearest)
-    this._spendEnergy('attack')
+
+    const fatigue = entity.getComponent(FatigueComponent)
+    if (fatigue) {
+      fatigue.add(2) // атака утомляет на 2
+    }
+
+    this._applyHunger()
+    this.turnManager.endPlayerTurn()
     return true
   }
 
@@ -500,16 +443,21 @@ export default class PlayerActions {
         if (target && target.active) {
           const env = target.getComponent(EnvironmentComponent)
           if (env && env.isInteractive) {
-            if (!this._canAfford('interact')) return false
             const success = this.interactionSystem.interact(entity, target)
             if (success) {
-              this._spendEnergy('interact')
+              const fatigue = entity.getComponent(FatigueComponent)
+              if (fatigue) {
+                fatigue.add(1)
+              }
+              this._applyHunger()
+              this.turnManager.endPlayerTurn()
               return true
             }
           }
         }
       }
     }
+
     return false
   }
 

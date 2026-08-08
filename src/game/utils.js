@@ -12,26 +12,32 @@ export function shuffle(arr) {
 }
 
 /**
- * Бросает лут из пула предметов. pool — объект вида
- * { itemId: { chance, countMin, countMax } }.
- * Перебирает пул по порядку и бросает шанс каждого предмета; первый сработавший —
- * выпадает. Возвращает { type, count } или null, если ничего не выпало.
+ * Бросает лут из пула предметов. Возвращает массив ВСЕХ предметов,
+ * у которых сработал шанс.
+ * @param {object} pool - объект вида { itemId: { chance, countMin, countMax } }
+ * @returns {Array<{type: string, count: number}>} массив выпавших предметов
  */
 export function rollLoot(pool) {
-  if (!pool || typeof pool !== 'object') return null
+  if (!pool || typeof pool !== 'object') return []
+
+  const results = []
 
   for (const [type, cfg] of Object.entries(pool)) {
     const chance = cfg.chance !== undefined ? cfg.chance : 0
-    if (Math.random() >= chance) continue
+    // Проверяем шанс выпадения каждого предмета
+    if (Math.random() < chance) {
+      const countMin = cfg.countMin !== undefined ? cfg.countMin : 1
+      const countMax = cfg.countMax !== undefined ? cfg.countMax : countMin
+      const count = countMax > countMin ?
+        Math.floor(Math.random() * (countMax - countMin + 1)) + countMin :
+        countMin
 
-    const countMin = cfg.countMin !== undefined ? cfg.countMin : 1
-    const countMax = cfg.countMax !== undefined ? cfg.countMax : countMin
-    const count = countMax > countMin ?
-      Math.floor(Math.random() * (countMax - countMin + 1)) + countMin :
-      countMin
-
-    return { type, count }
+      // Добавляем предмет только если count > 0
+      if (count > 0) {
+        results.push({ type, count })
+      }
+    }
   }
 
-  return null
+  return results
 }

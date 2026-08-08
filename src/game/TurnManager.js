@@ -119,10 +119,12 @@ export default class TurnManager {
 
     this.gameLoop.initializeFovForAllAllies()
 
+    // Проверяем, жив ли игрок
     const playerEntities = this.gameLoop.getPlayerEntities()
     if (playerEntities.length === 0) {
-      logger.info(LOG_MODULES.SYSTEM, 'Игрок мёртв! Перезагрузка...')
-      this.gameLoop.reloadLocation()
+      logger.info(LOG_MODULES.SYSTEM, '💀 Игрок мёртв! Перезагрузка...')
+      // Полная перезагрузка игры на 1-й этаж
+      this.gameLoop.reloadGame()
       return
     }
 

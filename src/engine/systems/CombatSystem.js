@@ -3,8 +3,10 @@
 import System from './System.js'
 import PositionComponent from '../components/PositionComponent.js'
 import HealthComponent from '../components/HealthComponent.js'
+import FatigueComponent from '../components/FatigueComponent.js'
 import CombatComponent from '../components/CombatComponent.js'
 import RenderComponent from '../components/RenderComponent.js'
+import ExperienceComponent from '../components/ExperienceComponent.js'
 import { logger, LOG_MODULES } from '../../game/Logger.js'
 
 export default class CombatSystem extends System {
@@ -29,9 +31,18 @@ export default class CombatSystem extends System {
     const dist = pos.chebyshevDistanceTo(targetPos)
     if (dist > combat.attackRange) return 0
 
-    // Проверяем попадание
-    if (!combat.rollHit()) {
-      // Вспышка промаха на атакующем
+    // ===== УЧЕТ УСТАЛОСТИ =====
+    const fatigue = attacker.getComponent(FatigueComponent)
+    let accuracy = combat.accuracy
+
+    // Применяем штраф от усталости
+    if (fatigue) {
+      const penalty = fatigue.getAccuracyPenalty()
+      accuracy = Math.max(0.1, accuracy - penalty) // минимум 10% шанс
+    }
+
+    // Проверяем попадание с учетом штрафа
+    if (Math.random() > accuracy) {
       this._flash(attacker, '#ffffff', 120)
       return 0
     }
@@ -44,6 +55,16 @@ export default class CombatSystem extends System {
     this._flash(attacker, '#ffff88', 150)
     if (actualDamage > 0) {
       this._flash(target, '#ff4444', 200)
+    }
+
+    // ===== НАЧИСЛЕНИЕ XP ПРИ УБИЙСТВЕ =====
+    if (health.isDead) {
+      const xpComp = attacker.getComponent(ExperienceComponent)
+      if (xpComp) {
+        const enemyXp = target.enemyData?.xp || 5
+        xpComp.addXp(enemyXp)
+        logger.info(LOG_MODULES.COMBAT, `+${enemyXp} XP (всего: ${xpComp.xp})`)
+      }
     }
 
     return actualDamage

@@ -43,25 +43,29 @@
             </div>
           </q-card-section>
           <q-separator dark />
-          <q-card-section class="q-pa-sm">
-            <!-- Сетка перемещения -->
-            <div class="row" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; max-width: 200px; margin: 0 auto;">
-              <q-btn label="↖" @click="move(-1, -1)" class="full-width" dense />
-              <q-btn label="⬆" @click="move(0, -1)" class="full-width" dense />
-              <q-btn label="↗" @click="move(1, -1)" class="full-width" dense />
-              <q-btn label="⬅" @click="move(-1, 0)" class="full-width" dense />
-              <q-btn label="🖱" @click="interact" class="full-width" dense />
-              <q-btn label="➡" @click="move(1, 0)" class="full-width" dense />
-              <q-btn label="↙" @click="move(-1, 1)" class="full-width" dense />
-              <q-btn label="⬇" @click="move(0, 1)" class="full-width" dense />
-              <q-btn label="↘" @click="move(1, 1)" class="full-width" dense />
-            </div>
+          <q-card-section class="q-pa-xs q-pa-sm-sm">
+            <div class="row" style="display: flex; gap: 6px; align-items: stretch;">
 
-            <!-- Действия -->
-            <div class="row q-gutter-xs q-mt-sm">
-              <q-btn label="Ждать" @click="waitTurn" class="col" dense />
-              <q-btn label="Атака" @click="attack" class="col" dense />
-              <q-btn label="Поднять" @click="pickup" class="col" dense />
+              <!-- Левая колонка - Действия -->
+              <div style="display: flex; flex-direction: column; gap: 4px; flex: 1;">
+                <q-btn label="Взаимод." @click="interact" style="flex: 1; min-height: 32px;" />
+                <q-btn label="Ждать" @click="waitTurn" style="flex: 1; min-height: 32px;" />
+                <q-btn label="Атака" @click="attack" style="flex: 1; min-height: 32px;" />
+              </div>
+
+              <!-- Правая колонка - Сетка перемещения -->
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; flex: 2; max-width: 160px; aspect-ratio: 1/1;">
+                <q-btn label="↖" @click="move(-1, -1)" />
+                <q-btn label="⬆" @click="move(0, -1)" />
+                <q-btn label="↗" @click="move(1, -1)" />
+                <q-btn label="⬅" @click="move(-1, 0)" />
+                <q-space />
+                <q-btn label="➡" @click="move(1, 0)" />
+                <q-btn label="↙" @click="move(-1, 1)" />
+                <q-btn label=" ⬇" @click="move(0, 1)" />
+                <q-btn label="↘" @click="move(1, 1)" />
+              </div>
+
             </div>
           </q-card-section>
         </q-card>
@@ -174,7 +178,6 @@ import PositionComponent from 'src/engine/components/PositionComponent.js'
 import RenderComponent from 'src/engine/components/RenderComponent.js'
 import HealthComponent from 'src/engine/components/HealthComponent.js'
 import HungerComponent from 'src/engine/components/HungerComponent.js'
-import EnergyComponent from 'src/engine/components/EnergyComponent.js'
 import PlayerComponent from 'src/engine/components/PlayerComponent.js'
 import AIComponent from 'src/engine/components/AIComponent.js'
 import InventoryComponent from 'src/engine/components/InventoryComponent.js'
@@ -282,10 +285,6 @@ function updateEntitiesList() {
       const position = entity.getComponent(PositionComponent)
       const playerConfig = ContentLoader.getPlayer()
 
-      const energyComp = entity.getComponent(EnergyComponent)
-      const maxEnergy = energyComp ? energyComp.maxEnergy : 100
-      const energy = energyComp ? energyComp.energy : maxEnergy
-
       const hungerComp = entity.getComponent(HungerComponent)
       const hunger = hungerComp ? hungerComp.hunger : 0
       const maxHunger = hungerComp ? hungerComp.maxHunger : 100
@@ -298,12 +297,6 @@ function updateEntitiesList() {
         id: entity.id,
         name: playerConfig.name || 'Игрок',
         char: render.char,
-        hp: health.hp,
-        maxHp: health.maxHp,
-        hpPercent: health.hpPercent,
-        energy: energy,
-        maxEnergy: maxEnergy,
-        energyPercent: maxEnergy > 0 ? energy / maxEnergy : 0,
         hunger: hunger,
         maxHunger: maxHunger,
         hungerPercent: maxHunger > 0 ? hunger / maxHunger : 0,
@@ -418,7 +411,6 @@ function attack() {
 }
 
 function interact() { game?.interact() }
-function pickup() { game?.pickupItem() }
 
 function useItem(itemId) {
   const result = game?.useItem(itemId)

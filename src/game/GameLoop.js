@@ -92,7 +92,12 @@ export default class GameLoop {
 
   getPlayerEntities() {
     const engine = this.currentLocation.engine
-    return engine.getLivingEntitiesWithComponents([PlayerComponent, PositionComponent, HealthComponent])
+    // Ищем живых игроков (у которых HealthComponent не isDead)
+    return engine.getLivingEntitiesWithComponents([
+      PlayerComponent,
+      PositionComponent,
+      HealthComponent
+    ])
   }
 
   getEntityName(entity) {
@@ -153,7 +158,6 @@ export default class GameLoop {
 
   moveCharacter(dx, dy) { return this.playerActions.moveCharacter(dx, dy) }
   wait() { return this.playerActions.wait() }
-  pickupItem() { return this.playerActions.pickupItem() }
   dropItem(itemId) { return this.playerActions.dropItem(itemId) }
   dropAllItems() { return this.playerActions.dropAllItems() }
   useItem(itemId) { return this.playerActions.useItem(itemId) }
@@ -182,23 +186,13 @@ export default class GameLoop {
   }
 
   goDownStairs(user, targetBiome = null) {
-    let biomeToUse = targetBiome
-    if (!biomeToUse) {
-      const biomeIds = ContentLoader.getBiomeIds()
-      const currentBiome = this.currentLocation.biomeId
-      const available = biomeIds.filter(id => id !== currentBiome)
-      biomeToUse = available.length > 0
-        ? available[Math.floor(Math.random() * available.length)]
-        : biomeIds[Math.floor(Math.random() * biomeIds.length)]
-    }
-
-    const newLevel = this.levelStack.goDown(biomeToUse)
-    if (!newLevel) {
-      logger.info(LOG_MODULES.SYSTEM, 'Не удалось создать новый уровень')
+    const targetLevel = this.levelStack.goDown(targetBiome)
+    if (!targetLevel) {
+      logger.info(LOG_MODULES.SYSTEM, 'Не удалось перейти на уровень ниже')
       return false
     }
 
-    const stairEntity = newLevel.findStair('up')
+    const stairEntity = targetLevel.findStair('up')
     let targetX, targetY
 
     if (stairEntity) {
@@ -209,7 +203,7 @@ export default class GameLoop {
       }
     }
 
-    return this._switchToLevel(newLevel, user, targetX, targetY)
+    return this._switchToLevel(targetLevel, user, targetX, targetY)
   }
 
   _switchToLevel(level, user, targetX, targetY) {
@@ -369,7 +363,6 @@ export default class GameLoop {
   }
 
   reloadGame() {
-    logger.info(LOG_MODULES.SYSTEM, '💀 Игрок погиб! Перезагрузка игры...')
 
     this.levelStack.levels = []
     this.levelStack.currentIndex = -1

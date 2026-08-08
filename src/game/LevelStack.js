@@ -1,7 +1,7 @@
 // src/game/LevelStack.js
 
-import Location from './Location.js'
-import { logger, LOG_MODULES } from './Logger.js'
+import { LOG_MODULES, logger } from './Logger'
+import Location from './Location.js'  // ← ДОБАВЛЯЕМ ИМПОРТ!
 
 export default class LevelStack {
   constructor() {
@@ -38,24 +38,31 @@ export default class LevelStack {
   }
 
   goUp() {
-    if (this.currentIndex <= 0) {
-      logger.info(LOG_MODULES.SYSTEM, 'Вы уже на самом верхнем уровне')
-      return null
-    }
+    const nextIndex = this.currentIndex + 1
 
-    this.currentIndex--
-    logger.info(LOG_MODULES.SYSTEM, `Переход на уровень ${this.currentIndex + 1}`)
-    return this.levels[this.currentIndex]
-  }
-
-  goDown(biomeType = null, playerData = null) {
-    if (this.currentIndex < this.levels.length - 1) {
-      this.currentIndex++
+    // Если есть следующий уровень - переходим
+    if (nextIndex < this.levels.length) {
+      this.currentIndex = nextIndex
       logger.info(LOG_MODULES.SYSTEM, `Переход на уровень ${this.currentIndex + 1}`)
       return this.levels[this.currentIndex]
     }
 
-    return this.pushLevel(biomeType, playerData)
+    // Если нет - создаем новый уровень
+    logger.info(LOG_MODULES.SYSTEM, 'Создаем новый уровень...')
+    return this.pushLevel()
+  }
+
+  goDown() {
+    const prevIndex = this.currentIndex - 1
+
+    if (prevIndex >= 0) {
+      this.currentIndex = prevIndex
+      logger.info(LOG_MODULES.SYSTEM, `Переход на уровень ${this.currentIndex + 1}`)
+      return this.levels[this.currentIndex]
+    }
+
+    logger.info(LOG_MODULES.SYSTEM, 'Вы уже на самом нижнем этаже')
+    return null
   }
 
   getCurrentLevel() {

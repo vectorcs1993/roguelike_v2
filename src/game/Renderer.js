@@ -6,11 +6,12 @@ import HealthComponent from '../engine/components/HealthComponent.js'
 import PlayerComponent from '../engine/components/PlayerComponent.js'
 import AIComponent from '../engine/components/AIComponent.js'
 import ContentLoader from './ContentLoader.js'
-import EnergyComponent from 'src/engine/components/EnergyComponent.js'
+import FatigueComponent from '../engine/components/FatigueComponent.js'
 import HungerComponent from 'src/engine/components/HungerComponent.js'
 import CombatComponent from 'src/engine/components/CombatComponent.js'
 import MovementComponent from 'src/engine/components/MovementComponent.js'
 import InventoryComponent from 'src/engine/components/InventoryComponent.js'
+import ExperienceComponent from '../engine/components/ExperienceComponent.js'
 
 export default class Renderer {
   static DEFAULT_TILE_SIZE = 48
@@ -479,12 +480,32 @@ export default class Renderer {
     ctx.restore()
   }
 
-  /**
-   * Рисует строки состояния в левом нижнем углу
-   * @param {string[]} lines - массив строк для отображения
-   * @param {object} options - настройки
-   */
-  drawStatusLines(lines, options = {}) {
+  drawTopLines(lines, options = {}) {
+    if (!lines || lines.length === 0) return
+
+    const {
+      x = 8,
+      y = 8,  // отступ сверху
+      fontSize = this.getAdaptiveFontSize(10, 24, 35),
+      bgColor = 'rgba(0,0,0,0.85)'
+    } = options
+
+    const lineHeight = fontSize * 1.4
+
+    for (let i = 0; i < lines.length; i++) {
+      const posY = y + (i * lineHeight)
+
+      this.drawTextOnCanvas(lines[i], x, posY, {
+        color: '#ffffff',
+        fontSize: fontSize,
+        bgColor: bgColor,
+        align: 'left',
+        baseline: 'top'  // ← отталкиваемся от верха
+      })
+    }
+  }
+
+  drawBottomLines(lines, options = {}) {
     if (!lines || lines.length === 0) return
 
     const {
@@ -496,9 +517,8 @@ export default class Renderer {
 
     const lineHeight = fontSize * 1.4
 
-    // Рисуем строки сверху вниз (инвертируем порядок)
+    // Рисуем строки снизу вверх
     for (let i = 0; i < lines.length; i++) {
-      // y считается от низа, но строки идут в обратном порядке
       const y = this.canvasH - padding - ((lines.length - 1 - i) * lineHeight)
 
       this.drawTextOnCanvas(lines[i], x, y, {
@@ -517,68 +537,73 @@ export default class Renderer {
    * @returns {string[]} массив строк
    */
   buildUILines(player) {
-    if (!player) return []
+    if (!player) return { top: [], bottom: [] }
 
     const health = player.getComponent(HealthComponent)
-    const energy = player.getComponent(EnergyComponent)
+    const fatigue = player.getComponent(FatigueComponent)
     const hunger = player.getComponent(HungerComponent)
     const pos = player.getComponent(PositionComponent)
     const combat = player.getComponent(CombatComponent)
     const movement = player.getComponent(MovementComponent)
     const inventory = player.getComponent(InventoryComponent)
+    const xp = player.getComponent(ExperienceComponent)
 
-    const lines = []
+    const topLines = []
+    const bottomLines = []
 
-    // Строка 1 - ЭТ, ЛОК, ПОЗ
-    let line1 = ''
+    // ===== ВЕРХНИЕ СТРОКИ (локация) =====
+    let topLine = ''
+    if (this._location) {
+      topLine += `ЭТ: ${(this._location.levelIndex || 0) + 1}  `
+      topLine += `ЛОК: ${this._location.name}  `
+    }
     if (pos) {
-      if (this._location) {
-        line1 += `ЭТ: ${(this._location.levelIndex || 0) + 1}  `
-        line1 += `ЛОК: ${this._location.name}  `
-      }
-      line1 += `ПОЗ: ${pos.tileX}:${pos.tileY}  `
-      if (this._location?._gameLoop) {
-        line1 += `ХОД: ${this._location._gameLoop.turnCount}  `
-      }
+      topLine += `ПОЗ: ${pos.tileX}:${pos.tileY}  `
     }
-    if (line1) lines.push(line1.trim())
+    if (this._location?._gameLoop) {
+      topLine += `ХОД: ${this._location._gameLoop.turnCount}  `
+    }
+    if (topLine) topLines.push(topLine.trim())
 
-    // Строка 2 - ЗД, ЭН, ГОЛ
-    let line2 = ''
+    // ===== НИЖНИЕ СТРОКИ (статы игрока) =====
+    let bottomLine1 = ''
     if (health) {
-      line2 += `ЗД: ${health.hp}/${health.maxHp}  `
+      bottomLine1 += `ЗД: ${health.hp}/${health.maxHp}  `
     }
-    if (energy) {
-      line2 += `ЭН: ${Math.floor(energy.energy)}/${energy.maxEnergy}  `
+    if (fatigue) {
+      bottomLine1 += `УСТ: ${fatigue.fatigue}/${fatigue.maxFatigue}  `
     }
     if (hunger) {
-      line2 += `ГОЛ: ${hunger.hunger}/${hunger.maxHunger}  `
+      bottomLine1 += `ГОЛ: ${hunger.hunger}/${hunger.maxHunger}  `
     }
-    if (line2) lines.push(line2.trim())
+    if (xp) {
+      bottomLine1 += `XP: ${xp.xp}  `
+    }
+    if (bottomLine1) bottomLines.push(bottomLine1.trim())
 
-    // Строка 3 - УРН, БРО, ТОЧ, ДЛН, СКР, ИНЦ
-    let line3 = ''
+    let bottomLine2 = ''
     if (combat) {
-      line3 += `УРН: ${combat.damageMin}-${combat.damageMax}  `
-      line3 += `БРО: ${health?.armor || 0}  `
-      line3 += `ТОЧ: ${Math.round(combat.accuracy * 100)}%  `
-      line3 += `ДЛН: ${combat.attackRange}  `
+      const accuracyDisplay = Math.round(combat.accuracy * 100)
+      bottomLine2 += `ТОЧ: ${accuracyDisplay}%  `
+      bottomLine2 += `УРН: ${combat.damageMin}-${combat.damageMax}  `
+      bottomLine2 += `БРО: ${health?.armor || 0}  `
+      bottomLine2 += `ДЛН: ${combat.attackRange}  `
     }
     if (movement) {
-      line3 += `СКР: ${movement.speed}  `
+      bottomLine2 += `СКР: ${movement.speed}  `
     }
     if (combat) {
-      line3 += `ИНЦ: ${combat.initiative}  `
+      bottomLine2 += `ИНЦ: ${combat.initiative}  `
     }
     if (inventory) {
-      // line3 += `ВЕС: ${inventory.currentWeight.toFixed(1)}/${inventory.maxWeight}`
-      // if (inventory.isOverweight()) {
-      //   line3 += `⚠️`
-      // }
+      bottomLine2 += `ВЕС: ${inventory.currentWeight.toFixed(1)}/${inventory.maxWeight}`
+      if (inventory.isOverweight()) {
+        bottomLine2 += `⚠️`
+      }
     }
-    if (line3) lines.push(line3.trim())
+    if (bottomLine2) bottomLines.push(bottomLine2.trim())
 
-    return lines
+    return { top: topLines, bottom: bottomLines }
   }
 
   /**
@@ -589,8 +614,18 @@ export default class Renderer {
     if (!player) return
 
     const lines = this.buildUILines(player)
-    if (lines.length > 0) {
-      this.drawStatusLines(lines, {
+
+    // Рисуем верхние строки
+    if (lines.top.length > 0) {
+      this.drawTopLines(lines.top, {
+        fontSize: this.getAdaptiveFontSize(10, 24, 35),
+        y: 8
+      })
+    }
+
+    // Рисуем нижние строки
+    if (lines.bottom.length > 0) {
+      this.drawBottomLines(lines.bottom, {
         fontSize: this.getAdaptiveFontSize(10, 28, 30)
       })
     }

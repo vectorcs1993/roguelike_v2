@@ -28,7 +28,7 @@
 
 import HealthComponent from '../engine/components/HealthComponent.js'
 import HungerComponent from '../engine/components/HungerComponent.js'
-import EnergyComponent from '../engine/components/EnergyComponent.js'
+import FatigueComponent from '../engine/components/FatigueComponent.js'
 import CombatComponent from '../engine/components/CombatComponent.js'
 import PositionComponent from '../engine/components/PositionComponent.js'
 import RenderComponent from '../engine/components/RenderComponent.js'
@@ -43,6 +43,10 @@ function getHealth(entity) {
 
 function getHunger(entity) {
   return entity ? entity.getComponent(HungerComponent) : null
+}
+
+function getFatigue(entity) {
+  return entity ? entity.getComponent(FatigueComponent) : null
 }
 
 function getCombat(entity) {
@@ -76,22 +80,22 @@ export const EFFECT_HANDLERS = {
     return `Восстановлено ${healed} HP (${health.hp}/${health.maxHp})`
   },
 
-  // Восстановление энергии: { "restoreEnergy": 10 }
-  restoreEnergy(ctx) {
+  // Восстановление от усталости: { "restoreFatigue": 20 }
+  restoreFatigue(ctx) {
     const entity = ctx.entity
     if (!entity) return false
-    const energy = entity.getComponent(EnergyComponent)
-    if (!energy) return false
-    if (energy.energy >= energy.maxEnergy) {
-      logger.info(LOG_MODULES.ACTION, 'Энергия уже полная')
+    const fatigue = getFatigue(entity)
+    if (!fatigue) return false
+    if (fatigue.fatigue <= 0) {
+      logger.info(LOG_MODULES.ACTION, 'Вы уже отдохнули')
       return false
     }
     const amount = Number(ctx.value) || 0
     if (amount <= 0) return false
-    const before = energy.energy
-    energy.regen(amount)
-    const restored = energy.energy - before
-    return `Восстановлено ${restored} энергии (${energy.energy}/${energy.maxEnergy})`
+    const before = fatigue.fatigue
+    fatigue.recover(amount)
+    const restored = before - fatigue.fatigue
+    return `Усталость снижена на ${restored} (${fatigue.fatigue}/${fatigue.maxFatigue})`
   },
 
   // Утоление голода: { "restoreHunger": 20 }

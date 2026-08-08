@@ -101,29 +101,27 @@ export default class Fov {
 
   _isVisible(ox, oy, tx, ty) {
     const map = this.map
+
+    // Если это та же клетка - видима
+    if (ox === tx && oy === ty) return true
+
     const dx = Math.abs(tx - ox)
     const dy = Math.abs(ty - oy)
     const sx = tx > ox ? 1 : -1
     const sy = ty > oy ? 1 : -1
 
-    // Используем алгоритм Брезенхема для проверки всех клеток на линии
     let x = ox
     let y = oy
     let err = dx - dy
 
-    while (true) {
-      // Если мы не в стартовой клетке и не в целевой
-      if (x !== ox || y !== oy) {
-        if (x === tx && y === ty) {
-          // Достигли цели – она видима
-          return true
-        }
-        // Если клетка блокирует обзор – цель не видна
-        if (map.blocksSight(x, y)) {
-          return false
-        }
-      }
+    // Флаг: была ли стена на пути (для блокировки)
+    let wallEncountered = false
 
+    while (true) {
+      const prevX = x
+      const prevY = y
+
+      // Делаем шаг
       if (x === tx && y === ty) break
 
       const e2 = 2 * err
@@ -135,7 +133,69 @@ export default class Fov {
         err += dx
         y += sy
       }
+
+      // Проверка диагонального прохода
+      if (x !== prevX && y !== prevY) {
+        const wallH = map.blocksSight(prevX + sx, prevY)
+        const wallV = map.blocksSight(prevX, prevY + sy)
+
+        // Если обе стены - блокируем обзор
+        if (wallH && wallV) {
+          // Проверяем целевую клетку
+          const isTargetWall = map.blocksSight(tx, ty)
+
+          // Если цель - стена, то она видна (стена за стенами видна)
+          if (isTargetWall) {
+            // Стена видна, даже если за ней стены
+            // Продолжаем проверку, но помечаем что стена была
+            wallEncountered = true
+            continue
+          }
+          // Если цель НЕ стена - блокируем
+          return false
+        }
+      }
+
+      // Достигли цели
+      if (x === tx && y === ty) {
+        // Если цель - стена - она всегда видна (даже если были стены на пути)
+        if (map.blocksSight(tx, ty)) {
+          return true
+        }
+        // Если цель НЕ стена - видна только если не было стен на пути
+        return !wallEncountered
+      }
+
+      // Если текущая клетка блокирует обзор
+      if (map.blocksSight(x, y)) {
+        // Проверяем, является ли текущая клетка соседней с целевой стеной
+        const isAdjacentToTarget = Math.abs(x - tx) <= 1 && Math.abs(y - ty) <= 1
+        const isTargetWall = map.blocksSight(tx, ty)
+
+        // Если цель - стена, и мы рядом с ней - пропускаем (стена должна быть видна)
+        if (isTargetWall && isAdjacentToTarget) {
+          continue
+        }
+
+        // Если это первая стена на пути
+        if (!wallEncountered) {
+          wallEncountered = true
+          // Если цель - стена - продолжаем (не блокируем)
+          if (isTargetWall) {
+            continue
+          }
+        } else {
+          // Вторая стена на пути
+          // Если цель - стена - продолжаем (стена видна)
+          if (isTargetWall) {
+            continue
+          }
+          // Если цель НЕ стена - блокируем
+          return false
+        }
+      }
     }
+
     return true
   }
 }

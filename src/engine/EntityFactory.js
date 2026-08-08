@@ -5,7 +5,6 @@ import PositionComponent from './components/PositionComponent.js'
 import RenderComponent from './components/RenderComponent.js'
 import HealthComponent from './components/HealthComponent.js'
 import HungerComponent from './components/HungerComponent.js'
-import EnergyComponent from './components/EnergyComponent.js'
 import CombatComponent from './components/CombatComponent.js'
 import PlayerComponent from './components/PlayerComponent.js'
 import AIComponent from './components/AIComponent.js'
@@ -18,6 +17,8 @@ import StairComponent from './components/StairComponent.js'
 import Item from './Item.js'
 import ContentLoader from '../game/ContentLoader.js'
 import { logger, LOG_MODULES } from '../game/Logger.js'
+import FatigueComponent from './components/FatigueComponent.js'
+import ExperienceComponent from './components/ExperienceComponent.js'
 
 export default class EntityFactory {
 
@@ -44,10 +45,14 @@ export default class EntityFactory {
       .addComponent(new HungerComponent({
         hunger: playerData.hunger,
         maxHunger: playerData.maxHunger,
+        hungerPerTurn: playerData.hungerPerTurn,
+        hungerDamagePerTurn: playerData.hungerDamagePerTurn,
       }))
-      .addComponent(new EnergyComponent({
-        energy: playerData.energy,
-        maxEnergy: playerData.maxEnergy,
+      .addComponent(new FatigueComponent({
+        fatigue: 0,
+        maxFatigue: 100,
+        fatiguePerAction: 1,
+        fatigueRecovery: 10
       }))
       .addComponent(new CombatComponent({
         damageMin: playerData.damageMin,
@@ -56,6 +61,9 @@ export default class EntityFactory {
         attackRange: playerData.range,
         accuracy: playerData.accuracy,
         initiative: playerData.initiative,
+      }))
+      .addComponent(new ExperienceComponent({
+        xp: 0
       }))
       .addComponent(new PlayerComponent({
         speed: playerData.speed
@@ -294,9 +302,9 @@ export default class EntityFactory {
 
   static createStair(x, y, direction = 'down', targetBiome = null, targetLevel = null, biomeId = null) {
     const isUp = direction === 'up'
-    const char = isUp ? '<' : '>'
-    const color = isUp ? '#88ff88' : '#ff8844'
-    const bgColor = isUp ? '#1a2a1a' : '#2a1a0a'
+    const char = isUp ? '>' : '<'
+    const color = isUp ? '#ff8844' : '#88ff88'
+    const bgColor = isUp ? '#2a1a0a' : '#1a2a1a'
     const layer = 2
 
     const entity = new Entity('stair')

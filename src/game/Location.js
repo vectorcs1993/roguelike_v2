@@ -25,9 +25,9 @@ export default class Location {
     this.biomeId = biomeId || null
     this.levelIndex = levelIndex || 0
 
-    const worldConfig = ContentLoader.getWorldConfig()
-    this.cols = config.cols || worldConfig.width || 60
-    this.rows = config.rows || worldConfig.height || 40
+    // Убираем worldConfig, используем значения из config или дефолтные
+    this.cols = config.cols || 60
+    this.rows = config.rows || 40
     this._generatedRooms = config.rooms || []
     this.grid = Array.from({ length: this.rows }, () =>
       Array.from({ length: this.cols }, () => null)
@@ -139,10 +139,17 @@ export default class Location {
     // Стены - непроходимы
     if (cell.type === 'wall') return false
 
-    // Двери - проходимы только если открыты
+    // Двери - проходимы ТОЛЬКО для игрока (и если открыты)
     if (cell.type === 'door') {
       const door = cell.entity.getComponent(DoorComponent)
-      return door ? door.isOpen : false
+      if (!door || !door.isOpen) return false
+
+      // Если дверь открыта - проверяем, кто пытается пройти
+      if (entity) {
+        const player = entity.getComponent(PlayerComponent)
+        return !!player // только игрок может проходить через двери
+      }
+      return false // по умолчанию непроходимы для всех
     }
 
     // Ящики - непроходимы
@@ -326,10 +333,9 @@ export default class Location {
     const selectedBiomeId = biomeType || availableBiomes[Math.floor(Math.random() * availableBiomes.length)]
     const biome = ContentLoader.getBiome(selectedBiomeId)
     const biomeName = biome ? biome.name : 'Зараженная зона'
-    const worldConfig = ContentLoader.getWorldConfig()
     const genConfig = ContentLoader.getBiomeGenerationConfig(selectedBiomeId)
 
-    return { selectedBiomeId, biome, biomeName, worldConfig, genConfig }
+    return { selectedBiomeId, biome, biomeName, genConfig }
   }
 
   static _collectRoomCells(rooms) {
@@ -345,22 +351,38 @@ export default class Location {
   }
 
   static _createEnemies(entities, biome, available, playerStart, biomeId = null) {
-    const enemyPool = biome && biome.enemyPool ? biome.enemyPool : {
-      groaner: { chance: 0.3, countMin: 1, countMax: 2 },
-      crawler: { chance: 0.25, countMin: 1, countMax: 1 },
-      runner: { chance: 0.2, countMin: 1, countMax: 1 }
+    // 1. Если у биома нет enemyPool или он пустой - не размещаем врагов
+    if (!biome || !biome.enemyPool || Object.keys(biome.enemyPool).length === 0) {
+      return []
     }
 
+    const enemyPool = biome.enemyPool
+
+    // 2. Фильтруем свободные клетки (не занятые ящиками, дверьми и лестницами)
+    // и удаляем клетки рядом со стартом игрока (дистанция > 5)
     const freeCells = shuffle(available.filter(c => {
       const [x, y] = c.split(',').map(Number)
       return Math.abs(x - playerStart.x) + Math.abs(y - playerStart.y) > 5
     }))
 
-    const maxEnemies = (biome && biome.enemyMax) || 25
-    const enemyPositions = []
+    // Если нет свободных клеток - возвращаем пустой массив
+    if (freeCells.length === 0) {
+      return []
+    }
 
+    // 3. Максимальное количество врагов из биома строго указано
+    // если нет - то не размещаем врагов
+    const maxEnemies = biome.enemyMax
+    if (!maxEnemies || maxEnemies <= 0) {
+      return []
+    }
+
+    const enemyPositions = []
     const poolEntries = Object.entries(enemyPool)
 
+    // 4. Проходим по пулу врагов и определяем, сколько кого спавнить
+    // если выпадает шанс - то переходим к расчёту количества (случайное число между min и max)
+    // иначе пропускаем
     const enemyCounts = {}
     let totalEnemies = 0
 
@@ -377,16 +399,20 @@ export default class Location {
       }
     }
 
+    // Если ни один тип не выпал - возвращаем пустой массив
     if (totalEnemies === 0) return enemyPositions
 
+    // Ограничиваем общее количество врагов максимальным значением из биома
     const maxAllowed = Math.min(maxEnemies, freeCells.length)
     if (totalEnemies > maxAllowed) {
+      // Если врагов больше чем места - пропорционально уменьшаем
       const ratio = maxAllowed / totalEnemies
       for (const type of Object.keys(enemyCounts)) {
         enemyCounts[type] = Math.max(1, Math.floor(enemyCounts[type] * ratio))
       }
     }
 
+    // Создаем врагов на свободных клетках
     let idx = 0
     for (const [type, count] of Object.entries(enemyCounts)) {
       for (let i = 0; i < count && idx < freeCells.length && enemyPositions.length < maxEnemies; i++) {
@@ -488,6 +514,7 @@ export default class Location {
     }
   }
 
+
   static _placeStairs(location, rooms, playerStart, levelIndex) {
     const walkableCells = []
     for (const room of rooms) {
@@ -505,42 +532,54 @@ export default class Location {
 
     if (walkableCells.length === 0) {
       logger.warn(LOG_MODULES.GENERATION, 'Нет места для лестниц!')
-      return
+      return false
     }
 
+    // Сортируем клетки по удаленности от старта (самые дальние - первые)
     walkableCells.sort((a, b) => {
       const distA = Math.abs(a.x - playerStart.x) + Math.abs(a.y - playerStart.y)
       const distB = Math.abs(b.x - playerStart.x) + Math.abs(b.y - playerStart.y)
       return distB - distA
     })
 
-    const downCell = walkableCells[0]
-    location.createStair(downCell.x, downCell.y, 'down', null, levelIndex + 1)
-    logger.debug(LOG_MODULES.GENERATION, `Лестница вниз на (${downCell.x}, ${downCell.y})`)
+    // ===== ЛЕСТНИЦА ВВЕРХ (на следующий этаж) =====
+    // Всегда есть на каждом этаже
+    const upCell = walkableCells[0]
+    location.createStair(upCell.x, upCell.y, 'up', null, levelIndex + 1)
+    logger.debug(LOG_MODULES.GENERATION,
+      `Лестница ВВЕРХ на (${upCell.x}, ${upCell.y}) -> этаж ${levelIndex + 1}`)
 
+    // ===== ЛЕСТНИЦА ВНИЗ (на предыдущий этаж) =====
+    // Только если это не первый этаж (levelIndex > 0)
     if (levelIndex > 0 && walkableCells.length > 1) {
-      let upCell = null
+      let downCell = null
 
+      // Ищем клетку в другой комнате или дальше от первой лестницы
       for (const cell of walkableCells) {
-        if (cell.x === downCell.x && cell.y === downCell.y) continue
+        if (cell.x === upCell.x && cell.y === upCell.y) continue
 
-        const distToDown = Math.abs(cell.x - downCell.x) + Math.abs(cell.y - downCell.y)
+        const distToUp = Math.abs(cell.x - upCell.x) + Math.abs(cell.y - upCell.y)
 
-        if (cell.room !== downCell.room || distToDown > 5) {
-          upCell = cell
+        // Если клетка в другой комнате или далеко от первой лестницы
+        if (cell.room !== upCell.room || distToUp > 5) {
+          downCell = cell
           break
         }
       }
 
-      if (!upCell) {
-        upCell = walkableCells.find(c => c.x !== downCell.x || c.y !== downCell.y) || walkableCells[1]
+      // Если не нашли - берем любую другую клетку
+      if (!downCell) {
+        downCell = walkableCells.find(c => c.x !== upCell.x || c.y !== upCell.y) || walkableCells[1]
       }
 
-      if (upCell) {
-        location.createStair(upCell.x, upCell.y, 'up', null, levelIndex - 1)
-        logger.debug(LOG_MODULES.GENERATION, `Лестница вверх на (${upCell.x}, ${upCell.y})`)
+      if (downCell) {
+        location.createStair(downCell.x, downCell.y, 'down', null, levelIndex - 1)
+        logger.debug(LOG_MODULES.GENERATION,
+          `Лестница ВНИЗ на (${downCell.x}, ${downCell.y}) -> этаж ${levelIndex - 1}`)
       }
     }
+
+    return true
   }
 
   static findStartInRoom(rooms, isFree, occupiedSet) {
@@ -566,10 +605,28 @@ export default class Location {
   }
 
   static generateProcedural(biomeType = null, levelIndex = 0) {
-    const { selectedBiomeId, biome, biomeName, worldConfig, genConfig } = this._selectBiome(biomeType, levelIndex)
+    let attempts = 0
+    const maxAttempts = 10
 
-    let width = genConfig.width || worldConfig.width || 60
-    let height = genConfig.height || worldConfig.height || 40
+    while (attempts < maxAttempts) {
+      attempts++
+
+      const result = this._generateInternal(biomeType, levelIndex)
+      if (result) return result
+
+      logger.warn(LOG_MODULES.GENERATION,
+        `Попытка ${attempts}/${maxAttempts}: не удалось разместить лестницы, регенерируем...`)
+    }
+
+    logger.error(LOG_MODULES.GENERATION, 'Не удалось сгенерировать уровень с лестницами, создаем аварийный...')
+    return this._generateFallback(levelIndex)
+  }
+
+  static _generateInternal(biomeType, levelIndex) {
+    const { selectedBiomeId, biome, biomeName, genConfig } = this._selectBiome(biomeType, levelIndex)
+
+    let width = genConfig.width || 60
+    let height = genConfig.height || 40
 
     if (genConfig.layout === 'maze') {
       if (width % 2 === 0) width -= 1
@@ -581,12 +638,12 @@ export default class Location {
     const generator = new BiomeGenerator({
       width: width,
       height: height,
-      minRoomSize: genConfig.minRoomSize || worldConfig.minRoomSize || 4,
-      maxRoomSize: genConfig.maxRoomSize || worldConfig.maxRoomSize || 8,
-      maxRooms: genConfig.maxRooms || worldConfig.maxRooms || 20,
-      roomSpacing: genConfig.roomSpacing !== undefined ? genConfig.roomSpacing : (worldConfig.roomSpacing || 1),
-      doorChance: genConfig.doorChance !== undefined ? genConfig.doorChance : (worldConfig.doorChance || 0.5),
-      padding: genConfig.padding !== undefined ? genConfig.padding : (worldConfig.padding || 2),
+      minRoomSize: genConfig.minRoomSize || 4,
+      maxRoomSize: genConfig.maxRoomSize || 8,
+      maxRooms: genConfig.maxRooms || 20,
+      roomSpacing: genConfig.roomSpacing !== undefined ? genConfig.roomSpacing : 1,
+      doorChance: genConfig.doorChance !== undefined ? genConfig.doorChance : 0.5,
+      padding: genConfig.padding !== undefined ? genConfig.padding : 2,
       layout: genConfig.layout || 'rooms',
       columnCount: genConfig.columnCount,
       wallSegmentCount: genConfig.wallSegmentCount,
@@ -641,7 +698,52 @@ export default class Location {
     this._placeItems(location, biome, available, playerStart, enemyPositions, selectedBiomeId)
     this._placeDoors(location, doorData)
     this._setupBaseVisibility(location)
-    this._placeStairs(location, rooms, playerStart, levelIndex)
+
+    const stairResult = this._placeStairs(location, rooms, playerStart, levelIndex)
+
+    if (!stairResult) {
+      return null
+    }
+
+    return location
+  }
+
+  static _generateFallback(levelIndex) {
+    const width = 20
+    const height = 20
+
+    const generator = new BiomeGenerator({
+      width: width,
+      height: height,
+      layout: 'open',
+      padding: 1
+    })
+
+    const result = generator.generate()
+    const { walls, rooms, walkableCells } = result
+
+    const entities = []
+    const playerStart = { x: Math.floor(width / 2), y: Math.floor(height / 2) }
+    const player = EntityFactory.createPlayer(playerStart.x, playerStart.y)
+    entities.push(player)
+
+    const location = new Location(
+      { cols: width, rows: height, rooms: rooms },
+      walls,
+      entities,
+      'Аварийный уровень',
+      walkableCells,
+      null,
+      levelIndex
+    )
+
+    const cx = Math.floor(width / 2)
+    const cy = Math.floor(height / 2)
+
+    location.createStair(cx + 1, cy, 'down', null, levelIndex + 1)
+    if (levelIndex > 0) {
+      location.createStair(cx - 1, cy, 'up', null, levelIndex - 1)
+    }
 
     return location
   }

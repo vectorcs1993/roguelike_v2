@@ -3,6 +3,7 @@
 import System from './System.js'
 import PositionComponent from '../components/PositionComponent.js'
 import HealthComponent from '../components/HealthComponent.js'
+import FatigueComponent from '../components/FatigueComponent.js'
 import AIComponent from '../components/AIComponent.js'
 import CombatComponent from '../components/CombatComponent.js'
 import PlayerComponent from '../components/PlayerComponent.js'
@@ -24,9 +25,11 @@ export default class AISystem extends System {
     const pos = enemy.getComponent(PositionComponent)
     const combat = enemy.getComponent(CombatComponent)
     const health = enemy.getComponent(HealthComponent)
+    const fatigue = enemy.getComponent(FatigueComponent)
 
     if (!ai || !pos || !combat || !health || health.isDead) return false
 
+    // Находим игроков
     const players = this.engine.getLivingEntitiesWithComponents([
       PlayerComponent,
       PositionComponent,
@@ -35,9 +38,12 @@ export default class AISystem extends System {
 
     if (players.length === 0) {
       this.wander(enemy, location)
+      // Добавляем усталость за блуждание
+      if (fatigue) fatigue.add(1)
       return true
     }
 
+    // Находим ближайшего игрока
     let nearestPlayer = null
     let minDist = Infinity
 
@@ -53,23 +59,32 @@ export default class AISystem extends System {
 
     if (!nearestPlayer) {
       this.wander(enemy, location)
+      if (fatigue) fatigue.add(1)
       return true
     }
 
+    // Агрессивное поведение
     if (minDist <= ai.aggressionRange) {
+      // Если враг в радиусе атаки - атакуем
       if (minDist <= combat.attackRange) {
         const combatSystem = this.engine.systems.find(s => s.name === 'CombatSystem')
         if (combatSystem) {
           combatSystem.attackWithLog(enemy, nearestPlayer)
+          // Атака утомляет врага
+          if (fatigue) fatigue.add(2)
           return true
         }
       } else {
         // Двигаемся к игроку
         this.moveToPlayer(enemy, nearestPlayer, location)
+        // Движение утомляет врага
+        if (fatigue) fatigue.add(1)
         return true
       }
     } else {
+      // Случайное блуждание
       this.wander(enemy, location)
+      if (fatigue) fatigue.add(1)
       return true
     }
 

@@ -1,8 +1,4 @@
 // src/engine/components/HungerComponent.js
-//
-// Компонент голода. Хранит текущий и максимальный уровень голода.
-// Голод растёт с каждым ходом; при достижении максимального значения
-// персонаж начинает терять здоровье каждый ход (настраивается в конфиге).
 
 import Component from './Component.js'
 import HealthComponent from './HealthComponent.js'
@@ -13,25 +9,34 @@ export default class HungerComponent extends Component {
     super()
     this.hunger = config.hunger || 0
     this.maxHunger = config.maxHunger || 100
-    this.damagePerTurn = 1
+    this.hungerPerTurn = config.hungerPerTurn || 1  // ← берем из конфига
+    this.damagePerTurn = config.hungerDamagePerTurn || 1
+    this.hungerTimer = 0  // счетчик ходов
   }
 
   increase(amount = 1) {
-    this.hunger = Math.min(this.maxHunger, this.hunger + amount)
+    // Увеличиваем таймер
+    this.hungerTimer += 1
 
-    if (this.hunger >= this.maxHunger) {
-      const health = this.entity?.getComponent(HealthComponent)
-      if (health && health.isAlive) {
-        health.takeDamage(this.damagePerTurn, 'physical')
-        // Вспышка красным при получении урона от голода
-        const render = this.entity?.getComponent(RenderComponent)
-        if (render) {
-          render.flash('#ff0000', 300)
+    // Проверяем, настал ли момент для увеличения голода
+    if (this.hungerTimer >= this.hungerPerTurn) {
+      this.hungerTimer = 0  // сбрасываем таймер
+      this.hunger = Math.min(this.maxHunger, this.hunger + amount)
+
+      if (this.hunger >= this.maxHunger) {
+        const health = this.entity?.getComponent(HealthComponent)
+        if (health && health.isAlive) {
+          health.takeDamage(this.damagePerTurn, 'physical')
+          const render = this.entity?.getComponent(RenderComponent)
+          if (render) {
+            render.flash('#ff0000', 300)
+          }
+          return true  // был нанесен урон от голода
         }
-        return true
       }
+      return true  // голод успешно увеличен
     }
-    return false
+    return false  // не пришло время увеличивать голод
   }
 
   decrease(amount) {
